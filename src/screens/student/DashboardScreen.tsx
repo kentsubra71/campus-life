@@ -1,0 +1,582 @@
+import React, { useEffect, useState } from 'react';
+import { 
+  ScrollView, 
+  RefreshControl, 
+  View, 
+  Text, 
+  StyleSheet,
+  TouchableOpacity 
+} from 'react-native';
+import { useWellnessStore } from '../../stores/wellnessStore';
+import { useRewardsStore } from '../../stores/rewardsStore';
+
+export const DashboardScreen = () => {
+  const { wellness, fetchTodayWellness } = useWellnessStore();
+  const { 
+    activeRewards, 
+    supportMessages, 
+    totalEarned, 
+    monthlyEarned, 
+    level, 
+    experience, 
+    mood,
+    fetchActiveRewards, 
+    fetchSupportMessages,
+    claimReward,
+    updateMood,
+    markMessageRead 
+  } = useRewardsStore();
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      await Promise.all([
+        fetchTodayWellness(),
+        fetchActiveRewards(),
+        fetchSupportMessages(),
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const getLevelTitle = (level: number) => {
+    if (level <= 5) return 'Freshman';
+    if (level <= 10) return 'Sophomore';
+    if (level <= 15) return 'Junior';
+    if (level <= 20) return 'Senior';
+    return 'Graduate';
+  };
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'sleep': return '😴';
+      case 'meals': return '🍽️';
+      case 'exercise': return '💪';
+      case 'wellness': return '🌟';
+      case 'streak': return '🔥';
+      default: return '🎯';
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'automatic': return '#10b981';
+      case 'manual': return '#6366f1';
+      case 'challenge': return '#f59e0b';
+      default: return '#6b7280';
+    }
+  };
+
+  const getMessageIcon = (type: string) => {
+    switch (type) {
+      case 'message': return '💬';
+      case 'voice': return '🎵';
+      case 'care_package': return '🎁';
+      case 'video_call': return '📞';
+      case 'boost': return '💰';
+      default: return '💌';
+    }
+  };
+
+  const formatTimeAgo = (timestamp: Date) => {
+    const now = new Date();
+    const diff = now.getTime() - timestamp.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    return 'Just now';
+  };
+
+  const getMoodEmoji = (mood: string | null) => {
+    switch (mood) {
+      case 'great': return '😊';
+      case 'good': return '🙂';
+      case 'okay': return '😐';
+      case 'struggling': return '😔';
+      default: return '🤔';
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Good morning, Sarah! 👋</Text>
+        <Text style={styles.subtitle}>Your family is thinking of you</Text>
+      </View>
+
+      {/* Family Connection Card */}
+      <View style={styles.connectionCard}>
+        <Text style={styles.connectionTitle}>Family Connection</Text>
+        <View style={styles.connectionStats}>
+          <View style={styles.stat}>
+            <Text style={styles.statNumber}>{supportMessages.filter(m => !m.read).length}</Text>
+            <Text style={styles.statLabel}>New Messages</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statNumber}>${monthlyEarned}</Text>
+            <Text style={styles.statLabel}>This Month</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statNumber}>{getMoodEmoji(mood)}</Text>
+            <Text style={styles.statLabel}>Your Mood</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Support Messages */}
+      {supportMessages.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Family Support</Text>
+          {supportMessages.slice(0, 3).map((message) => (
+            <TouchableOpacity 
+              key={message.id} 
+              style={[styles.messageCard, !message.read && styles.unreadMessage]}
+              onPress={() => markMessageRead(message.id)}
+            >
+              <Text style={styles.messageIcon}>{getMessageIcon(message.type)}</Text>
+              <View style={styles.messageContent}>
+                <Text style={styles.messageText}>{message.content}</Text>
+                <Text style={styles.messageTime}>{formatTimeAgo(message.timestamp)}</Text>
+              </View>
+              {!message.read && <View style={styles.unreadDot} />}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Level & Experience */}
+      <View style={styles.levelCard}>
+        <View style={styles.levelHeader}>
+          <Text style={styles.levelTitle}>{getLevelTitle(level)}</Text>
+          <Text style={styles.levelNumber}>Level {level}</Text>
+        </View>
+        <View style={styles.experienceBar}>
+          <View 
+            style={[
+              styles.experienceFill, 
+              { width: `${((experience % 200) / 200) * 100}%` }
+            ]} 
+          />
+        </View>
+        <Text style={styles.experienceText}>{experience % 200} / 200 XP</Text>
+        <Text style={styles.totalEarned}>Total Support: ${totalEarned}</Text>
+      </View>
+
+      {/* Wellness Score */}
+      <View style={styles.scoreCard}>
+        <Text style={styles.scoreTitle}>Today's Wellness</Text>
+        <Text style={styles.scoreValue}>{wellness.score}</Text>
+        <Text style={styles.scoreMax}>/ 100</Text>
+        <Text style={styles.scoreMessage}>
+          {wellness.score >= 80 ? 'Feeling great!' : 
+           wellness.score >= 60 ? 'Doing well!' : 'Hang in there!'}
+        </Text>
+      </View>
+
+      {/* Tracking Cards */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Your Wellness</Text>
+        
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>😴 Sleep</Text>
+          <Text style={styles.cardValue}>{wellness.sleep} / 8 hours</Text>
+          <Text style={styles.cardStreak}>🔥 {wellness.sleepStreak} day streak</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>🍽️ Meals</Text>
+          <Text style={styles.cardValue}>{wellness.meals} / 3 meals</Text>
+          <Text style={styles.cardStreak}>🔥 {wellness.mealStreak} day streak</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>💪 Exercise</Text>
+          <Text style={styles.cardValue}>{wellness.exercise} / 30 minutes</Text>
+          <Text style={styles.cardStreak}>🔥 {wellness.exerciseStreak} day streak</Text>
+        </View>
+      </View>
+
+      {/* Available Rewards */}
+      {activeRewards.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.rewardsHeader}>
+            <Text style={styles.sectionTitle}>Available Support</Text>
+            <Text style={styles.rewardsTotal}>
+              ${activeRewards.reduce((sum, r) => sum + r.amount, 0)} possible
+            </Text>
+          </View>
+          
+          {activeRewards.map((reward) => (
+            <TouchableOpacity 
+              key={reward.id} 
+              style={styles.rewardCard}
+              onPress={() => claimReward(reward.id)}
+            >
+              <View style={styles.rewardHeader}>
+                <View style={styles.rewardInfo}>
+                  <Text style={styles.rewardIcon}>{getCategoryIcon(reward.category)}</Text>
+                  <View style={styles.rewardText}>
+                    <Text style={styles.rewardTitle}>{reward.title}</Text>
+                    <Text style={styles.rewardDescription}>{reward.description}</Text>
+                  </View>
+                </View>
+                <View style={styles.rewardAmount}>
+                  <Text style={styles.amountText}>${reward.amount}</Text>
+                  <View style={[styles.typeBadge, { backgroundColor: getTypeColor(reward.type) }]}>
+                    <Text style={styles.typeText}>{reward.type}</Text>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.rewardProgress}>
+                <Text style={styles.progressText}>
+                  Progress: {reward.progress}/{reward.maxProgress}
+                </Text>
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressFill, 
+                      { width: `${(reward.progress / reward.maxProgress) * 100}%` }
+                    ]} 
+                  />
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    padding: 20,
+    paddingTop: 40,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  connectionCard: {
+    backgroundColor: 'white',
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  connectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#6366f1',
+    marginBottom: 16,
+  },
+  connectionStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  stat: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  section: {
+    padding: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 12,
+  },
+  messageCard: {
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  unreadMessage: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#6366f1',
+  },
+  messageIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  messageContent: {
+    flex: 1,
+  },
+  messageText: {
+    fontSize: 14,
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  messageTime: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#6366f1',
+  },
+  levelCard: {
+    backgroundColor: 'white',
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  levelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  levelTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#6366f1',
+  },
+  levelNumber: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  experienceBar: {
+    height: 8,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  experienceFill: {
+    height: '100%',
+    backgroundColor: '#6366f1',
+    borderRadius: 4,
+  },
+  experienceText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  totalEarned: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#10b981',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  scoreCard: {
+    backgroundColor: 'white',
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  scoreTitle: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  scoreValue: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#10b981',
+  },
+  scoreMax: {
+    fontSize: 18,
+    color: '#6b7280',
+  },
+  scoreMessage: {
+    fontSize: 16,
+    color: '#6366f1',
+    marginTop: 8,
+    fontWeight: '600',
+  },
+  card: {
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  cardValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginTop: 4,
+  },
+  cardStreak: {
+    fontSize: 12,
+    color: '#f59e0b',
+    marginTop: 4,
+  },
+  rewardsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  rewardsTotal: {
+    fontSize: 14,
+    color: '#6366f1',
+    fontWeight: '600',
+  },
+  rewardCard: {
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  rewardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  rewardInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  rewardIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  rewardText: {
+    flex: 1,
+  },
+  rewardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  rewardDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  rewardAmount: {
+    alignItems: 'flex-end',
+  },
+  amountText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#10b981',
+    marginBottom: 4,
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  typeText: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  rewardProgress: {
+    marginTop: 8,
+  },
+  progressText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 2,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#6366f1',
+    borderRadius: 2,
+  },
+}); 

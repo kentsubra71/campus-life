@@ -66,7 +66,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     {
       id: '1',
       type: 'message',
-      content: 'So proud of your sleep schedule this week! 🌟',
+      content: 'So proud of your sleep schedule this week! Keep it up.',
       from: 'parent',
       timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
       read: false,
@@ -74,7 +74,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     {
       id: '2',
       type: 'care_package',
-      content: 'Care package arriving Thursday! 🎁',
+      content: 'Care package arriving Thursday! Looking forward to it.',
       from: 'parent',
       timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
       read: true,
@@ -82,7 +82,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     {
       id: '3',
       type: 'video_call',
-      content: 'Video call scheduled for Sunday 3pm 📞',
+      content: 'Video call scheduled for Sunday 3pm. Hope to see you!',
       from: 'parent',
       timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
       read: true,
@@ -130,7 +130,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       {
         id: '1',
         type: 'message',
-        content: 'So proud of your sleep schedule this week! 🌟',
+        content: 'So proud of your sleep schedule this week! Keep it up.',
         from: 'parent',
         timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
         read: false,
@@ -138,7 +138,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       {
         id: '2',
         type: 'care_package',
-        content: 'Care package arriving Thursday! 🎁',
+        content: 'Care package arriving Thursday! Looking forward to it.',
         from: 'parent',
         timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
         read: true,
@@ -146,7 +146,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       {
         id: '3',
         type: 'video_call',
-        content: 'Video call scheduled for Sunday 3pm 📞',
+        content: 'Video call scheduled for Sunday 3pm. Hope to see you!',
         from: 'parent',
         timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
         read: true,

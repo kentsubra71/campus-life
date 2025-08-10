@@ -7,6 +7,7 @@ import { ParentNavigator } from './src/navigation/ParentNavigator';
 import { useAuthStore } from './src/stores/authStore';
 import { supabase } from './src/lib/supabase';
 import { View, Text, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
+import FlashMessage from 'react-native-flash-message';
 
 export default function App() {
   const { user, userType, setUser, setUserType } = useAuthStore();
@@ -104,6 +105,12 @@ export default function App() {
           </View>
         )}
       </NavigationContainer>
+      <FlashMessage 
+        position="top"
+        style={{ backgroundColor: '#1f2937' }}
+        titleStyle={{ color: '#f9fafb', fontSize: 16, fontWeight: '600' }}
+        textStyle={{ color: '#9ca3af', fontSize: 14 }}
+      />
     </SafeAreaProvider>
   );
 }

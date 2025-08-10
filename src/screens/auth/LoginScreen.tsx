@@ -5,10 +5,10 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { showMessage } from 'react-native-flash-message';
 import { supabase } from '../../lib/supabase';
 
 interface LoginScreenProps {
@@ -26,7 +26,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showMessage({
+        message: 'Error',
+        description: 'Please fill in all fields',
+        type: 'danger',
+        backgroundColor: '#1f2937',
+        color: '#f9fafb',
+      });
       return;
     }
 
@@ -38,12 +44,24 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       });
 
       if (error) {
-        Alert.alert('Login Error', error.message);
+        showMessage({
+          message: 'Login Error',
+          description: error.message,
+          type: 'danger',
+          backgroundColor: '#1f2937',
+          color: '#f9fafb',
+        });
       } else {
         onLoginSuccess();
       }
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+      showMessage({
+        message: 'Error',
+        description: 'An unexpected error occurred',
+        type: 'danger',
+        backgroundColor: '#1f2937',
+        color: '#f9fafb',
+      });
     } finally {
       setLoading(false);
     }

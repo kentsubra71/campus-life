@@ -5,11 +5,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
+import { showMessage } from 'react-native-flash-message';
 import { supabase } from '../../lib/supabase';
 
 interface RegisterScreenProps {
@@ -29,12 +29,24 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
 
   const handleRegister = async () => {
     if (!fullName || !email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showMessage({
+        message: 'Error',
+        description: 'Please fill in all fields',
+        type: 'danger',
+        backgroundColor: '#1f2937',
+        color: '#f9fafb',
+      });
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      showMessage({
+        message: 'Error',
+        description: 'Password must be at least 6 characters',
+        type: 'danger',
+        backgroundColor: '#1f2937',
+        color: '#f9fafb',
+      });
       return;
     }
 
@@ -52,21 +64,33 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
       });
 
       if (error) {
-        Alert.alert('Registration Error', error.message);
+        showMessage({
+          message: 'Registration Error',
+          description: error.message,
+          type: 'danger',
+          backgroundColor: '#1f2937',
+          color: '#f9fafb',
+        });
       } else {
-        Alert.alert(
-          'Success',
-          'Account created! Please check your email to verify your account.',
-          [
-            {
-              text: 'OK',
-              onPress: onRegisterSuccess,
-            },
-          ]
-        );
+        showMessage({
+          message: 'Success',
+          description: 'Account created! Please check your email to verify your account.',
+          type: 'success',
+          backgroundColor: '#1f2937',
+          color: '#f9fafb',
+        });
+        setTimeout(() => {
+          onRegisterSuccess();
+        }, 2000);
       }
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+      showMessage({
+        message: 'Error',
+        description: 'An unexpected error occurred',
+        type: 'danger',
+        backgroundColor: '#1f2937',
+        color: '#f9fafb',
+      });
     } finally {
       setLoading(false);
     }

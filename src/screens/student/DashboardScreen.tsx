@@ -10,8 +10,12 @@ import {
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
 
-export const DashboardScreen = () => {
-  const { wellness, fetchTodayWellness } = useWellnessStore();
+interface DashboardScreenProps {
+  navigation: any;
+}
+
+export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
+  const { stats, todayEntry, getEntryByDate } = useWellnessStore();
   const { 
     activeRewards, 
     supportMessages, 
@@ -36,7 +40,6 @@ export const DashboardScreen = () => {
   const loadData = async () => {
     try {
       await Promise.all([
-        fetchTodayWellness(),
         fetchActiveRewards(),
         fetchSupportMessages(),
       ]);
@@ -191,36 +194,57 @@ export const DashboardScreen = () => {
       </View>
 
       {/* Wellness Score */}
-      <View style={styles.scoreCard}>
+      <TouchableOpacity 
+        style={styles.scoreCard}
+        onPress={() => navigation.navigate('WellnessLog')}
+      >
         <Text style={styles.scoreTitle}>Today's Wellness</Text>
-        <Text style={styles.scoreValue}>{wellness.score}</Text>
-        <Text style={styles.scoreMax}>/ 100</Text>
-        <Text style={styles.scoreMessage}>
-          {wellness.score >= 80 ? 'Feeling great!' : 
-           wellness.score >= 60 ? 'Doing well!' : 'Hang in there!'}
+        <Text style={styles.scoreValue}>
+          {todayEntry ? Math.round(todayEntry.wellnessScore * 10) / 10 : '--'}
         </Text>
-      </View>
+        <Text style={styles.scoreMax}>/ 10</Text>
+        <Text style={styles.scoreMessage}>
+          {todayEntry ? 
+            (todayEntry.wellnessScore >= 8 ? 'Feeling great!' : 
+             todayEntry.wellnessScore >= 6 ? 'Doing well!' : 'Hang in there!') :
+            'Log your wellness today!'}
+        </Text>
+      </TouchableOpacity>
 
-      {/* Tracking Cards */}
+      {/* Wellness Actions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Your Wellness</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Wellness Tracking</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('WellnessHistory')}>
+            <Text style={styles.viewAllText}>View History</Text>
+          </TouchableOpacity>
+        </View>
         
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>😴 Sleep</Text>
-          <Text style={styles.cardValue}>{wellness.sleep} / 8 hours</Text>
-          <Text style={styles.cardStreak}>🔥 {wellness.sleepStreak} day streak</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.wellnessActionCard}
+          onPress={() => navigation.navigate('WellnessLog')}
+        >
+          <Text style={styles.wellnessActionTitle}>
+            {todayEntry ? '📝 Update Today\'s Log' : '📝 Log Today\'s Wellness'}
+          </Text>
+          <Text style={styles.wellnessActionSubtitle}>
+            {todayEntry ? 'Update your daily wellness entry' : 'Start tracking your daily wellness'}
+          </Text>
+        </TouchableOpacity>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>🍽️ Meals</Text>
-          <Text style={styles.cardValue}>{wellness.meals} / 3 meals</Text>
-          <Text style={styles.cardStreak}>🔥 {wellness.mealStreak} day streak</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>💪 Exercise</Text>
-          <Text style={styles.cardValue}>{wellness.exercise} / 30 minutes</Text>
-          <Text style={styles.cardStreak}>🔥 {wellness.exerciseStreak} day streak</Text>
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{stats.currentStreak}</Text>
+            <Text style={styles.statLabel}>Day Streak</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{stats.averageScore}</Text>
+            <Text style={styles.statLabel}>Avg Score</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{stats.totalEntries}</Text>
+            <Text style={styles.statLabel}>Total Entries</Text>
+          </View>
         </View>
       </View>
 
@@ -578,5 +602,64 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#6366f1',
     borderRadius: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: '#6366f1',
+    fontWeight: '600',
+  },
+  wellnessActionCard: {
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  wellnessActionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  wellnessActionSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statCard: {
+    backgroundColor: 'white',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#6366f1',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
   },
 }); 

@@ -155,40 +155,48 @@ This document tracks all user stories, features, and their implementation status
 
 ## 🔄 Epic 3: Wellness Tracking
 
-### 🔄 **US-009: Daily Wellness Logging**
+### ✅ **US-009: Daily Wellness Logging**
 **As a** student  
 **I want** to log my daily wellness activities  
 **So that** I can track my habits and progress
 
 **Acceptance Criteria:**
-- [ ] Sleep hours input
-- [ ] Meal count tracking
-- [ ] Exercise minutes
-- [ ] Hydration tracking
-- [ ] Study time logging
-- [ ] Mood selection
+- [x] Sleep hours input (0-12 hours)
+- [x] Exercise minutes (0-120 minutes)
+- [x] Nutrition quality (1-10 scale)
+- [x] Water intake (0-12 glasses)
+- [x] Social connection (1-10 scale)
+- [x] Academic progress (1-10 scale)
+- [x] Mood selection (1-10 scale with emoji feedback)
+- [x] Optional notes field
+- [x] Real-time wellness score calculation
+- [x] Edit today's entry if already logged
+- [x] Beautiful, intuitive UI with sliders
 
-**Status:** 🔄 **PLANNED**  
+**Status:** ✅ **COMPLETED**  
 **Priority:** High  
-**Files:** `src/screens/student/LogWellnessScreen.tsx` (placeholder)
+**Files:** `src/screens/wellness/WellnessLogScreen.tsx`, `src/stores/wellnessStore.ts`
 
 ---
 
-### 🔄 **US-010: Wellness History & Trends**
+### ✅ **US-010: Wellness History & Trends**
 **As a** student  
 **I want** to view my wellness history and trends  
 **So that** I can see my progress over time
 
 **Acceptance Criteria:**
-- [ ] Historical data display
-- [ ] Trend charts
-- [ ] Weekly/monthly summaries
-- [ ] Streak tracking
-- [ ] Goal progress
+- [x] Historical data display with detailed entries
+- [x] Weekly/monthly/all-time filtering
+- [x] Wellness statistics overview
+- [x] Current streak tracking
+- [x] Average score calculations
+- [x] Entry details with mood emojis
+- [x] Color-coded wellness scores
+- [x] Empty state with call-to-action
 
-**Status:** 🔄 **PLANNED**  
+**Status:** ✅ **COMPLETED**  
 **Priority:** Medium  
-**Dependencies:** Data persistence
+**Files:** `src/screens/wellness/WellnessHistoryScreen.tsx`
 
 ---
 
@@ -382,7 +390,7 @@ This document tracks all user stories, features, and their implementation status
 
 ## 📊 Development Status Summary
 
-### ✅ **Completed (7 stories)**
+### ✅ **Completed (9 stories)**
 - App foundation and navigation
 - Student dashboard
 - Wellness data management
@@ -390,30 +398,31 @@ This document tracks all user stories, features, and their implementation status
 - Gamification system
 - User registration
 - User login
+- Daily wellness logging
+- Wellness history & trends
 
 ### 🔄 **In Progress (0 stories)**
 - Currently no active development
 
-### 📋 **Planned (13 stories)**
-- Wellness tracking features
+### 📋 **Planned (11 stories)**
 - Parent dashboard
 - Backend integration
 - Advanced features
 
 ### 🎯 **Next Sprint Priorities**
-1. **US-009**: Daily wellness logging
-2. **US-012**: Parent dashboard
-3. **US-008**: User profile management
-4. **US-017**: Data persistence with Supabase (after resolving bundling issues)
+1. **US-012**: Parent dashboard
+2. **US-008**: User profile management
+3. **US-017**: Data persistence with Supabase (after resolving bundling issues)
+4. **US-011**: Wellness goals & targets
 
 ---
 
 ## 📈 Progress Metrics
 
 - **Total Stories:** 20
-- **Completed:** 7 (35%)
+- **Completed:** 9 (45%)
 - **In Progress:** 0 (0%)
-- **Planned:** 13 (65%)
+- **Planned:** 11 (55%)
 - **Blocked:** 0 (0%)
 
 **Estimated Completion:** Q1 2025 (with focused development)

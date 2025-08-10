@@ -1,12 +1,26 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { MaterialIcons } from '@expo/vector-icons';
 import { DashboardScreen } from '../screens/student/DashboardScreen';
 import { LogWellnessScreen } from '../screens/student/LogWellnessScreen';
 import { RewardsScreen } from '../screens/student/RewardsScreen';
 import { ProfileScreen } from '../screens/student/ProfileScreen';
+import WellnessLogScreen from '../screens/wellness/WellnessLogScreen';
+import WellnessHistoryScreen from '../screens/wellness/WellnessHistoryScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+const DashboardStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="DashboardMain" component={DashboardScreen} />
+      <Stack.Screen name="WellnessLog" component={WellnessLogScreen} />
+      <Stack.Screen name="WellnessHistory" component={WellnessHistoryScreen} />
+    </Stack.Navigator>
+  );
+};
 
 export const StudentNavigator = () => {
   return (
@@ -19,7 +33,7 @@ export const StudentNavigator = () => {
     >
       <Tab.Screen
         name="Dashboard"
-        component={DashboardScreen}
+        component={DashboardStack}
         options={{
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="dashboard" color={color} size={24} />

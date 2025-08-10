@@ -67,13 +67,25 @@ const calculateWellnessScore = (entry: Omit<WellnessEntry, 'id' | 'wellnessScore
 export const useWellnessStore = create<WellnessStore>((set, get) => ({
   entries: [],
   stats: {
-    currentStreak: 0,
-    longestStreak: 0,
-    averageScore: 0,
-    totalEntries: 0,
-    weeklyAverage: 0,
+    currentStreak: 7,
+    longestStreak: 14,
+    averageScore: 8.5,
+    totalEntries: 42,
+    weeklyAverage: 8.2,
   },
-  todayEntry: null,
+  todayEntry: {
+    id: 'today-entry',
+    date: new Date().toISOString().split('T')[0],
+    mood: 8,
+    sleep: 7.5,
+    exercise: 45,
+    nutrition: 9,
+    water: 6,
+    social: 7,
+    academic: 8,
+    wellnessScore: 8.3,
+    notes: 'Feeling good today!'
+  },
 
   addEntry: (entryData) => {
     const wellnessScore = calculateWellnessScore(entryData);

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthNavigator } from './src/navigation/AuthNavigator';
 import { StudentNavigator } from './src/navigation/StudentNavigator';
 import { ParentNavigator } from './src/navigation/ParentNavigator';
 import { useAuthStore } from './src/stores/authStore';
 import { supabase } from './src/lib/supabase';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
 
 export default function App() {
   const { user, userType, setUser, setUserType } = useAuthStore();
@@ -67,17 +67,31 @@ export default function App() {
   if (isLoading) {
     return (
       <SafeAreaProvider>
+        <StatusBar barStyle="light-content" backgroundColor="#111827" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3498db" />
+          <ActivityIndicator size="large" color="#6366f1" />
           <Text style={styles.loadingText}>Loading CampusLife...</Text>
         </View>
       </SafeAreaProvider>
     );
   }
 
+  const customDarkTheme = {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: '#6366f1',
+      background: '#111827',
+      card: '#1f2937',
+      text: '#f9fafb',
+      border: '#374151',
+    },
+  };
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <StatusBar barStyle="light-content" backgroundColor="#111827" />
+      <NavigationContainer theme={customDarkTheme}>
         {!user ? (
           <AuthNavigator onLoginSuccess={handleLoginSuccess} />
         ) : userType === 'student' ? (
@@ -86,7 +100,7 @@ export default function App() {
           <ParentNavigator />
         ) : (
           <View style={styles.loadingContainer}>
-            <Text>Loading user profile...</Text>
+            <Text style={styles.loadingText}>Loading user profile...</Text>
           </View>
         )}
       </NavigationContainer>
@@ -99,11 +113,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#111827',
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#7f8c8d',
+    color: '#9ca3af',
   },
 });

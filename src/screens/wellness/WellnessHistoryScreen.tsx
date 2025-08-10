@@ -46,12 +46,12 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
     return '#dc3545';
   };
 
-  const getMoodEmoji = (mood: number) => {
-    if (mood >= 8) return '🤩';
-    if (mood >= 6) return '😊';
-    if (mood >= 4) return '🙂';
-    if (mood >= 2) return '😐';
-    return '😢';
+  const getMoodLevel = (mood: number) => {
+    if (mood >= 8) return 'Excellent';
+    if (mood >= 6) return 'Good';
+    if (mood >= 4) return 'Fair';
+    if (mood >= 2) return 'Poor';
+    return 'Very Poor';
   };
 
   const renderStatsCard = () => (
@@ -122,7 +122,7 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Mood:</Text>
           <Text style={styles.detailValue}>
-            {getMoodEmoji(item.mood)} {item.mood}/10
+            {getMoodLevel(item.mood)} ({item.mood}/10)
           </Text>
         </View>
         <View style={styles.detailRow}>
@@ -193,7 +193,7 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#111827',
   },
   header: {
     flexDirection: 'row',
@@ -201,42 +201,44 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: '#374151',
   },
   backButton: {
     padding: 8,
   },
   backButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: '#6366f1',
     fontWeight: '500',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
   },
   content: {
     flex: 1,
     padding: 20,
   },
   statsContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   statsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
     marginBottom: 15,
   },
   statsGrid: {
@@ -250,24 +252,26 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: '#6366f1',
   },
   statLabel: {
     fontSize: 12,
-    color: '#6c757d',
+    color: '#9ca3af',
     marginTop: 4,
   },
   filterContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     padding: 4,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   filterButton: {
     flex: 1,
@@ -277,26 +281,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterButtonActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366f1',
   },
   filterButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6c757d',
+    color: '#9ca3af',
   },
   filterButtonTextActive: {
     color: '#fff',
   },
   entryCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     padding: 16,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   entryHeader: {
     flexDirection: 'row',
@@ -307,10 +313,10 @@ const styles = StyleSheet.create({
   entryDate: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
   },
   entryScore: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#374151',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 16,
@@ -329,21 +335,21 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#6c757d',
+    color: '#9ca3af',
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: '#f9fafb',
   },
   notesContainer: {
     borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
+    borderTopColor: '#374151',
     paddingTop: 8,
   },
   notesText: {
     fontSize: 14,
-    color: '#6c757d',
+    color: '#9ca3af',
     fontStyle: 'italic',
   },
   emptyContainer: {
@@ -353,18 +359,18 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: '#6c757d',
+    color: '#9ca3af',
     textAlign: 'center',
     marginBottom: 24,
     paddingHorizontal: 20,
   },
   addEntryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366f1',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

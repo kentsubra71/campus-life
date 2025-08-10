@@ -293,6 +293,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={formData.notes}
             onChangeText={(text) => setFormData({ ...formData, notes: text })}
             placeholder="How was your day? Any highlights or challenges?"
+            placeholderTextColor="#9ca3af"
             multiline
             numberOfLines={4}
             textAlignVertical="top"
@@ -321,7 +322,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#111827',
   },
   header: {
     flexDirection: 'row',
@@ -329,25 +330,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: '#374151',
   },
   backButton: {
     padding: 8,
   },
   backButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: '#6366f1',
     fontWeight: '500',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
   },
   saveButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366f1',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -367,19 +368,21 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 16,
-    color: '#6c757d',
+    color: '#9ca3af',
     fontWeight: '500',
   },
   sliderContainer: {
     marginBottom: 30,
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   sliderHeader: {
     flexDirection: 'row',
@@ -390,13 +393,13 @@ const styles = StyleSheet.create({
   sliderLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
     flex: 1,
   },
   sliderValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#007AFF',
+    color: '#6366f1',
   },
   sliderButtonsContainer: {
     flexDirection: 'row',
@@ -406,21 +409,21 @@ const styles = StyleSheet.create({
   sliderButton: {
     width: 32,
     height: 32,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#374151',
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#e9ecef',
+    borderColor: '#4b5563',
   },
   sliderButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
   },
   sliderButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6c757d',
+    color: '#9ca3af',
   },
   sliderButtonTextActive: {
     color: '#fff',
@@ -430,14 +433,14 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#e9ecef',
+    backgroundColor: '#374151',
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 4,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366f1',
     borderRadius: 4,
   },
   progressLabels: {
@@ -446,62 +449,67 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: 12,
-    color: '#6c757d',
+    color: '#9ca3af',
   },
   moodDescription: {
     marginTop: 10,
     fontSize: 14,
-    color: '#6c757d',
+    color: '#9ca3af',
     textAlign: 'center',
   },
   notesContainer: {
     marginBottom: 30,
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   notesLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
     marginBottom: 10,
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: '#4b5563',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     minHeight: 100,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#374151',
+    color: '#f9fafb',
   },
   previewContainer: {
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
     marginBottom: 30,
   },
   previewTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
     marginBottom: 10,
   },
   previewScore: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: '#10b981',
   },
 });
 

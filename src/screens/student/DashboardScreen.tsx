@@ -5,7 +5,7 @@ import {
   View, 
   Text, 
   StyleSheet,
-  TouchableOpacity 
+  TouchableOpacity
 } from 'react-native';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
@@ -35,6 +35,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
   useEffect(() => {
     loadData();
+    
+    // Fallback timeout to ensure loading doesn't get stuck
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 3000);
+    
+    return () => clearTimeout(timeout);
   }, []);
 
   const loadData = async () => {
@@ -43,6 +50,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         fetchActiveRewards(),
         fetchSupportMessages(),
       ]);
+    } catch (error) {
+      console.log('Error loading data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -62,14 +71,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     return 'Graduate';
   };
 
-  const getCategoryIcon = (category: string) => {
+  const getCategoryName = (category: string) => {
     switch (category) {
-      case 'sleep': return '😴';
-      case 'meals': return '🍽️';
-      case 'exercise': return '💪';
-      case 'wellness': return '🌟';
-      case 'streak': return '🔥';
-      default: return '🎯';
+      case 'sleep': return 'Sleep';
+      case 'meals': return 'Nutrition';
+      case 'exercise': return 'Exercise';
+      case 'wellness': return 'Wellness';
+      case 'streak': return 'Streak';
+      default: return 'Goal';
     }
   };
 
@@ -82,14 +91,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     }
   };
 
-  const getMessageIcon = (type: string) => {
+  const getMessageType = (type: string) => {
     switch (type) {
-      case 'message': return '💬';
-      case 'voice': return '🎵';
-      case 'care_package': return '🎁';
-      case 'video_call': return '📞';
-      case 'boost': return '💰';
-      default: return '💌';
+      case 'message': return 'Message';
+      case 'voice': return 'Voice Note';
+      case 'care_package': return 'Care Package';
+      case 'video_call': return 'Video Call';
+      case 'boost': return 'Boost';
+      default: return 'Note';
     }
   };
 
@@ -104,36 +113,39 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     return 'Just now';
   };
 
-  const getMoodEmoji = (mood: string | null) => {
+  const getMoodLevel = (mood: string | null) => {
     switch (mood) {
-      case 'great': return '😊';
-      case 'good': return '🙂';
-      case 'okay': return '😐';
-      case 'struggling': return '😔';
-      default: return '🤔';
+      case 'great': return 'Great';
+      case 'good': return 'Good';
+      case 'okay': return 'Okay';
+      case 'struggling': return 'Struggling';
+      default: return 'Not set';
     }
   };
 
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <Text>Loading...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Good morning, Sarah! 👋</Text>
-        <Text style={styles.subtitle}>Your family is thinking of you</Text>
-      </View>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Good morning, Sarah!</Text>
+            <Text style={styles.subtitle}>Your family is thinking of you</Text>
+          </View>
+        </View>
 
       {/* Family Connection Card */}
       <View style={styles.connectionCard}>
@@ -148,8 +160,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
             <Text style={styles.statLabel}>This Month</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statNumber}>{getMoodEmoji(mood)}</Text>
-            <Text style={styles.statLabel}>Your Mood</Text>
+            <Text style={styles.statNumber}>{getMoodLevel(mood)}</Text>
+            <Text style={styles.statLabel}>Mood Level</Text>
           </View>
         </View>
       </View>
@@ -164,7 +176,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
               style={[styles.messageCard, !message.read && styles.unreadMessage]}
               onPress={() => markMessageRead(message.id)}
             >
-              <Text style={styles.messageIcon}>{getMessageIcon(message.type)}</Text>
+              <View style={styles.messageTypeContainer}>
+                <Text style={styles.messageType}>{getMessageType(message.type)}</Text>
+              </View>
               <View style={styles.messageContent}>
                 <Text style={styles.messageText}>{message.content}</Text>
                 <Text style={styles.messageTime}>{formatTimeAgo(message.timestamp)}</Text>
@@ -198,16 +212,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         style={styles.scoreCard}
         onPress={() => navigation.navigate('WellnessLog')}
       >
-        <Text style={styles.scoreTitle}>Today's Wellness</Text>
-        <Text style={styles.scoreValue}>
-          {todayEntry ? Math.round(todayEntry.wellnessScore * 10) / 10 : '--'}
-        </Text>
-        <Text style={styles.scoreMax}>/ 10</Text>
+        <Text style={styles.scoreTitle}>Today's Wellness Score</Text>
+        <View style={styles.scoreContainer}>
+          <Text style={styles.scoreValue}>
+            {todayEntry ? Math.round(todayEntry.wellnessScore * 10) / 10 : '--'}
+          </Text>
+          <Text style={styles.scoreMax}>/ 10</Text>
+        </View>
         <Text style={styles.scoreMessage}>
           {todayEntry ? 
-            (todayEntry.wellnessScore >= 8 ? 'Feeling great!' : 
-             todayEntry.wellnessScore >= 6 ? 'Doing well!' : 'Hang in there!') :
-            'Log your wellness today!'}
+            (todayEntry.wellnessScore >= 8 ? 'Excellent progress!' : 
+             todayEntry.wellnessScore >= 6 ? 'Good work!' : 'Keep going!') :
+            'Tap to log your wellness today'}
         </Text>
       </TouchableOpacity>
 
@@ -225,7 +241,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           onPress={() => navigation.navigate('WellnessLog')}
         >
           <Text style={styles.wellnessActionTitle}>
-            {todayEntry ? '📝 Update Today\'s Log' : '📝 Log Today\'s Wellness'}
+            {todayEntry ? 'Update Today\'s Log' : 'Log Today\'s Wellness'}
           </Text>
           <Text style={styles.wellnessActionSubtitle}>
             {todayEntry ? 'Update your daily wellness entry' : 'Start tracking your daily wellness'}
@@ -253,9 +269,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         <View style={styles.section}>
           <View style={styles.rewardsHeader}>
             <Text style={styles.sectionTitle}>Available Support</Text>
-            <Text style={styles.rewardsTotal}>
-              ${activeRewards.reduce((sum, r) => sum + r.amount, 0)} possible
-            </Text>
+            <View style={styles.rewardsTotalContainer}>
+              <Text style={styles.rewardsTotal}>
+                ${activeRewards.reduce((sum, r) => sum + r.amount, 0)}
+              </Text>
+              <Text style={styles.rewardsTotalLabel}>available</Text>
+            </View>
           </View>
           
           {activeRewards.map((reward) => (
@@ -266,7 +285,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
             >
               <View style={styles.rewardHeader}>
                 <View style={styles.rewardInfo}>
-                  <Text style={styles.rewardIcon}>{getCategoryIcon(reward.category)}</Text>
+                  <View style={styles.rewardCategoryContainer}>
+                    <Text style={styles.rewardCategory}>{getCategoryName(reward.category)}</Text>
+                  </View>
                   <View style={styles.rewardText}>
                     <Text style={styles.rewardTitle}>{reward.title}</Text>
                     <Text style={styles.rewardDescription}>{reward.description}</Text>
@@ -296,50 +317,62 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           ))}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#111827',
+  },
+  scrollContainer: {
+    flex: 1,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#111827',
+  },
+  loadingText: {
+    color: '#f9fafb',
+    fontSize: 16,
   },
   header: {
-    padding: 20,
-    paddingTop: 40,
+    padding: 24,
+    paddingTop: 60,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#f9fafb',
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
-    marginTop: 4,
+    color: '#9ca3af',
+    marginTop: 6,
   },
   connectionCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#1f2937',
     margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   connectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#6366f1',
-    marginBottom: 16,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#f9fafb',
+    marginBottom: 20,
   },
   connectionStats: {
     flexDirection: 'row',
@@ -349,56 +382,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#f9fafb',
   },
   statLabel: {
     fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
+    color: '#9ca3af',
+    marginTop: 6,
+    fontWeight: '500',
   },
   section: {
     padding: 20,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 12,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#f9fafb',
+    marginBottom: 16,
   },
   messageCard: {
-    backgroundColor: 'white',
-    padding: 16,
+    backgroundColor: '#1f2937',
+    padding: 18,
     borderRadius: 12,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   unreadMessage: {
     borderLeftWidth: 4,
     borderLeftColor: '#6366f1',
   },
-  messageIcon: {
-    fontSize: 24,
+  messageTypeContainer: {
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     marginRight: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  messageType: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'white',
+    textTransform: 'uppercase',
   },
   messageContent: {
     flex: 1,
   },
   messageText: {
     fontSize: 14,
-    color: '#1f2937',
+    color: '#f9fafb',
     marginBottom: 4,
+    fontWeight: '500',
   },
   messageTime: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   unreadDot: {
     width: 8,
@@ -407,15 +455,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#6366f1',
   },
   levelCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#1f2937',
     margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   levelHeader: {
     flexDirection: 'row',
@@ -424,14 +474,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   levelTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#6366f1',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#f9fafb',
   },
   levelNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   experienceBar: {
     height: 8,
@@ -446,68 +496,82 @@ const styles = StyleSheet.create({
   },
   experienceText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
+    fontWeight: '500',
   },
   totalEarned: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#10b981',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#4ade80',
     textAlign: 'center',
     marginTop: 8,
+    letterSpacing: 0.5,
   },
   scoreCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#1f2937',
     margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    padding: 24,
+    borderRadius: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   scoreTitle: {
     fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 8,
+    color: '#9ca3af',
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  scoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
   },
   scoreValue: {
     fontSize: 48,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: '#10b981',
   },
   scoreMax: {
-    fontSize: 18,
-    color: '#6b7280',
+    fontSize: 20,
+    color: '#9ca3af',
+    fontWeight: '500',
+    marginLeft: 4,
   },
   scoreMessage: {
     fontSize: 16,
     color: '#6366f1',
-    marginTop: 8,
+    marginTop: 12,
     fontWeight: '600',
   },
   card: {
-    backgroundColor: 'white',
+    backgroundColor: '#1f2937',
     padding: 16,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   cardValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#f9fafb',
     marginTop: 4,
   },
   cardStreak: {
@@ -521,21 +585,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  rewardsTotalContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
   rewardsTotal: {
-    fontSize: 14,
-    color: '#6366f1',
-    fontWeight: '600',
+    fontSize: 16,
+    color: '#10b981',
+    fontWeight: '700',
+  },
+  rewardsTotalLabel: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginLeft: 4,
+    fontWeight: '500',
   },
   rewardCard: {
-    backgroundColor: 'white',
-    padding: 16,
+    backgroundColor: '#1f2937',
+    padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   rewardHeader: {
     flexDirection: 'row',
@@ -548,9 +624,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  rewardIcon: {
-    fontSize: 24,
+  rewardCategoryContainer: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     marginRight: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  rewardCategory: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'white',
+    textTransform: 'uppercase',
   },
   rewardText: {
     flex: 1,
@@ -615,51 +702,57 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   wellnessActionCard: {
-    backgroundColor: 'white',
-    padding: 16,
+    backgroundColor: '#1f2937',
+    padding: 20,
     borderRadius: 12,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   wellnessActionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
+    fontWeight: '700',
+    color: '#f9fafb',
+    marginBottom: 6,
   },
   wellnessActionSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#9ca3af',
+    fontWeight: '500',
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   statCard: {
-    backgroundColor: 'white',
-    padding: 12,
+    backgroundColor: '#1f2937',
+    padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   statNumber: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#6366f1',
   },
   statLabel: {
     fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
+    color: '#9ca3af',
+    marginTop: 4,
+    fontWeight: '500',
   },
 }); 

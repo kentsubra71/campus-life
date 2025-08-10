@@ -86,6 +86,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
             <TextInput
               style={styles.input}
               placeholder="Full Name"
+              placeholderTextColor="#9ca3af"
               value={fullName}
               onChangeText={setFullName}
               autoCapitalize="words"
@@ -94,6 +95,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
             <TextInput
               style={styles.input}
               placeholder="Email"
+              placeholderTextColor="#9ca3af"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -104,6 +106,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
             <TextInput
               style={styles.input}
               placeholder="Password (min 6 characters)"
+              placeholderTextColor="#9ca3af"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -175,7 +178,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#111827',
   },
   scrollContent: {
     flexGrow: 1,
@@ -183,18 +186,18 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: 24,
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontWeight: '800',
+    color: '#f9fafb',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: '#7f8c8d',
+    color: '#9ca3af',
     textAlign: 'center',
     marginBottom: 40,
   },
@@ -202,68 +205,69 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: 'white',
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginBottom: 15,
+    backgroundColor: '#1f2937',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginBottom: 16,
     fontSize: 16,
+    color: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#e1e8ed',
+    borderColor: '#374151',
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2c3e50',
-    marginBottom: 10,
+    color: '#f9fafb',
+    marginBottom: 12,
   },
   userTypeContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
-    gap: 10,
+    marginBottom: 24,
+    gap: 12,
   },
   userTypeButton: {
     flex: 1,
-    paddingVertical: 15,
+    paddingVertical: 16,
     paddingHorizontal: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#e1e8ed',
-    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#1f2937',
     alignItems: 'center',
   },
   userTypeButtonActive: {
-    borderColor: '#3498db',
-    backgroundColor: '#3498db',
+    borderColor: '#6366f1',
+    backgroundColor: '#6366f1',
   },
   userTypeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#7f8c8d',
+    color: '#9ca3af',
   },
   userTypeTextActive: {
     color: 'white',
   },
   button: {
-    backgroundColor: '#3498db',
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginBottom: 20,
+    backgroundColor: '#6366f1',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginBottom: 24,
   },
   buttonDisabled: {
-    backgroundColor: '#bdc3c7',
+    backgroundColor: '#4b5563',
   },
   buttonText: {
     color: 'white',
     textAlign: 'center',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
   linkButton: {
     alignItems: 'center',
   },
   linkText: {
-    color: '#3498db',
+    color: '#9ca3af',
     fontSize: 16,
   },
 }); 

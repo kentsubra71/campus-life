@@ -1,69 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthNavigator } from './src/navigation/AuthNavigator';
+import { createStackNavigator } from '@react-navigation/stack';
 import { StudentNavigator } from './src/navigation/StudentNavigator';
 import { ParentNavigator } from './src/navigation/ParentNavigator';
 import { useAuthStore } from './src/stores/authStore';
-import { supabase } from './src/lib/supabase';
 import { View, Text, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
-import FlashMessage from 'react-native-flash-message';
+
+// Auth screens
+import { RoleSelectionScreen } from './src/screens/auth/RoleSelectionScreen';
+import { ParentRegisterScreen } from './src/screens/auth/ParentRegisterScreen';
+import { StudentRegisterScreen } from './src/screens/auth/StudentRegisterScreen';
+import { LoginScreen } from './src/screens/auth/LoginScreen';
+
+const Stack = createStackNavigator();
 
 export default function App() {
-  const { user, userType, setUser, setUserType } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setUser(session.user);
-        // Get user type from profile
-        fetchUserProfile(session.user.id);
-      }
-      setIsLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (session) {
-          setUser(session.user);
-          await fetchUserProfile(session.user.id);
-        } else {
-          setUser(null);
-          setUserType(null);
-        }
-        setIsLoading(false);
-      }
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_type')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching user profile:', error);
-      } else if (data) {
-        setUserType(data.user_type);
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-    }
-  };
-
-  const handleLoginSuccess = () => {
-    // Auth state will be updated by the listener
-  };
+  const { isAuthenticated, user, isLoading } = useAuthStore();
 
   if (isLoading) {
     return (
@@ -89,15 +42,24 @@ export default function App() {
     },
   };
 
+  const AuthStack = () => (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="ParentRegister" component={ParentRegisterScreen} />
+      <Stack.Screen name="StudentRegister" component={StudentRegisterScreen} />
+    </Stack.Navigator>
+  );
+
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" backgroundColor="#111827" />
       <NavigationContainer theme={customDarkTheme}>
-        {!user ? (
-          <AuthNavigator onLoginSuccess={handleLoginSuccess} />
-        ) : userType === 'student' ? (
+        {!isAuthenticated ? (
+          <AuthStack />
+        ) : user?.role === 'student' ? (
           <StudentNavigator />
-        ) : userType === 'parent' ? (
+        ) : user?.role === 'parent' ? (
           <ParentNavigator />
         ) : (
           <View style={styles.loadingContainer}>
@@ -105,12 +67,6 @@ export default function App() {
           </View>
         )}
       </NavigationContainer>
-      <FlashMessage 
-        position="top"
-        style={{ backgroundColor: '#1f2937' }}
-        titleStyle={{ color: '#f9fafb', fontSize: 16, fontWeight: '600' }}
-        textStyle={{ color: '#9ca3af', fontSize: 14 }}
-      />
     </SafeAreaProvider>
   );
 }

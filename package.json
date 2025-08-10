@@ -15,6 +15,7 @@
     "@react-navigation/native": "^6.1.7",
     "@react-navigation/stack": "^6.3.17",
     "expo": "~53.0.20",
+    "expo-clipboard": "^7.1.5",
     "expo-linear-gradient": "^14.1.5",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",

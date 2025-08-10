@@ -35,6 +35,7 @@ interface WellnessStore {
   calculateStats: () => WellnessStats;
   getWeeklyEntries: () => WellnessEntry[];
   getMonthlyEntries: () => WellnessEntry[];
+  loadEntries: () => Promise<void>;
 }
 
 const calculateWellnessScore = (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>): number => {
@@ -67,25 +68,13 @@ const calculateWellnessScore = (entry: Omit<WellnessEntry, 'id' | 'wellnessScore
 export const useWellnessStore = create<WellnessStore>((set, get) => ({
   entries: [],
   stats: {
-    currentStreak: 7,
-    longestStreak: 14,
-    averageScore: 8.5,
-    totalEntries: 42,
-    weeklyAverage: 8.2,
+    currentStreak: 0,
+    longestStreak: 0,
+    averageScore: 0,
+    totalEntries: 0,
+    weeklyAverage: 0,
   },
-  todayEntry: {
-    id: 'today-entry',
-    date: new Date().toISOString().split('T')[0],
-    mood: 8,
-    sleep: 7.5,
-    exercise: 45,
-    nutrition: 9,
-    water: 6,
-    social: 7,
-    academic: 8,
-    wellnessScore: 8.3,
-    notes: 'Feeling good today!'
-  },
+  todayEntry: null,
 
   addEntry: (entryData) => {
     const wellnessScore = calculateWellnessScore(entryData);
@@ -210,5 +199,14 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
     return entries.filter(entry => new Date(entry.date) >= monthAgo);
+  },
+
+  loadEntries: async () => {
+    // This would typically load from storage or API
+    // For now, just ensure stats are calculated based on current entries
+    const stats = get().calculateStats();
+    const today = new Date().toISOString().split('T')[0];
+    const todayEntry = get().entries.find(entry => entry.date === today) || null;
+    set({ stats, todayEntry });
   },
 })); 

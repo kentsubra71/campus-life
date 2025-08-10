@@ -9,6 +9,7 @@ import {
   Alert
 } from 'react-native';
 import { useRewardsStore } from '../../stores/rewardsStore';
+import { useAuthStore } from '../../stores/authStore';
 
 interface SendSupportScreenProps {
   navigation: any;
@@ -21,10 +22,20 @@ interface SendSupportScreenProps {
 
 export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation, route }) => {
   const { monthlyEarned } = useRewardsStore();
+  const { getFamilyMembers } = useAuthStore();
   const preselectedType = route?.params?.preselectedType || 'message';
   const [selectedType, setSelectedType] = useState<'message' | 'voice' | 'care_package' | 'video_call' | 'boost'>(preselectedType);
   const [customMessage, setCustomMessage] = useState('');
   const [boostAmount, setBoostAmount] = useState(5);
+  const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
+
+  React.useEffect(() => {
+    const loadFamilyData = async () => {
+      const members = await getFamilyMembers();
+      setFamilyMembers(members);
+    };
+    loadFamilyData();
+  }, []);
 
   const supportTemplates = {
     message: [
@@ -81,9 +92,11 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
     const message = customMessage || supportTemplates[selectedType][0];
     
+    const studentName = familyMembers.students[0]?.name || 'your student';
     Alert.alert(
       'Support Sent! 💙',
-      `Your ${selectedType === 'boost' ? `$${boostAmount} care boost` : selectedType.replace('_', ' ')} has been sent to Sarah.\n\n"${message}"`,
+      `Your ${selectedType === 'boost' ? `$${boostAmount} care boost` : selectedType.replace('_', ' ')} has been sent to ${studentName}.\n\n"${message}"`,
+
       [
         { text: 'Send Another', onPress: () => {
           setCustomMessage('');
@@ -103,9 +116,9 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Send Support to Sarah</Text>
+          <Text style={styles.title}>Send Support to {familyMembers.students[0]?.name || 'Student'}</Text>
           {route?.params?.preselectedType ? (
-            <Text style={styles.subtitle}>💙 Responding to her support request</Text>
+            <Text style={styles.subtitle}>💙 Responding to their support request</Text>
           ) : (
             <Text style={styles.subtitle}>Choose how to show you care</Text>
           )}
@@ -114,10 +127,10 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
         {/* Support Request Context */}
         {route?.params?.preselectedType && (
           <View style={styles.contextCard}>
-            <Text style={styles.contextTitle}>💙 Sarah requested support</Text>
+            <Text style={styles.contextTitle}>💙 {familyMembers.students[0]?.name || 'Student'} requested support</Text>
             <Text style={styles.contextText}>
-              She's letting you know she could use some extra care right now. 
-              Choose the best way to support her below.
+              They're letting you know they could use some extra care right now. 
+              Choose the best way to support them below.
             </Text>
           </View>
         )}

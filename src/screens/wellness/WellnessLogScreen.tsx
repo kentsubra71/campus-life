@@ -10,12 +10,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Theme } from '../../constants/themes';
 
 interface WellnessLogScreenProps {
   navigation: any;
 }
 
 const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => {
+  const { theme } = useTheme();
   const { addEntry, updateEntry, getEntryByDate, todayEntry } = useWellnessStore();
   const [formData, setFormData] = useState({
     mood: 5,
@@ -76,6 +79,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     unit: string,
     onValueChange: (value: number) => void
   ) => {
+    const styles = createStyles(theme);
     const handleValueChange = (newValue: number) => {
       console.log(`${label}: ${value} -> ${newValue}`);
       onValueChange(newValue);
@@ -130,6 +134,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   };
 
   const renderMoodSlider = () => {
+    const styles = createStyles(theme);
     const handleMoodChange = (newMood: number) => {
       console.log(`Mood: ${formData.mood} -> ${newMood}`);
       setFormData({ ...formData, mood: newMood });
@@ -198,6 +203,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     );
   };
 
+  const styles = createStyles(theme);
+  
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -318,10 +325,10 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -329,25 +336,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: theme.colors.border,
   },
   backButton: {
     padding: 8,
   },
   backButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontWeight: '500',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: theme.colors.text,
   },
   saveButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -367,15 +374,15 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 16,
-    color: '#6c757d',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   sliderContainer: {
     marginBottom: 30,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     padding: 20,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -390,13 +397,13 @@ const styles = StyleSheet.create({
   sliderLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: theme.colors.text,
     flex: 1,
   },
   sliderValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#007AFF',
+    color: theme.colors.primary,
   },
   sliderButtonsContainer: {
     flexDirection: 'row',
@@ -406,21 +413,21 @@ const styles = StyleSheet.create({
   sliderButton: {
     width: 32,
     height: 32,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.background,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#e9ecef',
+    borderColor: theme.colors.border,
   },
   sliderButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   sliderButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6c757d',
+    color: theme.colors.textSecondary,
   },
   sliderButtonTextActive: {
     color: '#fff',
@@ -430,14 +437,14 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#e9ecef',
+    backgroundColor: theme.colors.border,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 4,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
     borderRadius: 4,
   },
   progressLabels: {
@@ -446,20 +453,20 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: 12,
-    color: '#6c757d',
+    color: theme.colors.textSecondary,
   },
   moodDescription: {
     marginTop: 10,
     fontSize: 14,
-    color: '#6c757d',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   notesContainer: {
     marginBottom: 30,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     padding: 20,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -468,24 +475,25 @@ const styles = StyleSheet.create({
   notesLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: theme.colors.text,
     marginBottom: 10,
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     minHeight: 100,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.background,
+    color: theme.colors.text,
   },
   previewContainer: {
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     padding: 20,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -495,13 +503,13 @@ const styles = StyleSheet.create({
   previewTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: theme.colors.text,
     marginBottom: 10,
   },
   previewScore: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: theme.colors.primary,
   },
 });
 

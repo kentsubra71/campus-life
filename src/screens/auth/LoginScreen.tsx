@@ -10,6 +10,8 @@ import {
   Platform,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Theme } from '../../constants/themes';
 
 interface LoginScreenProps {
   onNavigateToRegister: () => void;
@@ -20,9 +22,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onNavigateToRegister,
   onLoginSuccess,
 }) => {
+  const { theme } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  const styles = createStyles(theme);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -102,10 +107,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
@@ -115,13 +120,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#2c3e50',
+    color: theme.colors.text,
     textAlign: 'center',
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#7f8c8d',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     marginBottom: 40,
   },
@@ -129,23 +134,24 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     paddingHorizontal: 15,
     paddingVertical: 15,
     borderRadius: 10,
     marginBottom: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e1e8ed',
+    borderColor: theme.colors.border,
+    color: theme.colors.text,
   },
   button: {
-    backgroundColor: '#3498db',
+    backgroundColor: theme.colors.primary,
     paddingVertical: 15,
     borderRadius: 10,
     marginBottom: 20,
   },
   buttonDisabled: {
-    backgroundColor: '#bdc3c7',
+    backgroundColor: theme.colors.textSecondary,
   },
   buttonText: {
     color: 'white',
@@ -157,7 +163,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: {
-    color: '#3498db',
+    color: theme.colors.primary,
     fontSize: 16,
   },
 }); 

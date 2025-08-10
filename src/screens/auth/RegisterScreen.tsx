@@ -11,6 +11,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Theme } from '../../constants/themes';
 
 interface RegisterScreenProps {
   onNavigateToLogin: () => void;
@@ -21,11 +23,14 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   onNavigateToLogin,
   onRegisterSuccess,
 }) => {
+  const { theme } = useTheme();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [userType, setUserType] = useState<'student' | 'parent'>('student');
   const [loading, setLoading] = useState(false);
+  
+  const styles = createStyles(theme);
 
   const handleRegister = async () => {
     if (!fullName || !email || !password) {
@@ -172,10 +177,10 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -188,13 +193,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#2c3e50',
+    color: theme.colors.text,
     textAlign: 'center',
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#7f8c8d',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     marginBottom: 40,
   },
@@ -202,19 +207,20 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     paddingHorizontal: 15,
     paddingVertical: 15,
     borderRadius: 10,
     marginBottom: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e1e8ed',
+    borderColor: theme.colors.border,
+    color: theme.colors.text,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2c3e50',
+    color: theme.colors.text,
     marginBottom: 10,
   },
   userTypeContainer: {
@@ -228,30 +234,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#e1e8ed',
-    backgroundColor: 'white',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
     alignItems: 'center',
   },
   userTypeButtonActive: {
-    borderColor: '#3498db',
-    backgroundColor: '#3498db',
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary,
   },
   userTypeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#7f8c8d',
+    color: theme.colors.textSecondary,
   },
   userTypeTextActive: {
     color: 'white',
   },
   button: {
-    backgroundColor: '#3498db',
+    backgroundColor: theme.colors.primary,
     paddingVertical: 15,
     borderRadius: 10,
     marginBottom: 20,
   },
   buttonDisabled: {
-    backgroundColor: '#bdc3c7',
+    backgroundColor: theme.colors.textSecondary,
   },
   buttonText: {
     color: 'white',
@@ -263,7 +269,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: {
-    color: '#3498db',
+    color: theme.colors.primary,
     fontSize: 16,
   },
 }); 

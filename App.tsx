@@ -7,14 +7,17 @@ import { ParentNavigator } from './src/navigation/ParentNavigator';
 import { useAuthStore } from './src/stores/authStore';
 import { supabase } from './src/lib/supabase';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { Theme, darkTheme } from './src/constants/themes';
 
-export default function App() {
+const AppContent = () => {
   const { user, userType, setUser, setUserType } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
+  const { theme } = useTheme();
 
   useEffect(() => {
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
       if (session) {
         setUser(session.user);
         // Get user type from profile
@@ -25,13 +28,13 @@ export default function App() {
 
     // Listen for auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (_event: any, session: any) => {
         if (session) {
           setUser(session.user);
           await fetchUserProfile(session.user.id);
         } else {
           setUser(null);
-          setUserType(null);
+          setUserType(null as any);
         }
         setIsLoading(false);
       }
@@ -64,20 +67,34 @@ export default function App() {
     // Auth state will be updated by the listener
   };
 
+  const styles = createStyles(theme);
+
   if (isLoading) {
     return (
       <SafeAreaProvider>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3498db" />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Loading CampusLife...</Text>
         </View>
       </SafeAreaProvider>
     );
   }
 
+  const navigationTheme = {
+    dark: theme === darkTheme,
+    colors: {
+      primary: theme.colors.primary,
+      background: theme.colors.background,
+      card: theme.colors.card,
+      text: theme.colors.text,
+      border: theme.colors.border,
+      notification: theme.colors.primary,
+    },
+  };
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <NavigationContainer theme={navigationTheme}>
         {!user ? (
           <AuthNavigator onLoginSuccess={handleLoginSuccess} />
         ) : userType === 'student' ? (
@@ -86,24 +103,32 @@ export default function App() {
           <ParentNavigator />
         ) : (
           <View style={styles.loadingContainer}>
-            <Text>Loading user profile...</Text>
+            <Text style={styles.loadingText}>Loading user profile...</Text>
           </View>
         )}
       </NavigationContainer>
     </SafeAreaProvider>
   );
+};
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#7f8c8d',
+    color: theme.colors.textSecondary,
   },
 });

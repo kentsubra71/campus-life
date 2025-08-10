@@ -9,12 +9,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Theme } from '../../constants/themes';
 
 interface WellnessHistoryScreenProps {
   navigation: any;
 }
 
 const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigation }) => {
+  const { theme } = useTheme();
   const { entries, stats, getWeeklyEntries, getMonthlyEntries } = useWellnessStore();
   const [timeFilter, setTimeFilter] = useState<'week' | 'month' | 'all'>('week');
 
@@ -54,9 +57,11 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
     return '😢';
   };
 
-  const renderStatsCard = () => (
-    <View style={styles.statsContainer}>
-      <Text style={styles.statsTitle}>Your Wellness Stats</Text>
+  const renderStatsCard = () => {
+    const styles = createStyles(theme);
+    return (
+      <View style={styles.statsContainer}>
+        <Text style={styles.statsTitle}>Your Wellness Stats</Text>
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{stats.currentStreak}</Text>
@@ -74,13 +79,16 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
           <Text style={styles.statValue}>{stats.weeklyAverage}</Text>
           <Text style={styles.statLabel}>Weekly Avg</Text>
         </View>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
-  const renderTimeFilter = () => (
-    <View style={styles.filterContainer}>
-      <TouchableOpacity
+  const renderTimeFilter = () => {
+    const styles = createStyles(theme);
+    return (
+      <View style={styles.filterContainer}>
+        <TouchableOpacity
         style={[styles.filterButton, timeFilter === 'week' && styles.filterButtonActive]}
         onPress={() => setTimeFilter('week')}
       >
@@ -103,13 +111,16 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
         <Text style={[styles.filterButtonText, timeFilter === 'all' && styles.filterButtonTextActive]}>
           All Time
         </Text>
-      </TouchableOpacity>
-    </View>
-  );
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
-  const renderEntryItem = ({ item }: { item: WellnessEntry }) => (
-    <View style={styles.entryCard}>
-      <View style={styles.entryHeader}>
+  const renderEntryItem = ({ item }: { item: WellnessEntry }) => {
+    const styles = createStyles(theme);
+    return (
+      <View style={styles.entryCard}>
+        <View style={styles.entryHeader}>
         <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
         <View style={styles.entryScore}>
           <Text style={[styles.scoreText, { color: getScoreColor(item.wellnessScore) }]}>
@@ -142,13 +153,16 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
       {item.notes && (
         <View style={styles.notesContainer}>
           <Text style={styles.notesText}>{item.notes}</Text>
-        </View>
-      )}
-    </View>
-  );
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const filteredEntries = getFilteredEntries();
 
+  const styles = createStyles(theme);
+  
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -190,10 +204,10 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -201,33 +215,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: theme.colors.border,
   },
   backButton: {
     padding: 8,
   },
   backButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: theme.colors.primary,
     fontWeight: '500',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: theme.colors.text,
   },
   content: {
     flex: 1,
     padding: 20,
   },
   statsContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     padding: 20,
     borderRadius: 12,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -236,7 +250,7 @@ const styles = StyleSheet.create({
   statsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: theme.colors.text,
     marginBottom: 15,
   },
   statsGrid: {
@@ -250,20 +264,20 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: theme.colors.primary,
   },
   statLabel: {
     fontSize: 12,
-    color: '#6c757d',
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   filterContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     borderRadius: 12,
     padding: 4,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -277,22 +291,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterButtonActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
   },
   filterButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6c757d',
+    color: theme.colors.textSecondary,
   },
   filterButtonTextActive: {
     color: '#fff',
   },
   entryCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -307,10 +321,10 @@ const styles = StyleSheet.create({
   entryDate: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: theme.colors.text,
   },
   entryScore: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.colors.background,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 16,
@@ -329,21 +343,21 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#6c757d',
+    color: theme.colors.textSecondary,
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: theme.colors.text,
   },
   notesContainer: {
     borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
+    borderTopColor: theme.colors.border,
     paddingTop: 8,
   },
   notesText: {
     fontSize: 14,
-    color: '#6c757d',
+    color: theme.colors.textSecondary,
     fontStyle: 'italic',
   },
   emptyContainer: {
@@ -353,18 +367,18 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: theme.colors.text,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: '#6c757d',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
     paddingHorizontal: 20,
   },
   addEntryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

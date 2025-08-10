@@ -8,6 +8,7 @@ import { RewardsScreen } from '../screens/student/RewardsScreen';
 import { ProfileScreen } from '../screens/student/ProfileScreen';
 import WellnessLogScreen from '../screens/wellness/WellnessLogScreen';
 import WellnessHistoryScreen from '../screens/wellness/WellnessHistoryScreen';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -23,11 +24,17 @@ const DashboardStack = () => {
 };
 
 export const StudentNavigator = () => {
+  const { theme } = useTheme();
+  
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#6366f1',
-        tabBarInactiveTintColor: '#9ca3af',
+        tabBarActiveTintColor: theme.colors.tabBarActive,
+        tabBarInactiveTintColor: theme.colors.tabBarInactive,
+        tabBarStyle: {
+          backgroundColor: theme.colors.card,
+          borderTopColor: theme.colors.border,
+        },
         headerShown: false,
       }}
     >

@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Theme } from '../../constants/themes';
 
 interface DashboardScreenProps {
   navigation: any;
@@ -30,6 +32,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     updateMood,
     markMessageRead 
   } = useRewardsStore();
+  const { theme } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -114,10 +117,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     }
   };
 
+  const styles = createStyles(theme);
+
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <Text>Loading...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
@@ -300,15 +305,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  loadingText: {
+    color: theme.colors.textSecondary,
   },
   header: {
     padding: 20,
@@ -317,19 +326,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: theme.colors.text,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   connectionCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     margin: 20,
     padding: 20,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -338,7 +347,7 @@ const styles = StyleSheet.create({
   connectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#6366f1',
+    color: theme.colors.primary,
     marginBottom: 16,
   },
   connectionStats: {
@@ -351,11 +360,11 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: theme.colors.text,
   },
   statLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   section: {
@@ -364,17 +373,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: theme.colors.text,
     marginBottom: 12,
   },
   messageCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -382,7 +391,7 @@ const styles = StyleSheet.create({
   },
   unreadMessage: {
     borderLeftWidth: 4,
-    borderLeftColor: '#6366f1',
+    borderLeftColor: theme.colors.primary,
   },
   messageIcon: {
     fontSize: 24,
@@ -393,25 +402,25 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 14,
-    color: '#1f2937',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   messageTime: {
     fontSize: 12,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#6366f1',
+    backgroundColor: theme.colors.primary,
   },
   levelCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     margin: 20,
     padding: 20,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -426,43 +435,43 @@ const styles = StyleSheet.create({
   levelTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#6366f1',
+    color: theme.colors.primary,
   },
   levelNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
   },
   experienceBar: {
     height: 8,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: theme.colors.border,
     borderRadius: 4,
     marginBottom: 8,
   },
   experienceFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: theme.colors.primary,
     borderRadius: 4,
   },
   experienceText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   totalEarned: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#10b981',
+    color: theme.colors.success,
     textAlign: 'center',
     marginTop: 8,
   },
   scoreCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     margin: 20,
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -470,30 +479,30 @@ const styles = StyleSheet.create({
   },
   scoreTitle: {
     fontSize: 16,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     marginBottom: 8,
   },
   scoreValue: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#10b981',
+    color: theme.colors.success,
   },
   scoreMax: {
     fontSize: 18,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
   },
   scoreMessage: {
     fontSize: 16,
-    color: '#6366f1',
+    color: theme.colors.primary,
     marginTop: 8,
     fontWeight: '600',
   },
   card: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -502,17 +511,17 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
   },
   cardValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: theme.colors.text,
     marginTop: 4,
   },
   cardStreak: {
     fontSize: 12,
-    color: '#f59e0b',
+    color: theme.colors.warning,
     marginTop: 4,
   },
   rewardsHeader: {
@@ -523,15 +532,15 @@ const styles = StyleSheet.create({
   },
   rewardsTotal: {
     fontSize: 14,
-    color: '#6366f1',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   rewardCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -558,11 +567,11 @@ const styles = StyleSheet.create({
   rewardTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: theme.colors.text,
   },
   rewardDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   rewardAmount: {
@@ -571,7 +580,7 @@ const styles = StyleSheet.create({
   amountText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#10b981',
+    color: theme.colors.success,
     marginBottom: 4,
   },
   typeBadge: {
@@ -590,17 +599,17 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 12,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   progressBar: {
     height: 4,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: theme.colors.border,
     borderRadius: 2,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: theme.colors.primary,
     borderRadius: 2,
   },
   sectionHeader: {
@@ -611,15 +620,15 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     fontSize: 14,
-    color: '#6366f1',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   wellnessActionCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -628,38 +637,28 @@ const styles = StyleSheet.create({
   wellnessActionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   wellnessActionSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   statCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.colors.card,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
-    shadowColor: '#000',
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
-  },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#6366f1',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
   },
 }); 

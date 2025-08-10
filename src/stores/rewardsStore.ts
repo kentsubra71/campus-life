@@ -1,10 +1,13 @@
 import { create } from 'zustand';
+import { useAuthStore } from './authStore';
 
 interface SupportMessage {
   id: string;
   type: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost';
   content: string;
-  from: 'parent';
+  from: string; // User ID of sender
+  to: string; // User ID of recipient 
+  familyId: string;
   timestamp: Date;
   read: boolean;
 }
@@ -21,21 +24,34 @@ interface Reward {
   isSurprise?: boolean;
 }
 
+interface SupportRequest {
+  id: string;
+  timestamp: Date;
+  message: string;
+  from: string; // Student user ID
+  familyId: string;
+  acknowledged: boolean;
+}
+
 interface ConnectionState {
   activeRewards: Reward[];
   supportMessages: SupportMessage[];
+  supportRequests: SupportRequest[];
   totalEarned: number;
   monthlyEarned: number;
   level: number;
   experience: number;
   mood: 'great' | 'good' | 'okay' | 'struggling' | null;
   lastMoodCheck: Date | null;
+  lastSupportRequest: Date | null;
   fetchActiveRewards: () => Promise<void>;
   fetchSupportMessages: () => Promise<void>;
   claimReward: (id: string) => Promise<void>;
   addExperience: (amount: number) => void;
   updateMood: (mood: 'great' | 'good' | 'okay' | 'struggling') => void;
   markMessageRead: (id: string) => void;
+  requestSupport: () => void;
+  acknowledgeSupport: (id: string) => void;
 }
 
 export const useRewardsStore = create<ConnectionState>((set, get) => ({
@@ -66,35 +82,53 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     {
       id: '1',
       type: 'message',
-      content: 'So proud of your sleep schedule this week! Keep it up.',
-      from: 'parent',
+      content: 'Noticed you\'ve been taking great care of yourself lately. So proud of how you\'re growing! 💜',
+      from: 'parent-1',
+      to: 'student-1',
+      familyId: 'family-1',
       timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
       read: false,
     },
     {
       id: '2',
       type: 'care_package',
-      content: 'Care package arriving Thursday! Looking forward to it.',
-      from: 'parent',
+      content: 'Sending some homemade cookies your way! They should arrive Thursday. Miss you ☀️',
+      from: 'parent-1',
+      to: 'student-1',
+      familyId: 'family-1',
       timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
       read: true,
     },
     {
       id: '3',
       type: 'video_call',
-      content: 'Video call scheduled for Sunday 3pm. Hope to see you!',
-      from: 'parent',
+      content: 'Can\'t wait to catch up on Sunday at 3pm! Want to hear all about your week 🎉',
+      from: 'parent-1',
+      to: 'student-1',
+      familyId: 'family-1',
       timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+      read: true,
+    },
+    {
+      id: '4',
+      type: 'boost',
+      content: 'You\'ve been doing amazing with your wellness routine! Here\'s a little surprise to treat yourself 🌟',
+      from: 'parent-1',
+      to: 'student-1',
+      familyId: 'family-1',
+      timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
       read: true,
     },
   ],
   
+  supportRequests: [],
   totalEarned: 320,
   monthlyEarned: 25,
   level: 8,
   experience: 1250,
   mood: 'good',
   lastMoodCheck: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
+  lastSupportRequest: null,
   
   fetchActiveRewards: async () => {
     // TODO: Fetch from Supabase
@@ -130,25 +164,41 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       {
         id: '1',
         type: 'message',
-        content: 'So proud of your sleep schedule this week! Keep it up.',
-        from: 'parent',
+        content: 'Noticed you\'ve been taking great care of yourself lately. So proud of how you\'re growing! 💜',
+        from: 'parent-1',
+        to: 'student-1',
+        familyId: 'family-1',
         timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
         read: false,
       },
       {
         id: '2',
         type: 'care_package',
-        content: 'Care package arriving Thursday! Looking forward to it.',
-        from: 'parent',
+        content: 'Sending some homemade cookies your way! They should arrive Thursday. Miss you ☀️',
+        from: 'parent-1',
+        to: 'student-1',
+        familyId: 'family-1',
         timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
         read: true,
       },
       {
         id: '3',
         type: 'video_call',
-        content: 'Video call scheduled for Sunday 3pm. Hope to see you!',
-        from: 'parent',
+        content: 'Can\'t wait to catch up on Sunday at 3pm! Want to hear all about your week 🎉',
+        from: 'parent-1',
+        to: 'student-1',
+        familyId: 'family-1',
         timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        read: true,
+      },
+      {
+        id: '4',
+        type: 'boost',
+        content: 'You\'ve been doing amazing with your wellness routine! Here\'s a little surprise to treat yourself 🌟',
+        from: 'parent-1',
+        to: 'student-1',
+        familyId: 'family-1',
+        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
         read: true,
       },
     ];
@@ -196,5 +246,38 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       msg.id === id ? { ...msg, read: true } : msg
     );
     set({ supportMessages: updatedMessages });
+  },
+
+  requestSupport: () => {
+    const current = get();
+    const now = new Date();
+    
+    // Check if already requested within last hour
+    if (current.lastSupportRequest && 
+        now.getTime() - current.lastSupportRequest.getTime() < 60 * 60 * 1000) {
+      return;
+    }
+
+    const newRequest: SupportRequest = {
+      id: Date.now().toString(),
+      timestamp: now,
+      message: 'I could use some extra support right now 💙',
+      from: 'student-1',
+      familyId: 'family-1',
+      acknowledged: false,
+    };
+
+    set({ 
+      supportRequests: [newRequest, ...current.supportRequests],
+      lastSupportRequest: now
+    });
+  },
+
+  acknowledgeSupport: (id: string) => {
+    const current = get();
+    const updatedRequests = current.supportRequests.map(req => 
+      req.id === id ? { ...req, acknowledged: true } : req
+    );
+    set({ supportRequests: updatedRequests });
   },
 })); 

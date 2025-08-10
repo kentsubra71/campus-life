@@ -32,7 +32,7 @@ interface WellnessStore {
   updateEntry: (id: string, updates: Partial<WellnessEntry>) => void;
   getEntryByDate: (date: string) => WellnessEntry | null;
   calculateWellnessScore: (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>) => number;
-  calculateStats: () => void;
+  calculateStats: () => WellnessStats;
   getWeeklyEntries: () => WellnessEntry[];
   getMonthlyEntries: () => WellnessEntry[];
 }
@@ -95,16 +95,14 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       wellnessScore,
     };
 
-    set((state) => {
-      const updatedEntries = [...state.entries, newEntry];
-      const updatedStats = get().calculateStats();
-      
-      return {
-        entries: updatedEntries,
-        todayEntry: newEntry,
-        stats: updatedStats,
-      };
-    });
+    set((state) => ({
+      entries: [...state.entries, newEntry],
+      todayEntry: newEntry,
+    }));
+    
+    // Calculate and update stats after setting entries
+    const updatedStats = get().calculateStats();
+    set({ stats: updatedStats });
   },
 
   updateEntry: (id, updates) => {
@@ -120,14 +118,16 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         return entry;
       });
 
-      const updatedStats = get().calculateStats();
       
       return {
         entries: updatedEntries,
         todayEntry: updatedEntries.find(entry => entry.date === new Date().toISOString().split('T')[0]) || null,
-        stats: updatedStats,
       };
     });
+    
+    // Calculate and update stats after setting entries
+    const updatedStats = get().calculateStats();
+    set({ stats: updatedStats });
   },
 
   getEntryByDate: (date) => {

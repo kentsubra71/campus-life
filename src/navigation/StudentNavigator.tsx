@@ -5,7 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { DashboardScreen } from '../screens/student/DashboardScreen';
 import { LogWellnessScreen } from '../screens/student/LogWellnessScreen';
 import { RewardsScreen } from '../screens/student/RewardsScreen';
-import { ProfileScreen } from '../screens/student/ProfileScreen';
+import { ProfileScreen } from '../screens/shared/ProfileScreen';
 import WellnessLogScreen from '../screens/wellness/WellnessLogScreen';
 import WellnessHistoryScreen from '../screens/wellness/WellnessHistoryScreen';
 

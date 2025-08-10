@@ -7,63 +7,42 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { showMessage } from 'react-native-flash-message';
-import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../stores/authStore';
 
 interface LoginScreenProps {
-  onNavigateToRegister: () => void;
-  onLoginSuccess: () => void;
+  navigation: any;
+  onNavigateToRegister?: () => void;
+  onLoginSuccess?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({
-  onNavigateToRegister,
-  onLoginSuccess,
-}) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigateToRegister, onLoginSuccess }) => {
+  const { login, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      showMessage({
-        message: 'Error',
-        description: 'Please fill in all fields',
-        type: 'danger',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
-      });
+      Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    const result = await login(email, password);
 
-      if (error) {
-        showMessage({
-          message: 'Login Error',
-          description: error.message,
-          type: 'danger',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
-        });
-      } else {
+    if (result.success) {
+      // Use callback if provided, otherwise handle navigation directly
+      if (onLoginSuccess) {
         onLoginSuccess();
+      } else {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
       }
-    } catch (error) {
-      showMessage({
-        message: 'Error',
-        description: 'An unexpected error occurred',
-        type: 'danger',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
-      });
-    } finally {
-      setLoading(false);
+    } else {
+      Alert.alert('Login Failed', result.error || 'Please try again');
     }
   };
 
@@ -102,19 +81,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             />
 
             <TouchableOpacity
-              style={[styles.loginButton, loading && styles.buttonDisabled]}
+              style={[styles.loginButton, isLoading && styles.buttonDisabled]}
               onPress={handleLogin}
-              disabled={loading}
+              disabled={isLoading}
               activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>
-                {loading ? 'Signing In...' : 'Sign In'}
-              </Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.linkButton}
-              onPress={onNavigateToRegister}
+              onPress={() => onNavigateToRegister ? onNavigateToRegister() : navigation.navigate('RoleSelection')}
               activeOpacity={0.7}
             >
               <Text style={styles.linkText}>

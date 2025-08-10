@@ -19,16 +19,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   const { 
     activeRewards, 
     supportMessages, 
-    totalEarned, 
-    monthlyEarned, 
+    totalEarned,
     level, 
     experience, 
     mood,
+    lastSupportRequest,
     fetchActiveRewards, 
     fetchSupportMessages,
     claimReward,
     updateMood,
-    markMessageRead 
+    markMessageRead,
+    requestSupport
   } = useRewardsStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,14 +114,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     return 'Just now';
   };
 
-  const getMoodLevel = (mood: string | null) => {
-    switch (mood) {
-      case 'great': return 'Great';
-      case 'good': return 'Good';
-      case 'okay': return 'Okay';
-      case 'struggling': return 'Struggling';
-      default: return 'Not set';
-    }
+  const getMoodLevel = () => {
+    // Use today's entry mood if available, otherwise fallback to stored mood
+    const currentMood = todayEntry?.mood || null;
+    
+    if (currentMood === null) return 'Not logged';
+    if (currentMood >= 9) return 'Amazing';
+    if (currentMood >= 7) return 'Great';
+    if (currentMood >= 5) return 'Okay';
+    if (currentMood >= 3) return 'Struggling';
+    return 'Difficult';
   };
 
   if (isLoading) {
@@ -143,33 +146,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Good morning, Sarah!</Text>
-            <Text style={styles.subtitle}>Your family is thinking of you</Text>
+            <Text style={styles.subtitle}>Stay close when you're far apart</Text>
           </View>
         </View>
 
-      {/* Family Connection Card */}
-      <View style={styles.connectionCard}>
-        <Text style={styles.connectionTitle}>Family Connection</Text>
-        <View style={styles.connectionStats}>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>{supportMessages.filter(m => !m.read).length}</Text>
-            <Text style={styles.statLabel}>New Messages</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>${monthlyEarned}</Text>
-            <Text style={styles.statLabel}>This Month</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>{getMoodLevel(mood)}</Text>
-            <Text style={styles.statLabel}>Mood Level</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Support Messages */}
+      {/* Support Messages - Now Priority #1 */}
       {supportMessages.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Family Support</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Messages from Family</Text>
+            {supportMessages.filter(m => !m.read).length > 0 && (
+              <Text style={styles.newMessagesBadge}>
+                {supportMessages.filter(m => !m.read).length} new
+              </Text>
+            )}
+          </View>
           {supportMessages.slice(0, 3).map((message) => (
             <TouchableOpacity 
               key={message.id} 
@@ -189,6 +180,59 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         </View>
       )}
 
+      {/* Family Connection Card */}
+      <View style={styles.connectionCard}>
+        <Text style={styles.connectionTitle}>Family Love</Text>
+        <View style={styles.connectionStats}>
+          <View style={styles.stat}>
+            <Text style={styles.statNumber}>{supportMessages.filter(m => !m.read).length}</Text>
+            <Text style={styles.statLabel}>New Messages</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statNumber}>{supportMessages.length}</Text>
+            <Text style={styles.statLabel}>Care Moments</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.stat}
+            onPress={() => navigation.navigate('WellnessLog')}
+          >
+            <Text style={styles.statNumber}>{getMoodLevel()}</Text>
+            <Text style={styles.statLabel}>How You Feel</Text>
+            <Text style={styles.statHint}>Tap to update</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* I Need Support Button */}
+        <TouchableOpacity 
+          style={[
+            styles.supportButton,
+            lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+              ? styles.supportButtonSent 
+              : null
+          ]}
+          onPress={() => {
+            requestSupport();
+          }}
+          disabled={lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000}
+        >
+          <Text style={[
+            styles.supportButtonText,
+            lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+              ? styles.supportButtonTextSent 
+              : null
+          ]}>
+            {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+              ? 'Support request sent! ✓' 
+              : 'I need support 💙'}
+          </Text>
+          <Text style={styles.supportButtonSubtext}>
+            {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+              ? 'Your family has been notified and will reach out soon' 
+              : 'Let your family know you could use some help'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Level & Experience */}
       <View style={styles.levelCard}>
         <View style={styles.levelHeader}>
@@ -204,7 +248,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           />
         </View>
         <Text style={styles.experienceText}>{experience % 200} / 200 XP</Text>
-        <Text style={styles.totalEarned}>Total Support: ${totalEarned}</Text>
+        <Text style={styles.totalEarned}>Family Love: {supportMessages.length + Math.floor(totalEarned/5)} moments</Text>
       </View>
 
       {/* Wellness Score */}
@@ -264,23 +308,26 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         </View>
       </View>
 
-      {/* Available Rewards */}
+      {/* Care Boosts - De-emphasized, moved to bottom */}
       {activeRewards.length > 0 && (
         <View style={styles.section}>
           <View style={styles.rewardsHeader}>
-            <Text style={styles.sectionTitle}>Available Support</Text>
+            <Text style={styles.smallSectionTitle}>Occasional Care Boosts</Text>
             <View style={styles.rewardsTotalContainer}>
-              <Text style={styles.rewardsTotal}>
-                ${activeRewards.reduce((sum, r) => sum + r.amount, 0)}
+              <Text style={styles.rewardsSmallTotal}>
+                {activeRewards.length}
               </Text>
               <Text style={styles.rewardsTotalLabel}>available</Text>
             </View>
           </View>
+          <Text style={styles.rewardsSubtext}>
+            Small surprises from family when you're doing great ✨
+          </Text>
           
           {activeRewards.map((reward) => (
             <TouchableOpacity 
               key={reward.id} 
-              style={styles.rewardCard}
+              style={styles.smallRewardCard}
               onPress={() => claimReward(reward.id)}
             >
               <View style={styles.rewardHeader}>
@@ -289,12 +336,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
                     <Text style={styles.rewardCategory}>{getCategoryName(reward.category)}</Text>
                   </View>
                   <View style={styles.rewardText}>
-                    <Text style={styles.rewardTitle}>{reward.title}</Text>
-                    <Text style={styles.rewardDescription}>{reward.description}</Text>
+                    <Text style={styles.smallRewardTitle}>{reward.title}</Text>
+                    <Text style={styles.smallRewardDescription}>{reward.description}</Text>
                   </View>
                 </View>
                 <View style={styles.rewardAmount}>
-                  <Text style={styles.amountText}>${reward.amount}</Text>
+                  <Text style={styles.smallAmountText}>${reward.amount}</Text>
                   <View style={[styles.typeBadge, { backgroundColor: getTypeColor(reward.type) }]}>
                     <Text style={styles.typeText}>{reward.type}</Text>
                   </View>
@@ -391,6 +438,12 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     marginTop: 6,
     fontWeight: '500',
+  },
+  statHint: {
+    fontSize: 10,
+    color: '#6366f1',
+    marginTop: 2,
+    fontWeight: '600',
   },
   section: {
     padding: 20,
@@ -744,15 +797,89 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: '700',
+  newMessagesBadge: {
+    fontSize: 12,
     color: '#6366f1',
+    fontWeight: '600',
+    backgroundColor: '#1e1b4b',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
-  statLabel: {
+  smallSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#9ca3af',
+    marginBottom: 8,
+  },
+  rewardsSmallTotal: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  rewardsSubtext: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  smallRewardCard: {
+    backgroundColor: '#1f2937',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#374151',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  smallRewardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f9fafb',
+  },
+  smallRewardDescription: {
     fontSize: 12,
     color: '#9ca3af',
-    marginTop: 4,
-    fontWeight: '500',
+    marginTop: 2,
+  },
+  smallAmountText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10b981',
+    marginBottom: 4,
+  },
+  supportButton: {
+    backgroundColor: '#2563eb',
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  supportButtonSent: {
+    backgroundColor: '#059669',
+  },
+  supportButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  supportButtonTextSent: {
+    color: '#ffffff',
+  },
+  supportButtonSubtext: {
+    fontSize: 12,
+    color: '#dbeafe',
+    textAlign: 'center',
   },
 }); 

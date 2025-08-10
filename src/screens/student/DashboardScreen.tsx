@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
+import { useAuthStore } from '../../stores/authStore';
 
 interface DashboardScreenProps {
   navigation: any;
@@ -31,6 +32,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     markMessageRead,
     requestSupport
   } = useRewardsStore();
+  const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -145,7 +147,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Good morning, Sarah!</Text>
+            <Text style={styles.title}>Good morning, {user?.name || 'Student'}!</Text>
             <Text style={styles.subtitle}>Stay close when you're far apart</Text>
           </View>
         </View>
@@ -294,12 +296,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.currentStreak}</Text>
-            <Text style={styles.statLabel}>Day Streak</Text>
+            <Text style={styles.statNumber}>
+              {stats.totalEntries === 0 ? '--' : stats.currentStreak}
+            </Text>
+            <Text style={styles.statLabel}>
+              {stats.totalEntries === 0 ? 'Start Logging' : 'Day Streak'}
+            </Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.averageScore}</Text>
-            <Text style={styles.statLabel}>Avg Score</Text>
+            <Text style={styles.statNumber}>
+              {stats.totalEntries === 0 ? '--' : stats.averageScore.toFixed(1)}
+            </Text>
+            <Text style={styles.statLabel}>
+              {stats.totalEntries === 0 ? 'To See Score' : 'Avg Score'}
+            </Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{stats.totalEntries}</Text>

@@ -9,6 +9,7 @@ import {
   Alert
 } from 'react-native';
 import { useWellnessStore } from '../../stores/wellnessStore';
+import { useAuthStore } from '../../stores/authStore';
 
 interface ChildWellnessScreenProps {
   navigation: any;
@@ -16,9 +17,11 @@ interface ChildWellnessScreenProps {
 
 export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ navigation }) => {
   const { stats, todayEntry, entries, loadEntries } = useWellnessStore();
+  const { getFamilyMembers } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'all'>('week');
+  const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
 
   useEffect(() => {
     loadData();
@@ -26,6 +29,8 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
 
   const loadData = async () => {
     try {
+      const members = await getFamilyMembers();
+      setFamilyMembers(members);
       await loadEntries();
     } catch (error) {
       console.log('Error loading wellness data:', error);
@@ -88,9 +93,10 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
   };
 
   const sendEncouragement = (area: string) => {
+    const studentName = familyMembers.students[0]?.name || 'your student';
     Alert.alert(
       'Encouragement Sent!',
-      `You sent supportive encouragement about ${area} to Sarah.`,
+      `You sent supportive encouragement about ${area} to ${studentName}.`,
       [{ text: 'OK' }]
     );
   };
@@ -121,8 +127,8 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Sarah's Wellness</Text>
-          <Text style={styles.subtitle}>Understanding how she's doing</Text>
+          <Text style={styles.title}>{familyMembers.students[0]?.name || 'Student'}'s Wellness</Text>
+          <Text style={styles.subtitle}>Understanding how they're doing</Text>
         </View>
 
         {/* Period Filter */}

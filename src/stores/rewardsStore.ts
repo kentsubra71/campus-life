@@ -55,155 +55,29 @@ interface ConnectionState {
 }
 
 export const useRewardsStore = create<ConnectionState>((set, get) => ({
-  activeRewards: [
-    {
-      id: '1',
-      title: 'Sleep Champion',
-      description: 'Maintain great sleep for 7 days',
-      amount: 5,
-      progress: 5,
-      maxProgress: 7,
-      type: 'automatic',
-      category: 'sleep',
-    },
-    {
-      id: '2',
-      title: 'Wellness Warrior',
-      description: 'Keep wellness score above 80 for a week',
-      amount: 10,
-      progress: 3,
-      maxProgress: 7,
-      type: 'automatic',
-      category: 'wellness',
-    },
-  ],
+  activeRewards: [],
   
-  supportMessages: [
-    {
-      id: '1',
-      type: 'message',
-      content: 'Noticed you\'ve been taking great care of yourself lately. So proud of how you\'re growing! 💜',
-      from: 'parent-1',
-      to: 'student-1',
-      familyId: 'family-1',
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      read: false,
-    },
-    {
-      id: '2',
-      type: 'care_package',
-      content: 'Sending some homemade cookies your way! They should arrive Thursday. Miss you ☀️',
-      from: 'parent-1',
-      to: 'student-1',
-      familyId: 'family-1',
-      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-      read: true,
-    },
-    {
-      id: '3',
-      type: 'video_call',
-      content: 'Can\'t wait to catch up on Sunday at 3pm! Want to hear all about your week 🎉',
-      from: 'parent-1',
-      to: 'student-1',
-      familyId: 'family-1',
-      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-      read: true,
-    },
-    {
-      id: '4',
-      type: 'boost',
-      content: 'You\'ve been doing amazing with your wellness routine! Here\'s a little surprise to treat yourself 🌟',
-      from: 'parent-1',
-      to: 'student-1',
-      familyId: 'family-1',
-      timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-      read: true,
-    },
-  ],
+  supportMessages: [],
   
   supportRequests: [],
-  totalEarned: 320,
-  monthlyEarned: 25,
-  level: 8,
-  experience: 1250,
-  mood: 'good',
-  lastMoodCheck: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
+  totalEarned: 0,
+  monthlyEarned: 0,
+  level: 1,
+  experience: 0,
+  mood: null,
+  lastMoodCheck: null,
   lastSupportRequest: null,
   
   fetchActiveRewards: async () => {
     // TODO: Fetch from Supabase
-    const mockRewards: Reward[] = [
-      {
-        id: '1',
-        title: 'Sleep Champion',
-        description: 'Maintain great sleep for 7 days',
-        amount: 5,
-        progress: 5,
-        maxProgress: 7,
-        type: 'automatic',
-        category: 'sleep',
-      },
-      {
-        id: '2',
-        title: 'Wellness Warrior',
-        description: 'Keep wellness score above 80 for a week',
-        amount: 10,
-        progress: 3,
-        maxProgress: 7,
-        type: 'automatic',
-        category: 'wellness',
-      },
-    ];
-    
-    set({ activeRewards: mockRewards });
+    // For now, new users start with no rewards
+    set({ activeRewards: [] });
   },
   
   fetchSupportMessages: async () => {
     // TODO: Fetch from Supabase
-    const mockMessages: SupportMessage[] = [
-      {
-        id: '1',
-        type: 'message',
-        content: 'Noticed you\'ve been taking great care of yourself lately. So proud of how you\'re growing! 💜',
-        from: 'parent-1',
-        to: 'student-1',
-        familyId: 'family-1',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        read: false,
-      },
-      {
-        id: '2',
-        type: 'care_package',
-        content: 'Sending some homemade cookies your way! They should arrive Thursday. Miss you ☀️',
-        from: 'parent-1',
-        to: 'student-1',
-        familyId: 'family-1',
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        read: true,
-      },
-      {
-        id: '3',
-        type: 'video_call',
-        content: 'Can\'t wait to catch up on Sunday at 3pm! Want to hear all about your week 🎉',
-        from: 'parent-1',
-        to: 'student-1',
-        familyId: 'family-1',
-        timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        read: true,
-      },
-      {
-        id: '4',
-        type: 'boost',
-        content: 'You\'ve been doing amazing with your wellness routine! Here\'s a little surprise to treat yourself 🌟',
-        from: 'parent-1',
-        to: 'student-1',
-        familyId: 'family-1',
-        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        read: true,
-      },
-    ];
-    
-    set({ supportMessages: mockMessages });
+    // For now, new users start with no support messages
+    set({ supportMessages: [] });
   },
   
   claimReward: async (id: string) => {

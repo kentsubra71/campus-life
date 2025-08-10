@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import { MaterialIcons } from '@expo/vector-icons';
 import { ParentDashboardScreen } from '../screens/parent/ParentDashboardScreen';
 import { ChildWellnessScreen } from '../screens/parent/ChildWellnessScreen';
 import { SendSupportScreen } from '../screens/parent/SendSupportScreen';
@@ -14,34 +15,16 @@ const ParentMainTabs = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        tabBarActiveTintColor: '#6366f1',
+        tabBarInactiveTintColor: '#9ca3af',
         tabBarStyle: {
           backgroundColor: '#1f2937',
           borderTopColor: '#374151',
-          borderTopWidth: 1,
-          height: 85,
-          paddingBottom: 25,
-          paddingTop: 10,
-          paddingHorizontal: 12,
         },
-        tabBarActiveTintColor: '#6366f1',
-        tabBarInactiveTintColor: '#9ca3af',
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: '600',
-          marginTop: 2,
         },
-        tabBarItemStyle: {
-          flex: 1,
-          paddingVertical: 6,
-          paddingHorizontal: 4,
-          borderRadius: 10,
-          marginHorizontal: 2,
-          minHeight: 50,
-          justifyContent: 'center',
-          alignItems: 'center',
-        },
-        tabBarActiveBackgroundColor: 'rgba(99, 102, 241, 0.1)',
-        tabBarInactiveBackgroundColor: 'transparent',
       }}
     >
       <Tab.Screen 
@@ -49,6 +32,9 @@ const ParentMainTabs = () => {
         component={ParentDashboardScreen}
         options={{
           tabBarLabel: 'Home',
+          tabBarIcon: ({ color }) => (
+            <MaterialIcons name="home" color={color} size={24} />
+          ),
         }}
       />
       <Tab.Screen 
@@ -56,6 +42,9 @@ const ParentMainTabs = () => {
         component={SendSupportScreen}
         options={{
           tabBarLabel: 'Send Love',
+          tabBarIcon: ({ color }) => (
+            <MaterialIcons name="favorite" color={color} size={24} />
+          ),
         }}
       />
       <Tab.Screen 
@@ -63,6 +52,9 @@ const ParentMainTabs = () => {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profile',
+          tabBarIcon: ({ color }) => (
+            <MaterialIcons name="person" color={color} size={24} />
+          ),
         }}
       />
     </Tab.Navigator>
@@ -78,7 +70,6 @@ export const ParentNavigator = () => {
     >
       <Stack.Screen name="ParentTabs" component={ParentMainTabs} />
       <Stack.Screen name="ChildWellness" component={ChildWellnessScreen} />
-      <Stack.Screen name="SendSupport" component={SendSupportScreen} />
     </Stack.Navigator>
   );
 }; 

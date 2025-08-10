@@ -90,7 +90,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   };
 
   const getWellnessStatus = () => {
-    if (!todayEntry) return { status: 'No data', color: '#6b7280', suggestion: 'Check in with Sarah about logging wellness' };
+    const currentStudentName = familyMembers.students[0]?.name || 'your student';
+    if (!todayEntry) return { status: 'No data', color: '#6b7280', suggestion: `Check in with ${currentStudentName} about logging wellness` };
     
     const score = todayEntry.wellnessScore;
     if (score >= 8) return { status: 'Thriving', color: '#10b981', suggestion: 'Great time to celebrate their success!' };
@@ -192,6 +193,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   // Show full dashboard once students have joined
   const wellnessStatus = getWellnessStatus();
   const moodInfo = getMoodLevel();
+  
+  // Get the student's name (assuming first student for now)
+  const studentName = familyMembers.students[0]?.name || 'Student';
 
   return (
     <View style={styles.container}>
@@ -203,13 +207,13 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Sarah's Week</Text>
+          <Text style={styles.title}>{studentName}'s Week</Text>
           <Text style={styles.subtitle}>Supporting from afar with love</Text>
         </View>
 
         {/* Child Status Overview */}
         <View style={styles.statusCard}>
-          <Text style={styles.statusTitle}>How Sarah's Doing</Text>
+          <Text style={styles.statusTitle}>How {studentName}'s Doing</Text>
           <View style={styles.statusRow}>
             <View style={styles.statusItem}>
               <Text style={styles.statusLabel}>Overall</Text>
@@ -351,20 +355,32 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           >
             <View style={styles.wellnessHeader}>
               <Text style={styles.wellnessTitle}>Current Streak</Text>
-              <Text style={styles.wellnessValue}>{stats.currentStreak} days</Text>
+              <Text style={styles.wellnessValue}>
+                {stats.totalEntries === 0 ? '--' : `${stats.currentStreak} days`}
+              </Text>
             </View>
             <Text style={styles.wellnessSubtext}>
-              Sarah has been consistently tracking her wellness
+              {stats.totalEntries === 0 
+                ? `Encourage ${studentName} to start logging wellness` 
+                : `${studentName} has been consistently tracking their wellness`
+              }
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.wellnessCard}>
             <View style={styles.wellnessHeader}>
               <Text style={styles.wellnessTitle}>Average Score</Text>
-              <Text style={styles.wellnessValue}>{stats.averageScore}/10</Text>
+              <Text style={styles.wellnessValue}>
+                {stats.totalEntries === 0 ? '--' : `${stats.averageScore}/10`}
+              </Text>
             </View>
             <Text style={styles.wellnessSubtext}>
-              {stats.averageScore >= 7 ? 'Doing really well overall!' : 'Room for gentle encouragement'}
+              {stats.totalEntries === 0 
+                ? 'No wellness data yet' 
+                : stats.averageScore >= 7 
+                ? 'Doing really well overall!' 
+                : 'Room for gentle encouragement'
+              }
             </Text>
           </TouchableOpacity>
         </View>
@@ -455,13 +471,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#9ca3af',
     marginBottom: 4,
     fontWeight: '500',
   },
   statusValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#f9fafb',
   },
@@ -473,13 +489,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   suggestionLabel: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#fbbf24',
     marginRight: 8,
   },
   suggestionText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#d1d5db',
     flex: 1,
   },
@@ -493,7 +509,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#9ca3af',
     marginBottom: 16,
   },
@@ -501,10 +517,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: 12,
   },
   supportActionCard: {
-    width: '48%',
-    padding: 16,
+    flex: 1,
+    minWidth: '45%',
+    maxWidth: '48%',
+    padding: 20,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 12,
@@ -519,13 +538,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   supportActionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
     marginBottom: 4,
   },
   supportActionDesc: {
-    fontSize: 11,
+    fontSize: 13,
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
   },
@@ -550,7 +569,7 @@ const styles = StyleSheet.create({
     color: '#f9fafb',
   },
   summaryLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#9ca3af',
     marginTop: 4,
     fontWeight: '500',
@@ -567,7 +586,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   monthlyLimitText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#9ca3af',
     textAlign: 'center',
   },
@@ -596,7 +615,7 @@ const styles = StyleSheet.create({
     color: '#10b981',
   },
   wellnessSubtext: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#9ca3af',
     fontStyle: 'italic',
   },
@@ -620,7 +639,7 @@ const styles = StyleSheet.create({
     color: '#f9fafb',
   },
   historyTime: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#9ca3af',
   },
   historyContent: {
@@ -661,7 +680,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   urgentTime: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#fca5a5',
     fontWeight: '600',
   },

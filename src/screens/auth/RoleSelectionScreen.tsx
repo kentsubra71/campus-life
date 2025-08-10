@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 
 interface RoleSelectionScreenProps {
   navigation: any;
@@ -8,7 +8,11 @@ interface RoleSelectionScreenProps {
 export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation }) => {
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>Welcome to CampusLife</Text>
         <Text style={styles.subtitle}>Stay close when you're far apart</Text>
         
@@ -64,7 +68,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
         >
           <Text style={styles.loginButtonText}>Already have an account? Sign In</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 };
@@ -74,10 +78,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#111827',
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     padding: 24,
     paddingTop: 60,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 32,

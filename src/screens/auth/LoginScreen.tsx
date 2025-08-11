@@ -36,10 +36,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
       if (onLoginSuccess) {
         onLoginSuccess();
       } else {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Main' }],
-        });
+        // Navigation will be handled automatically by auth state change
+        // No need to manually reset navigation stack
       }
     } else {
       Alert.alert('Login Failed', result.error || 'Please try again');

@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
+import { 
+  addRewardEntry, 
+  getRewardEntries, 
+  getUserTotalPoints, 
+  getCurrentUser 
+} from '../lib/firebase';
 
 interface SupportMessage {
   id: string;
@@ -69,9 +75,24 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
   lastSupportRequest: null,
   
   fetchActiveRewards: async () => {
-    // TODO: Fetch from Supabase
-    // For now, new users start with no rewards
-    set({ activeRewards: [] });
+    const user = getCurrentUser();
+    if (!user) return;
+
+    try {
+      // Load total points with better error handling
+      const totalPoints = await getUserTotalPoints(user.uid);
+      set({ totalEarned: totalPoints });
+      
+      // TODO: Implement reward generation logic based on user activities
+      set({ activeRewards: [] });
+    } catch (error: any) {
+      console.log('Note: Rewards not available yet, this is normal for new users');
+      // Set default values instead of failing
+      set({ 
+        totalEarned: 0,
+        activeRewards: [] 
+      });
+    }
   },
   
   fetchSupportMessages: async () => {
@@ -81,18 +102,34 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
   },
   
   claimReward: async (id: string) => {
+    const user = getCurrentUser();
+    if (!user) return;
+
     const current = get();
     const reward = current.activeRewards.find(r => r.id === id);
     
     if (reward && current.monthlyEarned + reward.amount <= 50) {
-      // Add to totals
-      set({ 
-        totalEarned: current.totalEarned + reward.amount,
-        monthlyEarned: current.monthlyEarned + reward.amount,
-        experience: current.experience + (reward.amount * 10),
-        level: Math.floor((current.experience + (reward.amount * 10)) / 200) + 1,
-        activeRewards: current.activeRewards.filter(r => r.id !== id)
-      });
+      try {
+        // Add reward entry to Firebase
+        const { error } = await addRewardEntry({
+          user_id: user.uid,
+          points: reward.amount,
+          reason: `Claimed reward: ${reward.title}`,
+        });
+
+        if (!error) {
+          // Update local state
+          set({ 
+            totalEarned: current.totalEarned + reward.amount,
+            monthlyEarned: current.monthlyEarned + reward.amount,
+            experience: current.experience + (reward.amount * 10),
+            level: Math.floor((current.experience + (reward.amount * 10)) / 200) + 1,
+            activeRewards: current.activeRewards.filter(r => r.id !== id)
+          });
+        }
+      } catch (error) {
+        console.error('Failed to claim reward:', error);
+      }
     }
   },
   

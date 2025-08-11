@@ -50,7 +50,7 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
           `Your $${(payment.intent_cents / 100).toFixed(2)} ${payment.provider} payment has been recorded.`,
           [{ 
             text: 'Done', 
-            onPress: () => navigation.navigate('ParentDashboard') 
+            onPress: () => navigation.navigate('ParentTabs') 
           }]
         );
       } else {
@@ -86,7 +86,7 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
         <Text style={styles.errorText}>Payment not found</Text>
         <TouchableOpacity 
           style={styles.button}
-          onPress={() => navigation.navigate('ParentDashboard')}
+          onPress={() => navigation.navigate('ParentTabs')}
         >
           <Text style={styles.buttonText}>Go Back</Text>
         </TouchableOpacity>
@@ -112,7 +112,7 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
           
           <TouchableOpacity 
             style={styles.button}
-            onPress={() => navigation.navigate('ParentDashboard')}
+            onPress={() => navigation.navigate('ParentTabs')}
           >
             <Text style={styles.buttonText}>Go Back</Text>
           </TouchableOpacity>
@@ -166,7 +166,7 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
         
         <TouchableOpacity 
           style={[styles.button, styles.secondaryButton]}
-          onPress={() => navigation.navigate('ParentDashboard')}
+          onPress={() => navigation.navigate('ParentTabs')}
           disabled={loading}
         >
           <Text style={[styles.buttonText, styles.secondaryButtonText]}>Cancel</Text>

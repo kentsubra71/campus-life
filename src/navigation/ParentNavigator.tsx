@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ParentDashboardScreen } from '../screens/parent/ParentDashboardScreen';
 import { ChildWellnessScreen } from '../screens/parent/ChildWellnessScreen';
 import { SendSupportScreen } from '../screens/parent/SendSupportScreen';
+import { ActivityHistoryScreen } from '../screens/parent/ActivityHistoryScreen';
 import { ProfileScreen } from '../screens/shared/ProfileScreen';
 import { PaymentReturnHandler } from '../components/PaymentReturnHandler';
 
@@ -35,6 +36,16 @@ const ParentMainTabs = () => {
           tabBarLabel: 'Home',
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="home" color={color} size={24} />
+          ),
+        }}
+      />
+      <Tab.Screen 
+        name="Activity" 
+        component={ActivityHistoryScreen}
+        options={{
+          tabBarLabel: 'Activity',
+          tabBarIcon: ({ color }) => (
+            <MaterialIcons name="history" color={color} size={24} />
           ),
         }}
       />

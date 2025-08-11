@@ -861,7 +861,6 @@ const styles = StyleSheet.create({
   // Compact student selector styles
   compactStudentSelector: {
     flexDirection: 'row',
-    justifyContent: 'center',
     marginHorizontal: 20,
     marginBottom: 16,
     gap: 12,
@@ -869,12 +868,11 @@ const styles = StyleSheet.create({
   compactTab: {
     backgroundColor: '#374151',
     paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
-    maxWidth: 120,
   },
   compactTabActive: {
     backgroundColor: '#6366f1',

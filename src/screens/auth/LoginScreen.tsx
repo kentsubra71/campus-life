@@ -11,9 +11,9 @@ import {
   Alert,
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
+import { AuthScreenProps } from '../../types/navigation';
 
-interface LoginScreenProps {
-  navigation: any;
+interface LoginScreenProps extends AuthScreenProps<'Login'> {
   onNavigateToRegister?: () => void;
   onLoginSuccess?: () => void;
 }

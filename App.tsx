@@ -1,3 +1,4 @@
+import 'whatwg-fetch'; // Add fetch polyfill for better compatibility
 import React, { useEffect } from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -5,7 +6,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { StudentNavigator } from './src/navigation/StudentNavigator';
 import { ParentNavigator } from './src/navigation/ParentNavigator';
 import { useAuthStore } from './src/stores/authStore';
-import { View, Text, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, StatusBar, Alert } from 'react-native';
+import * as Linking from 'expo-linking';
 
 // Auth screens
 import { RoleSelectionScreen } from './src/screens/auth/RoleSelectionScreen';
@@ -16,7 +18,67 @@ import { LoginScreen } from './src/screens/auth/LoginScreen';
 const Stack = createStackNavigator();
 
 export default function App() {
-  const { isAuthenticated, user, isLoading } = useAuthStore();
+  const { isAuthenticated, user, isLoading, refreshUser } = useAuthStore();
+
+  // Handle deep links for email verification
+  useEffect(() => {
+    const handleDeepLink = (url: string) => {
+      console.log('Deep link received:', url);
+      
+      if (url.includes('campuslife://verified')) {
+        Alert.alert(
+          'Email Verified! 🎉',
+          'Your email has been successfully verified. Welcome to Campus Life!',
+          [{ text: 'Continue', style: 'default' }]
+        );
+        
+        // Refresh user data to update verification status
+        if (user) {
+          refreshUser();
+        }
+      } else if (url.includes('campuslife://verification-failed')) {
+        Alert.alert(
+          'Verification Failed',
+          'Email verification failed. Please try requesting a new verification email.',
+          [
+            { text: 'OK', style: 'default' },
+            { text: 'Resend Email', style: 'default', onPress: handleResendVerification }
+          ]
+        );
+      }
+    };
+
+    const handleResendVerification = async () => {
+      if (user) {
+        try {
+          const { resendVerificationEmail } = await import('./src/lib/emailVerification');
+          const result = await resendVerificationEmail(user.uid);
+          
+          if (result.success) {
+            Alert.alert('Email Sent', 'A new verification email has been sent to your email address.');
+          } else {
+            Alert.alert('Error', result.error || 'Failed to send verification email.');
+          }
+        } catch (error: any) {
+          Alert.alert('Error', 'Failed to resend verification email.');
+        }
+      }
+    };
+
+    // Handle app opened via deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink(url);
+      }
+    });
+
+    // Handle deep links when app is running
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    return () => subscription?.remove();
+  }, [user, refreshUser]);
 
   if (isLoading) {
     return (

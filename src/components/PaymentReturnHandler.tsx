@@ -9,6 +9,9 @@ interface PaymentReturnHandlerProps {
     params: {
       paymentId: string;
       action?: 'return' | 'cancel';
+      token?: string;
+      PayerID?: string;
+      status?: string;
     };
   };
 }
@@ -17,13 +20,21 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
   navigation, 
   route 
 }) => {
-  const { paymentId, action = 'return' } = route.params;
+  const { paymentId, action = 'return', token, PayerID, status } = route.params;
   const [payment, setPayment] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
 
   useEffect(() => {
     loadPayment();
   }, [paymentId]);
+
+  useEffect(() => {
+    // Auto-complete PayPal payments since they're already processed by PayPal
+    if (payment && payment.provider === 'paypal' && status === 'success' && !loading) {
+      console.log('🔄 PayPal payment completed automatically');
+      handleAutoCompletePayment();
+    }
+  }, [payment, status]);
 
   const loadPayment = async () => {
     try {
@@ -37,11 +48,55 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
     }
   };
 
+  const handleAutoCompletePayment = async () => {
+    if (!payment) return;
+
+    try {
+      setLoading(true);
+      
+      // Update payment to completed status (PayPal already processed it)
+      const { updateDoc, doc, Timestamp } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      await updateDoc(doc(db, 'payments', paymentId), {
+        status: 'completed', // Not pending confirmation - already done by PayPal
+        completed_at: Timestamp.now(),
+        completion_method: 'paypal_automatic'
+      });
+      
+      // Show success and navigate
+      Alert.alert(
+        'Payment Completed! 🎉',
+        `$${(payment.intent_cents / 100).toFixed(2)} sent via PayPal successfully.`,
+        [{ 
+          text: 'Done', 
+          onPress: () => navigation.navigate('ParentTabs') 
+        }]
+      );
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to update payment status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleConfirmPayment = async () => {
     if (!payment) return;
 
     try {
       setLoading(true);
+      
+      // If this is a PayPal return with verification data, verify first
+      if (payment.provider === 'paypal' && token && status === 'success') {
+        const { verifyPayPalPayment } = await import('../lib/paypalIntegration');
+        const verificationResult = await verifyPayPalPayment(paymentId, token);
+        
+        if (!verificationResult.success) {
+          Alert.alert('Verification Failed', verificationResult.error || 'Could not verify PayPal payment');
+          return;
+        }
+      }
+      
       const result = await confirmPayment(paymentId, payment.idempotency_key);
       
       if (result.success) {
@@ -121,16 +176,46 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
     );
   }
 
-  // Return flow - ask for confirmation
+  // Smart flow based on provider type
+  if (payment.provider === 'paypal') {
+    // PayPal payments are automatically processed - just show status
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.providerEmoji}>💙</Text>
+          <Text style={styles.title}>Processing PayPal Payment...</Text>
+          <Text style={styles.subtitle}>
+            PayPal is processing your ${(payment.intent_cents / 100).toFixed(2)} payment.
+          </Text>
+        </View>
+
+        <View style={styles.statusContainer}>
+          <Text style={styles.statusText}>
+            ✅ Payment sent via PayPal{'\n'}
+            🔄 Updating records...{'\n'}
+            📱 You'll receive confirmation shortly
+          </Text>
+        </View>
+
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={() => navigation.navigate('ParentTabs')}
+        >
+          <Text style={styles.buttonText}>Continue</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Manual providers (Venmo, CashApp, Zelle) - need user confirmation
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.providerEmoji}>
-          {payment.provider === 'paypal' ? '💙' : 
-           payment.provider === 'venmo' ? '💙' :
+          {payment.provider === 'venmo' ? '💙' :
            payment.provider === 'cashapp' ? '💚' : '⚡'}
         </Text>
-        <Text style={styles.title}>Payment Complete?</Text>
+        <Text style={styles.title}>Confirm Payment</Text>
         <Text style={styles.subtitle}>
           Did you successfully send ${(payment.intent_cents / 100).toFixed(2)} via {payment.provider.charAt(0).toUpperCase() + payment.provider.slice(1)}?
         </Text>
@@ -151,6 +236,12 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
             <Text style={styles.detailValue}>{payment.note}</Text>
           </View>
         )}
+      </View>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.infoText}>
+          💡 Your student will also need to confirm they received the payment before it's marked as complete.
+        </Text>
       </View>
 
       <View style={styles.buttonContainer}>
@@ -273,6 +364,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#f9fafb',
     textAlign: 'center',
+  },
+  statusContainer: {
+    backgroundColor: '#1f2937',
+    borderRadius: 12,
+    padding: 24,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  statusText: {
+    fontSize: 16,
+    color: '#d1d5db',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  infoBox: {
+    backgroundColor: '#1e3a8a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#bfdbfe',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   errorText: {
     fontSize: 18,

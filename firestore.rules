@@ -65,6 +65,33 @@ service cloud.firestore {
         request.auth.uid == request.resource.data.user_id;
     }
     
+    // Payments - only parents can create, family members can read their own
+    match /payments/{paymentId} {
+      allow read: if request.auth != null && 
+        (resource.data.parent_id == request.auth.uid || 
+         resource.data.student_id == request.auth.uid);
+      allow create: if request.auth != null && 
+        request.resource.data.parent_id == request.auth.uid;
+      allow update: if request.auth != null && 
+        resource.data.parent_id == request.auth.uid;
+    }
+
+    // Subscriptions - parents can read/write their own
+    match /subscriptions/{subscriptionId} {
+      allow read, write: if request.auth != null && 
+        resource.data.user_id == request.auth.uid;
+      allow create: if request.auth != null && 
+        request.resource.data.user_id == request.auth.uid;
+    }
+
+    // Monthly spend tracking - parents can read/write their own
+    match /monthly_spend/{spendId} {
+      allow read, write: if request.auth != null && 
+        resource.data.parent_id == request.auth.uid;
+      allow create: if request.auth != null && 
+        request.resource.data.parent_id == request.auth.uid;
+    }
+
     // Messages - users can read their own messages and write to family members
     match /messages/{messageId} {
       allow read: if request.auth != null && 

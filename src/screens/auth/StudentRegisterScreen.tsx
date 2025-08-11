@@ -10,10 +10,9 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
+import { AuthScreenProps } from '../../types/navigation';
 
-interface StudentRegisterScreenProps {
-  navigation: any;
-}
+interface StudentRegisterScreenProps extends AuthScreenProps<'StudentRegister'> {}
 
 export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ navigation }) => {
   const { joinFamily, isLoading } = useAuthStore();

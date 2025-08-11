@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, User } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, Timestamp, limit } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -23,6 +23,8 @@ export interface UserProfile {
   full_name: string;
   user_type: 'student' | 'parent';
   family_id?: string;
+  email_verified: boolean;
+  verification_token?: string;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
@@ -65,12 +67,13 @@ export const signUpUser = async (email: string, password: string, fullName: stri
     // Update display name
     await updateProfile(user, { displayName: fullName });
 
-    // Create user profile in Firestore
+    // Create user profile in Firestore with email verification status
     const userProfile: UserProfile = {
       id: user.uid,
       email: user.email!,
       full_name: fullName,
       user_type: userType,
+      email_verified: false, // Will be set to true after custom verification
       created_at: Timestamp.now(),
       updated_at: Timestamp.now(),
     };
@@ -84,6 +87,7 @@ export const signUpUser = async (email: string, password: string, fullName: stri
         email: user.email!,
         full_name: fullName,
         user_type: userType,
+        email_verified: false, // Will be set to true after custom verification
         created_at: Timestamp.now(),
         updated_at: Timestamp.now(),
         profile_completed: false,
@@ -95,9 +99,25 @@ export const signUpUser = async (email: string, password: string, fullName: stri
       });
     }
 
-    return { user, error: null };
+    // Use custom email verification system (future-proof)
+    const { createVerificationToken, sendVerificationEmail } = await import('./emailVerification');
+    
+    const tokenResult = await createVerificationToken(user.uid, email, 'email_verification');
+    if (tokenResult.error) {
+      console.error('Failed to create verification token:', tokenResult.error);
+      return { user, error: null, emailSent: false };
+    }
+    
+    const emailResult = await sendVerificationEmail(email, fullName, tokenResult.token, 'email_verification');
+    
+    return { 
+      user, 
+      error: null, 
+      emailSent: emailResult.success,
+      verificationToken: tokenResult.token 
+    };
   } catch (error: any) {
-    return { user: null, error: error.message };
+    return { user: null, error: error.message, emailSent: false };
   }
 };
 
@@ -171,30 +191,54 @@ export const addWellnessEntry = async (entry: Omit<WellnessEntry, 'id' | 'create
   }
 };
 
-export const getWellnessEntries = async (userId: string): Promise<WellnessEntry[]> => {
+export const getWellnessEntries = async (userId: string, limitCount: number = 50): Promise<WellnessEntry[]> => {
   try {
-    // Simplified query without orderBy to avoid index requirements
+    // Use proper orderBy with limit for better performance
     const q = query(
       collection(db, 'wellness_entries'),
-      where('user_id', '==', userId)
+      where('user_id', '==', userId),
+      orderBy('created_at', 'desc'),
+      limit(limitCount)
     );
     const querySnapshot = await getDocs(q);
-    const entries: WellnessEntry[] = [];
     
-    querySnapshot.forEach((doc) => {
-      entries.push({ id: doc.id, ...doc.data() } as WellnessEntry);
-    });
-    
-    // Sort in JavaScript instead of requiring Firestore index
-    return entries.sort((a, b) => b.created_at.seconds - a.created_at.seconds);
+    return querySnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as WellnessEntry));
   } catch (error: any) {
-    // Handle specific errors
-    if (error.code === 'not-found' || error.code === 'permission-denied' || error.code === 'failed-precondition') {
+    // If orderBy fails due to missing index, fallback to client-side sorting
+    if (error.code === 'failed-precondition') {
+      console.log('Firestore index missing, using fallback query');
+      try {
+        const fallbackQuery = query(
+          collection(db, 'wellness_entries'),
+          where('user_id', '==', userId)
+        );
+        const querySnapshot = await getDocs(fallbackQuery);
+        const entries: WellnessEntry[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          entries.push({ id: doc.id, ...doc.data() } as WellnessEntry);
+        });
+        
+        return entries
+          .sort((a, b) => b.created_at.seconds - a.created_at.seconds)
+          .slice(0, limitCount);
+      } catch (fallbackError: any) {
+        console.error('Fallback query also failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
+    
+    // Handle other specific errors
+    if (error.code === 'not-found' || error.code === 'permission-denied') {
       console.log('Wellness entries collection issue, returning empty array');
       return [];
     }
+    
     console.error('Error getting wellness entries:', error);
-    return [];
+    throw error; // Re-throw for proper error handling upstream
   }
 };
 
@@ -212,30 +256,54 @@ export const addRewardEntry = async (entry: Omit<RewardEntry, 'id' | 'created_at
   }
 };
 
-export const getRewardEntries = async (userId: string): Promise<RewardEntry[]> => {
+export const getRewardEntries = async (userId: string, limitCount: number = 100): Promise<RewardEntry[]> => {
   try {
-    // Simplified query without orderBy to avoid index requirements
+    // Use proper orderBy with limit for better performance
     const q = query(
       collection(db, 'rewards'),
-      where('user_id', '==', userId)
+      where('user_id', '==', userId),
+      orderBy('created_at', 'desc'),
+      limit(limitCount)
     );
     const querySnapshot = await getDocs(q);
-    const entries: RewardEntry[] = [];
     
-    querySnapshot.forEach((doc) => {
-      entries.push({ id: doc.id, ...doc.data() } as RewardEntry);
-    });
-    
-    // Sort in JavaScript instead of requiring Firestore index
-    return entries.sort((a, b) => b.created_at.seconds - a.created_at.seconds);
+    return querySnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as RewardEntry));
   } catch (error: any) {
-    // Handle specific errors
-    if (error.code === 'not-found' || error.code === 'permission-denied' || error.code === 'failed-precondition') {
+    // If orderBy fails due to missing index, fallback to client-side sorting
+    if (error.code === 'failed-precondition') {
+      console.log('Firestore index missing for rewards, using fallback query');
+      try {
+        const fallbackQuery = query(
+          collection(db, 'rewards'),
+          where('user_id', '==', userId)
+        );
+        const querySnapshot = await getDocs(fallbackQuery);
+        const entries: RewardEntry[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          entries.push({ id: doc.id, ...doc.data() } as RewardEntry);
+        });
+        
+        return entries
+          .sort((a, b) => b.created_at.seconds - a.created_at.seconds)
+          .slice(0, limitCount);
+      } catch (fallbackError: any) {
+        console.error('Fallback query also failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
+    
+    // Handle other specific errors
+    if (error.code === 'not-found' || error.code === 'permission-denied') {
       console.log('Rewards collection issue, returning empty array');
       return [];
     }
+    
     console.error('Error getting reward entries:', error);
-    return [];
+    throw error; // Re-throw for proper error handling upstream
   }
 };
 
@@ -442,25 +510,48 @@ export const sendMessage = async (messageData: Omit<Message, 'id' | 'created_at'
   }
 };
 
-export const getMessagesForUser = async (userId: string): Promise<Message[]> => {
+export const getMessagesForUser = async (userId: string, limitCount: number = 50): Promise<Message[]> => {
   try {
-    // Simplified query without orderBy to avoid index requirements
+    // Use proper orderBy with limit for better performance
     const q = query(
       collection(db, 'messages'),
-      where('to_user_id', '==', userId)
+      where('to_user_id', '==', userId),
+      orderBy('created_at', 'desc'),
+      limit(limitCount)
     );
     const querySnapshot = await getDocs(q);
-    const messages: Message[] = [];
     
-    querySnapshot.forEach((doc) => {
-      messages.push({ id: doc.id, ...doc.data() } as Message);
-    });
-    
-    // Sort in JavaScript instead of requiring Firestore index
-    return messages.sort((a, b) => b.created_at.seconds - a.created_at.seconds);
+    return querySnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as Message));
   } catch (error: any) {
+    // If orderBy fails due to missing index, fallback to client-side sorting
+    if (error.code === 'failed-precondition') {
+      console.log('Firestore index missing for messages, using fallback query');
+      try {
+        const fallbackQuery = query(
+          collection(db, 'messages'),
+          where('to_user_id', '==', userId)
+        );
+        const querySnapshot = await getDocs(fallbackQuery);
+        const messages: Message[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          messages.push({ id: doc.id, ...doc.data() } as Message);
+        });
+        
+        return messages
+          .sort((a, b) => b.created_at.seconds - a.created_at.seconds)
+          .slice(0, limitCount);
+      } catch (fallbackError: any) {
+        console.error('Fallback query also failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
+    
     console.error('Error getting messages:', error);
-    return [];
+    throw error; // Re-throw for proper error handling upstream
   }
 };
 

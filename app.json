@@ -15,7 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.campuslife.app"
+      "bundleIdentifier": "com.campuslife.app",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "venmo",
+          "paypal",
+          "cashapp"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {

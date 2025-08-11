@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   ScrollView, 
   RefreshControl, 
@@ -10,12 +10,11 @@ import {
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
+import { StudentDashboardScreenProps } from '../../types/navigation';
+import { handleAsyncError, AppError } from '../../utils/errorHandling';
+import { Alert } from 'react-native';
 
-interface DashboardScreenProps {
-  navigation: any;
-}
-
-export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
+export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMain'>> = ({ navigation }) => {
   const { stats, todayEntry, getEntryByDate } = useWellnessStore();
   const { 
     activeRewards, 
@@ -35,6 +34,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingErrors, setLoadingErrors] = useState<AppError[]>([]);
 
   useEffect(() => {
     loadData();
@@ -47,34 +47,50 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     return () => clearTimeout(timeout);
   }, []);
 
-  const loadData = async () => {
-    try {
-      await Promise.all([
-        fetchActiveRewards(),
-        fetchSupportMessages(),
-      ]);
-    } catch (error) {
-      console.log('Error loading data:', error);
-    } finally {
-      setIsLoading(false);
+  const loadData = useCallback(async () => {
+    setLoadingErrors([]);
+    
+    const results = await Promise.allSettled([
+      handleAsyncError(() => fetchActiveRewards(), 'Loading rewards'),
+      handleAsyncError(() => fetchSupportMessages(), 'Loading messages')
+    ]);
+    
+    const errors: AppError[] = [];
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value.error) {
+        errors.push(result.value.error);
+      } else if (result.status === 'rejected') {
+        errors.push({
+          code: 'UNKNOWN_ERROR',
+          message: 'Failed to load data',
+          context: index === 0 ? 'rewards' : 'messages'
+        });
+      }
+    });
+    
+    if (errors.length > 0) {
+      setLoadingErrors(errors);
+      console.warn('Some data failed to load:', errors);
     }
-  };
+    
+    setIsLoading(false);
+  }, [fetchActiveRewards, fetchSupportMessages]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
-  };
+  }, [loadData]);
 
-  const getLevelTitle = (level: number) => {
+  const getLevelTitle = useMemo(() => (level: number) => {
     if (level <= 5) return 'Freshman';
     if (level <= 10) return 'Sophomore';
     if (level <= 15) return 'Junior';
     if (level <= 20) return 'Senior';
     return 'Graduate';
-  };
+  }, []);
 
-  const getCategoryName = (category: string) => {
+  const getCategoryName = useMemo(() => (category: string) => {
     switch (category) {
       case 'sleep': return 'Sleep';
       case 'meals': return 'Nutrition';
@@ -83,18 +99,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
       case 'streak': return 'Streak';
       default: return 'Goal';
     }
-  };
+  }, []);
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = useMemo(() => (type: string) => {
     switch (type) {
       case 'automatic': return '#10b981';
       case 'manual': return '#6366f1';
       case 'challenge': return '#f59e0b';
       default: return '#6b7280';
     }
-  };
+  }, []);
 
-  const getMessageType = (type: string) => {
+  const getMessageType = useMemo(() => (type: string) => {
     switch (type) {
       case 'message': return 'Message';
       case 'voice': return 'Voice Note';
@@ -103,7 +119,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
       case 'boost': return 'Boost';
       default: return 'Note';
     }
-  };
+  }, []);
 
   const formatTimeAgo = (timestamp: Date) => {
     const now = new Date();
@@ -116,7 +132,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     return 'Just now';
   };
 
-  const getMoodLevel = () => {
+  const getMoodLevel = useMemo(() => {
     // Use today's entry mood if available, otherwise fallback to stored mood
     const currentMood = todayEntry?.mood || null;
     
@@ -126,7 +142,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     if (currentMood >= 5) return 'Okay';
     if (currentMood >= 3) return 'Struggling';
     return 'Difficult';
-  };
+  }, [todayEntry?.mood]);
 
   if (isLoading) {
     return (
@@ -198,7 +214,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
             style={styles.stat}
             onPress={() => navigation.navigate('WellnessLog')}
           >
-            <Text style={styles.statNumber}>{getMoodLevel()}</Text>
+            <Text style={styles.statNumber}>{getMoodLevel}</Text>
             <Text style={styles.statLabel}>How You Feel</Text>
             <Text style={styles.statHint}>Tap to update</Text>
           </TouchableOpacity>

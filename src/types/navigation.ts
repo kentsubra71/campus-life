@@ -40,7 +40,7 @@ export type ParentTabParamList = {
   ParentDashboard: undefined;
   ChildWellness: undefined;
   SendSupport: {
-    preselectedType?: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost';
+    preselectedType?: 'message' | 'voice' | 'boost';
     selectedStudentId?: string;
     selectedStudentName?: string;
   };

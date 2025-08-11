@@ -101,7 +101,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     return { text: 'Difficult', emoji: '😢', color: '#991b1b' };
   };
 
-  const sendSupportMessage = (type: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost') => {
+  const sendSupportMessage = (type: 'message' | 'voice' | 'boost') => {
     // Navigate to detailed send support screen with pre-selected type and selected student
     navigation.navigate('SendSupport', { 
       preselectedType: type,
@@ -340,25 +340,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
               <Text style={styles.supportActionDesc}>Words of encouragement</Text>
             </TouchableOpacity>
 
-            {/* Care Package */}
-            <TouchableOpacity 
-              style={[styles.supportActionCard, { backgroundColor: '#7c2d12' }]}
-              onPress={() => sendSupportMessage('care_package')}
-            >
-              <Text style={styles.supportActionEmoji}>📦</Text>
-              <Text style={styles.supportActionTitle}>Care Package</Text>
-              <Text style={styles.supportActionDesc}>Send something special</Text>
-            </TouchableOpacity>
-
-            {/* Video Call */}
-            <TouchableOpacity 
-              style={[styles.supportActionCard, { backgroundColor: '#166534' }]}
-              onPress={() => sendSupportMessage('video_call')}
-            >
-              <Text style={styles.supportActionEmoji}>📹</Text>
-              <Text style={styles.supportActionTitle}>Video Call</Text>
-              <Text style={styles.supportActionDesc}>Face-to-face time</Text>
-            </TouchableOpacity>
 
             {/* Care Boost */}
             <TouchableOpacity 
@@ -454,8 +435,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
               <View style={styles.historyHeader}>
                 <Text style={styles.historyType}>
                   {message.type === 'message' ? '💬' : 
-                   message.type === 'care_package' ? '📦' :
-                   message.type === 'video_call' ? '📹' : '✨'} 
+                   message.type === 'voice' ? '🎵' : '✨'} 
                   {message.type.replace('_', ' ')}
                 </Text>
                 <Text style={styles.historyTime}>

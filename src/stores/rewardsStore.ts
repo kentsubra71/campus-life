@@ -5,12 +5,13 @@ import {
   getRewardEntries, 
   getUserTotalPoints, 
   getCurrentUser,
-  getMessagesForUser 
+  getMessagesForUser,
+  getMessagesSentByUser 
 } from '../lib/firebase';
 
 interface SupportMessage {
   id: string;
-  type: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost';
+  type: 'message' | 'voice' | 'boost';
   content: string;
   from: string; // User ID of sender
   to: string; // User ID of recipient 
@@ -102,8 +103,23 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
 
     try {
       console.log('🔍 Fetching messages for user:', user.uid);
-      const firebaseMessages = await getMessagesForUser(user.uid);
-      console.log('📥 Messages received:', firebaseMessages.length);
+      
+      // Get user profile to determine if parent or student
+      const { getUserProfile } = await import('../lib/firebase');
+      const userProfile = await getUserProfile(user.uid);
+      
+      let firebaseMessages;
+      if (userProfile?.user_type === 'parent') {
+        // Parents want to see messages they SENT
+        console.log('👨‍👩‍👧‍👦 Parent user - fetching sent messages');
+        firebaseMessages = await getMessagesSentByUser(user.uid);
+      } else {
+        // Students want to see messages they RECEIVED
+        console.log('🎓 Student user - fetching received messages');
+        firebaseMessages = await getMessagesForUser(user.uid);
+      }
+      
+      console.log('📥 Messages fetched:', firebaseMessages.length);
       
       // Convert Firebase messages to our SupportMessage format
       const supportMessages = firebaseMessages.map(msg => ({

@@ -485,7 +485,7 @@ export interface Message {
   to_user_id: string;
   from_name: string;
   to_name: string;
-  message_type: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost';
+  message_type: 'message' | 'voice' | 'boost';
   content: string;
   boost_amount?: number;
   family_id: string;
@@ -551,6 +551,51 @@ export const getMessagesForUser = async (userId: string, limitCount: number = 50
     }
     
     console.error('Error getting messages:', error);
+    throw error; // Re-throw for proper error handling upstream
+  }
+};
+
+export const getMessagesSentByUser = async (userId: string, limitCount: number = 50): Promise<Message[]> => {
+  try {
+    // Use proper orderBy with limit for better performance
+    const q = query(
+      collection(db, 'messages'),
+      where('from_user_id', '==', userId),
+      orderBy('created_at', 'desc'),
+      limit(limitCount)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as Message));
+  } catch (error: any) {
+    // If orderBy fails due to missing index, fallback to client-side sorting
+    if (error.code === 'failed-precondition') {
+      console.log('Firestore index missing for sent messages, using fallback query');
+      try {
+        const fallbackQuery = query(
+          collection(db, 'messages'),
+          where('from_user_id', '==', userId)
+        );
+        const querySnapshot = await getDocs(fallbackQuery);
+        const messages: Message[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          messages.push({ id: doc.id, ...doc.data() } as Message);
+        });
+        
+        return messages
+          .sort((a, b) => b.created_at.seconds - a.created_at.seconds)
+          .slice(0, limitCount);
+      } catch (fallbackError: any) {
+        console.error('Fallback query also failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
+    
+    console.error('Error getting sent messages:', error);
     throw error; // Re-throw for proper error handling upstream
   }
 };

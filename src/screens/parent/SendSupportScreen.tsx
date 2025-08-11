@@ -16,7 +16,7 @@ interface SendSupportScreenProps {
   navigation: any;
   route?: {
     params?: {
-      preselectedType?: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost';
+      preselectedType?: 'message' | 'boost';
       selectedStudentId?: string;
       selectedStudentName?: string;
       selectedStudentIndex?: number;
@@ -32,7 +32,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
   const selectedStudentId = route?.params?.selectedStudentId;
   const selectedStudentIndex = route?.params?.selectedStudentIndex || 0;
   
-  const [selectedType, setSelectedType] = useState<'message' | 'voice' | 'care_package' | 'video_call' | 'boost'>(preselectedType);
+  const [selectedType, setSelectedType] = useState<'message' | 'boost'>(preselectedType === 'voice' ? 'message' : preselectedType);
   const [customMessage, setCustomMessage] = useState('');
   const [boostAmount, setBoostAmount] = useState(5);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
@@ -67,27 +67,6 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
       "You're doing an amazing job growing and learning! 🌟",
       "Miss you and love seeing your progress 💙",
       "Remember that you're strong and capable of anything! 💪"
-    ],
-    voice: [
-      "Record a voice message telling them you're proud",
-      "Share a favorite memory from home",
-      "Tell them about what's happening at home",
-      "Send encouragement for the week ahead",
-      "Record a goodnight message"
-    ],
-    care_package: [
-      "Homemade cookies and favorite snacks",
-      "Cozy care package with tea and blanket",
-      "Study survival kit with healthy snacks",
-      "Fun package with games and treats",
-      "Seasonal care package with themed goodies"
-    ],
-    video_call: [
-      "Schedule weekend catch-up call",
-      "Plan virtual family dinner",
-      "Set up study session check-in",
-      "Arrange pet video call (they miss you too!)",
-      "Plan virtual movie night together"
     ],
     boost: [
       "Great job maintaining your wellness routine!",
@@ -242,32 +221,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
               <Text style={styles.typeDesc}>Words of love</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.typeCard, selectedType === 'voice' && styles.typeCardActive]}
-              onPress={() => setSelectedType('voice')}
-            >
-              <Text style={styles.typeEmoji}>🎵</Text>
-              <Text style={styles.typeTitle}>Voice Note</Text>
-              <Text style={styles.typeDesc}>Personal message</Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.typeCard, selectedType === 'care_package' && styles.typeCardActive]}
-              onPress={() => setSelectedType('care_package')}
-            >
-              <Text style={styles.typeEmoji}>📦</Text>
-              <Text style={styles.typeTitle}>Care Package</Text>
-              <Text style={styles.typeDesc}>Something special</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.typeCard, selectedType === 'video_call' && styles.typeCardActive]}
-              onPress={() => setSelectedType('video_call')}
-            >
-              <Text style={styles.typeEmoji}>📹</Text>
-              <Text style={styles.typeTitle}>Video Call</Text>
-              <Text style={styles.typeDesc}>Face to face</Text>
-            </TouchableOpacity>
 
             <TouchableOpacity 
               style={[styles.typeCard, selectedType === 'boost' && styles.typeCardActive]}

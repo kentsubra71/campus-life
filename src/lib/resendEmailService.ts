@@ -1,6 +1,6 @@
 import { emailTemplates } from './emailTemplates';
 
-const RESEND_API_KEY = 're_Ebxr6u7s_2bcVGbXb8JdWpoiRpMXse2En';
+const RESEND_API_KEY = process.env.EXPO_PUBLIC_RESEND_API_KEY;
 const FROM_EMAIL = 'Campus Life <noreply@ronaldli.ca>'; // Using verified domain
 
 export interface EmailData {
@@ -20,6 +20,14 @@ export const sendEmailWithResend = async (emailData: EmailData): Promise<{
   error?: string;
 }> => {
   try {
+    // Check if API key is loaded
+    if (!RESEND_API_KEY) {
+      console.error('❌ Resend API key not found in environment variables');
+      return { success: false, error: 'Resend API key not configured' };
+    }
+    
+    console.log('🔑 Using API key:', RESEND_API_KEY.substring(0, 10) + '...');
+    
     const { to, type, data } = emailData;
     
     let subject: string;

@@ -53,6 +53,22 @@ export default function App() {
           navigationRef.current.navigate('ResetPassword', { token });
           console.log('Password reset token received:', token);
         }
+      } else if (url.includes('campuslife://pay/')) {
+        // Handle payment return/cancel
+        const urlParts = url.split('campuslife://pay/')[1];
+        const [action, queryString] = urlParts.split('?');
+        const params = new URLSearchParams(queryString);
+        const paymentId = params.get('paymentId');
+        
+        if (paymentId && isAuthenticated && navigationRef.current) {
+          navigationRef.current.navigate('PaymentReturn', { 
+            paymentId, 
+            action,
+            token: params.get('token'),
+            PayerID: params.get('PayerID'),
+            status: params.get('status')
+          });
+        }
       }
     };
 

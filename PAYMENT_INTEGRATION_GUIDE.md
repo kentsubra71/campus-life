@@ -33,7 +33,22 @@ External P2P payment system with subscription-gated caps. No custody, wallet, or
 
 ## Integration Steps
 
-### 1. Add Navigation Routes
+### 1. Environment Variables
+Add to your `.env` file:
+
+```env
+# PayPal Configuration
+EXPO_PUBLIC_PAYPAL_CLIENT_ID=your_paypal_client_id
+EXPO_PUBLIC_PAYPAL_CLIENT_SECRET=your_paypal_client_secret
+EXPO_PUBLIC_PAYPAL_ENVIRONMENT=sandbox  # or 'production'
+```
+
+**Get PayPal credentials:**
+1. Go to [PayPal Developer](https://developer.paypal.com/)
+2. Create an app in sandbox/live
+3. Copy Client ID and Secret
+
+### 2. Add Navigation Routes
 Add these to your navigation stack:
 
 ```typescript

@@ -57,11 +57,33 @@
       ]
     },
     {
-      "collectionGroup": "families",
+      "collectionGroup": "subscriptions",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "inviteCode",
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "monthly_spend",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "parent_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "period_start_utc",
           "order": "ASCENDING"
         }
       ]

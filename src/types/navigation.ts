@@ -39,7 +39,7 @@ export type StudentDashboardStackParamList = {
 
 // Parent Tab Parameter List  
 export type ParentTabParamList = {
-  ParentDashboard: undefined;
+  Dashboard: undefined;
   ChildWellness: undefined;
   SendSupport: {
     preselectedType?: 'message' | 'voice' | 'boost';

@@ -16,6 +16,9 @@ interface SendSupportScreenProps {
   route?: {
     params?: {
       preselectedType?: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost';
+      selectedStudentId?: string;
+      selectedStudentName?: string;
+      selectedStudentIndex?: number;
     };
   };
 }
@@ -24,6 +27,10 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
   const { monthlyEarned } = useRewardsStore();
   const { getFamilyMembers } = useAuthStore();
   const preselectedType = route?.params?.preselectedType || 'message';
+  const selectedStudentName = route?.params?.selectedStudentName;
+  const selectedStudentId = route?.params?.selectedStudentId;
+  const selectedStudentIndex = route?.params?.selectedStudentIndex || 0;
+  
   const [selectedType, setSelectedType] = useState<'message' | 'voice' | 'care_package' | 'video_call' | 'boost'>(preselectedType);
   const [customMessage, setCustomMessage] = useState('');
   const [boostAmount, setBoostAmount] = useState(5);
@@ -36,6 +43,21 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
     };
     loadFamilyData();
   }, []);
+
+  // Get the target student for display
+  const targetStudent = selectedStudentName || 
+    (familyMembers.students[selectedStudentIndex]?.name) || 
+    familyMembers.students[0]?.name || 
+    'Student';
+
+  // Debug logging
+  console.log('🎯 SendSupport Debug:', {
+    selectedStudentName,
+    selectedStudentId,
+    selectedStudentIndex,
+    targetStudent,
+    familyStudents: familyMembers.students.map(s => ({ id: s.id, name: s.name }))
+  });
 
   const supportTemplates = {
     message: [
@@ -116,7 +138,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Send Support to {familyMembers.students[0]?.name || 'Student'}</Text>
+          <Text style={styles.title}>Send Support to {targetStudent}</Text>
           {route?.params?.preselectedType ? (
             <Text style={styles.subtitle}>💙 Responding to their support request</Text>
           ) : (
@@ -127,7 +149,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
         {/* Support Request Context */}
         {route?.params?.preselectedType && (
           <View style={styles.contextCard}>
-            <Text style={styles.contextTitle}>💙 {familyMembers.students[0]?.name || 'Student'} requested support</Text>
+            <Text style={styles.contextTitle}>💙 {targetStudent} requested support</Text>
             <Text style={styles.contextText}>
               They're letting you know they could use some extra care right now. 
               Choose the best way to support them below.

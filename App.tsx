@@ -1,5 +1,5 @@
 import 'whatwg-fetch'; // Add fetch polyfill for better compatibility
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -14,13 +14,16 @@ import { RoleSelectionScreen } from './src/screens/auth/RoleSelectionScreen';
 import { ParentRegisterScreen } from './src/screens/auth/ParentRegisterScreen';
 import { StudentRegisterScreen } from './src/screens/auth/StudentRegisterScreen';
 import { LoginScreen } from './src/screens/auth/LoginScreen';
+import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
+import { ResetPasswordScreen } from './src/screens/auth/ResetPasswordScreen';
 
 const Stack = createStackNavigator();
 
 export default function App() {
-  const { isAuthenticated, user, isLoading, refreshUser } = useAuthStore();
+  const { isAuthenticated, user, isLoading } = useAuthStore();
+  const navigationRef = useRef<any>();
 
-  // Handle deep links for email verification
+  // Handle deep links for email verification and password reset
   useEffect(() => {
     const handleDeepLink = (url: string) => {
       console.log('Deep link received:', url);
@@ -32,10 +35,7 @@ export default function App() {
           [{ text: 'Continue', style: 'default' }]
         );
         
-        // Refresh user data to update verification status
-        if (user) {
-          refreshUser();
-        }
+        // User data will be updated automatically
       } else if (url.includes('campuslife://verification-failed')) {
         Alert.alert(
           'Verification Failed',
@@ -45,6 +45,14 @@ export default function App() {
             { text: 'Resend Email', style: 'default', onPress: handleResendVerification }
           ]
         );
+      } else if (url.includes('campuslife://reset-password/')) {
+        // Extract token from password reset deep link
+        const token = url.split('campuslife://reset-password/')[1];
+        if (token && !isAuthenticated && navigationRef.current) {
+          // Navigate to ResetPassword screen with token
+          navigationRef.current.navigate('ResetPassword', { token });
+          console.log('Password reset token received:', token);
+        }
       }
     };
 
@@ -52,7 +60,7 @@ export default function App() {
       if (user) {
         try {
           const { resendVerificationEmail } = await import('./src/lib/emailVerification');
-          const result = await resendVerificationEmail(user.uid);
+          const result = await resendVerificationEmail(user.id);
           
           if (result.success) {
             Alert.alert('Email Sent', 'A new verification email has been sent to your email address.');
@@ -78,7 +86,7 @@ export default function App() {
     });
 
     return () => subscription?.remove();
-  }, [user, refreshUser]);
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -110,13 +118,15 @@ export default function App() {
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="ParentRegister" component={ParentRegisterScreen} />
       <Stack.Screen name="StudentRegister" component={StudentRegisterScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </Stack.Navigator>
   );
 
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" backgroundColor="#111827" />
-      <NavigationContainer theme={customDarkTheme}>
+      <NavigationContainer ref={navigationRef} theme={customDarkTheme}>
         {!isAuthenticated ? (
           <AuthStack />
         ) : user?.role === 'student' ? (

@@ -11,6 +11,9 @@ import {
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { sendMessage, getCurrentUser } from '../../lib/firebase';
+import { createPaymentIntent, getCurrentSpendingCaps } from '../../lib/payments';
+import { createTestSubscription } from '../../lib/subscriptionWebhooks';
+import * as Linking from 'expo-linking';
 
 interface SendSupportScreenProps {
   navigation: any;
@@ -35,12 +38,53 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
   const [selectedType, setSelectedType] = useState<'message' | 'boost'>(preselectedType === 'voice' ? 'message' : preselectedType);
   const [customMessage, setCustomMessage] = useState('');
   const [boostAmount, setBoostAmount] = useState(5);
+  const [selectedProvider, setSelectedProvider] = useState<'paypal' | 'venmo' | 'cashapp' | 'zelle' | null>(null);
+  const [spendingInfo, setSpendingInfo] = useState<any>(null);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
 
   React.useEffect(() => {
     const loadFamilyData = async () => {
       const members = await getFamilyMembers();
       setFamilyMembers(members);
+      
+      // Load spending caps for boost payments
+      try {
+        const caps = await getCurrentSpendingCaps();
+        if (caps.success) {
+          setSpendingInfo(caps);
+        } else {
+          console.log('No subscription found, creating test subscription');
+          // Create a test subscription for this user
+          const currentUser = getCurrentUser();
+          if (currentUser) {
+            await createTestSubscription(currentUser.uid, 'basic');
+            // Try loading caps again
+            const retrycaps = await getCurrentSpendingCaps();
+            if (retrycaps.success) {
+              setSpendingInfo(retrycaps);
+            } else {
+              // Fallback to default
+              setSpendingInfo({
+                capCents: 2500,
+                spentCents: 0,
+                remainingCents: 2500,
+                periodStart: new Date(),
+                periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading spending caps:', error);
+        // Set default for testing
+        setSpendingInfo({
+          capCents: 2500,
+          spentCents: 0,
+          remainingCents: 2500,
+          periodStart: new Date(),
+          periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        });
+      }
     };
     loadFamilyData();
   }, []);
@@ -79,10 +123,18 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
   const sendSupport = async () => {
     if (selectedType === 'boost') {
-      if (monthlyEarned + boostAmount > 50) {
+      // For care boost, we need actual payment
+      if (!selectedProvider) {
+        Alert.alert('Select Payment Method', 'Choose how you want to send the money (PayPal, Venmo, etc.)');
+        return;
+      }
+
+      // Check spending limits
+      if (spendingInfo && boostAmount * 100 > (spendingInfo.remainingCents || 0)) {
+        const remaining = (spendingInfo.remainingCents || 0) / 100;
         Alert.alert(
-          'Monthly Limit Reached',
-          `This would exceed your $50 monthly limit. You have $${50 - monthlyEarned} remaining this month.\n\nConsider sending a message or care package instead!`,
+          'Monthly Limit Exceeded',
+          `This would exceed your monthly limit. You have $${remaining.toFixed(2)} remaining.\n\nUpgrade your plan for a higher limit.`,
           [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Choose Different Support', onPress: () => setSelectedType('message') }
@@ -90,8 +142,44 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
         );
         return;
       }
+
+      // Create real payment intent
+      const studentId = selectedStudentId || familyMembers.students[selectedStudentIndex]?.id || familyMembers.students[0]?.id;
+      
+      if (!studentId) {
+        Alert.alert('Error', 'Unable to find student to send payment to.');
+        return;
+      }
+
+      try {
+        const result = await createPaymentIntent(
+          studentId,
+          boostAmount * 100, // Convert to cents
+          selectedProvider,
+          customMessage || `Care boost from Mom/Dad: $${boostAmount}`
+        );
+
+        if (result.success) {
+          // Open the provider app/website
+          if (result.redirectUrl) {
+            await Linking.openURL(result.redirectUrl);
+          }
+
+          // Navigate to confirmation screen
+          navigation.navigate('PaymentReturn', {
+            paymentId: result.paymentId,
+            action: 'return'
+          });
+        } else {
+          Alert.alert('Payment Error', result.error || 'Failed to create payment');
+        }
+      } catch (error: any) {
+        Alert.alert('Error', error.message || 'Failed to create payment');
+      }
+      return;
     }
 
+    // For messages, use the existing flow
     const message = customMessage || supportTemplates[selectedType][0];
     const currentUser = getCurrentUser();
     const { user, family } = useAuthStore.getState();
@@ -110,14 +198,6 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
       return;
     }
 
-    console.log('📤 Sending message:', {
-      from: currentUser.uid,
-      to: studentId,
-      type: selectedType,
-      content: message,
-      boost_amount: selectedType === 'boost' ? boostAmount : undefined
-    });
-
     try {
       const messageData = {
         from_user_id: currentUser.uid,
@@ -127,17 +207,15 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
         message_type: selectedType,
         content: message,
         family_id: family.id,
-        read: false,
-        ...(selectedType === 'boost' && { boost_amount: boostAmount })
+        read: false
       };
       
       const result = await sendMessage(messageData);
 
       if (result.success) {
-        console.log('✅ Message sent successfully!');
         Alert.alert(
-          'Support Sent! 💙',
-          `Your ${selectedType === 'boost' ? `$${boostAmount} care boost` : selectedType.replace('_', ' ')} has been sent to ${studentName.split(' ')[0]}.\n\n"${message}"`,
+          'Message Sent! 💙',
+          `Your message has been sent to ${studentName.split(' ')[0]}.\n\n"${message}"`,
           [
             { text: 'Send Another', onPress: () => {
               setCustomMessage('');
@@ -146,20 +224,10 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           ]
         );
       } else {
-        console.error('❌ Failed to send message:', result.error);
-        Alert.alert(
-          'Failed to Send',
-          `Unable to send your message: ${result.error}. Please try again.`,
-          [{ text: 'OK' }]
-        );
+        Alert.alert('Failed to Send', result.error || 'Unable to send message');
       }
     } catch (error: any) {
-      console.error('❌ Error sending message:', error);
-      Alert.alert(
-        'Error',
-        'Something went wrong while sending your message. Please try again.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Error', 'Something went wrong while sending your message.');
     }
   };
 
@@ -245,21 +313,52 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
                   style={[
                     styles.amountOption,
                     boostAmount === amount && styles.amountOptionActive,
-                    monthlyEarned + amount > 50 && styles.amountOptionDisabled
+                    spendingInfo && amount * 100 > (spendingInfo.remainingCents || 0) && styles.amountOptionDisabled
                   ]}
                   onPress={() => setBoostAmount(amount)}
-                  disabled={monthlyEarned + amount > 50}
+                  disabled={spendingInfo && amount * 100 > (spendingInfo.remainingCents || 0)}
                 >
                   <Text style={[
                     styles.amountText,
                     boostAmount === amount && styles.amountTextActive,
-                    monthlyEarned + amount > 50 && styles.amountTextDisabled
+                    spendingInfo && amount * 100 > (spendingInfo.remainingCents || 0) && styles.amountTextDisabled
                   ]}>
                     ${amount}
                   </Text>
-                  {monthlyEarned + amount > 50 && (
+                  {spendingInfo && amount * 100 > (spendingInfo.remainingCents || 0) && (
                     <Text style={styles.exceededText}>Exceeds limit</Text>
                   )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Payment Method Selection for Care Boost */}
+        {selectedType === 'boost' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Payment Method</Text>
+            <Text style={styles.sectionSubtitle}>Choose how to send the money</Text>
+            <View style={styles.paymentProviders}>
+              {[
+                { id: 'paypal', name: 'PayPal', emoji: '💙', desc: 'Best experience' },
+                { id: 'venmo', name: 'Venmo', emoji: '💙', desc: 'Quick & easy' },
+                { id: 'cashapp', name: 'Cash App', emoji: '💚', desc: 'Instant transfer' },
+                { id: 'zelle', name: 'Zelle', emoji: '⚡', desc: 'Bank to bank' }
+              ].map((provider) => (
+                <TouchableOpacity
+                  key={provider.id}
+                  style={[
+                    styles.providerOption,
+                    selectedProvider === provider.id && styles.providerOptionActive
+                  ]}
+                  onPress={() => setSelectedProvider(provider.id as any)}
+                >
+                  <Text style={styles.providerEmoji}>{provider.emoji}</Text>
+                  <View style={styles.providerInfo}>
+                    <Text style={styles.providerName}>{provider.name}</Text>
+                    <Text style={styles.providerDesc}>{provider.desc}</Text>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -300,19 +399,28 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           <TouchableOpacity
             style={[
               styles.sendButton,
-              selectedType === 'boost' && monthlyEarned + boostAmount > 50 && styles.sendButtonDisabled
+              (selectedType === 'boost' && (!selectedProvider || (spendingInfo && boostAmount * 100 > (spendingInfo.remainingCents || 0)))) && styles.sendButtonDisabled
             ]}
             onPress={sendSupport}
-            disabled={selectedType === 'boost' && monthlyEarned + boostAmount > 50}
+            disabled={selectedType === 'boost' && (!selectedProvider || (spendingInfo && boostAmount * 100 > (spendingInfo.remainingCents || 0)))}
           >
             <Text style={styles.sendButtonText}>
-              Send {selectedType === 'boost' ? `$${boostAmount} Care Boost` : selectedType.replace('_', ' ')} 💙
+              {selectedType === 'boost' 
+                ? `Send $${boostAmount} via ${selectedProvider || 'Provider'}`
+                : 'Send Message'
+              } 💙
             </Text>
           </TouchableOpacity>
           
-          {selectedType === 'boost' && monthlyEarned + boostAmount > 50 && (
+          {selectedType === 'boost' && !selectedProvider && (
             <Text style={styles.limitWarning}>
-              This amount would exceed your monthly $50 limit
+              Select a payment method to continue
+            </Text>
+          )}
+          
+          {selectedType === 'boost' && spendingInfo && boostAmount * 100 > (spendingInfo.remainingCents || 0) && (
+            <Text style={styles.limitWarning}>
+              This amount would exceed your monthly limit
             </Text>
           )}
         </View>
@@ -536,5 +644,39 @@ const styles = StyleSheet.create({
     color: '#dbeafe',
     lineHeight: 20,
     textAlign: 'center',
+  },
+  paymentProviders: {
+    // gap: 8, // Commented out in case of RN compatibility
+  },
+  providerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1f2937',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#374151',
+    marginBottom: 8,
+  },
+  providerOptionActive: {
+    borderColor: '#6366f1',
+    backgroundColor: '#1e1b4b',
+  },
+  providerEmoji: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  providerInfo: {
+    flex: 1,
+  },
+  providerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#f9fafb',
+    marginBottom: 2,
+  },
+  providerDesc: {
+    fontSize: 12,
+    color: '#9ca3af',
   },
 });

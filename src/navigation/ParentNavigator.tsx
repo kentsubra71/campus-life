@@ -6,6 +6,7 @@ import { ParentDashboardScreen } from '../screens/parent/ParentDashboardScreen';
 import { ChildWellnessScreen } from '../screens/parent/ChildWellnessScreen';
 import { SendSupportScreen } from '../screens/parent/SendSupportScreen';
 import { ProfileScreen } from '../screens/shared/ProfileScreen';
+import { PaymentReturnHandler } from '../components/PaymentReturnHandler';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -61,6 +62,7 @@ export const ParentNavigator = () => {
       <Stack.Screen name="ParentTabs" component={ParentMainTabs} />
       <Stack.Screen name="ChildWellness" component={ChildWellnessScreen} />
       <Stack.Screen name="SendSupport" component={SendSupportScreen} />
+      <Stack.Screen name="PaymentReturn" component={PaymentReturnHandler} />
     </Stack.Navigator>
   );
 }; 

@@ -4,7 +4,8 @@ import {
   addRewardEntry, 
   getRewardEntries, 
   getUserTotalPoints, 
-  getCurrentUser 
+  getCurrentUser,
+  getMessagesForUser 
 } from '../lib/firebase';
 
 interface SupportMessage {
@@ -96,9 +97,32 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
   },
   
   fetchSupportMessages: async () => {
-    // TODO: Fetch from Supabase
-    // For now, new users start with no support messages
-    set({ supportMessages: [] });
+    const user = getCurrentUser();
+    if (!user) return;
+
+    try {
+      console.log('🔍 Fetching messages for user:', user.uid);
+      const firebaseMessages = await getMessagesForUser(user.uid);
+      console.log('📥 Messages received:', firebaseMessages.length);
+      
+      // Convert Firebase messages to our SupportMessage format
+      const supportMessages = firebaseMessages.map(msg => ({
+        id: msg.id,
+        type: msg.message_type,
+        content: msg.content,
+        from: msg.from_user_id,
+        to: msg.to_user_id,
+        familyId: msg.family_id,
+        timestamp: msg.created_at.toDate(),
+        read: msg.read
+      }));
+      
+      console.log('📧 Converted messages:', supportMessages);
+      set({ supportMessages });
+    } catch (error: any) {
+      console.error('Error fetching support messages:', error);
+      set({ supportMessages: [] });
+    }
   },
   
   claimReward: async (id: string) => {

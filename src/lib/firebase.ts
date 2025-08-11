@@ -410,3 +410,68 @@ export const getFamilyMembers = async (familyId: string): Promise<{ parents: Use
     return { parents: [], students: [] };
   }
 };
+
+export interface Message {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+  from_name: string;
+  to_name: string;
+  message_type: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost';
+  content: string;
+  boost_amount?: number;
+  family_id: string;
+  read: boolean;
+  created_at: Timestamp;
+}
+
+// Message functions
+export const sendMessage = async (messageData: Omit<Message, 'id' | 'created_at'>): Promise<{ success: boolean; error?: string; messageId?: string }> => {
+  try {
+    const message = {
+      ...messageData,
+      created_at: Timestamp.now(),
+    };
+    
+    const docRef = await addDoc(collection(db, 'messages'), message);
+    console.log('✅ Message sent successfully:', docRef.id);
+    return { success: true, messageId: docRef.id };
+  } catch (error: any) {
+    console.error('❌ Error sending message:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getMessagesForUser = async (userId: string): Promise<Message[]> => {
+  try {
+    // Simplified query without orderBy to avoid index requirements
+    const q = query(
+      collection(db, 'messages'),
+      where('to_user_id', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    const messages: Message[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      messages.push({ id: doc.id, ...doc.data() } as Message);
+    });
+    
+    // Sort in JavaScript instead of requiring Firestore index
+    return messages.sort((a, b) => b.created_at.seconds - a.created_at.seconds);
+  } catch (error: any) {
+    console.error('Error getting messages:', error);
+    return [];
+  }
+};
+
+export const markMessageAsRead = async (messageId: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    await setDoc(doc(db, 'messages', messageId), {
+      read: true
+    }, { merge: true });
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error marking message as read:', error);
+    return { success: false, error: error.message };
+  }
+};

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
+import { sendMessage, getCurrentUser } from '../../lib/firebase';
 
 interface SendSupportScreenProps {
   navigation: any;
@@ -97,7 +98,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
     ]
   };
 
-  const sendSupport = () => {
+  const sendSupport = async () => {
     if (selectedType === 'boost') {
       if (monthlyEarned + boostAmount > 50) {
         Alert.alert(
@@ -113,19 +114,74 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
     }
 
     const message = customMessage || supportTemplates[selectedType][0];
+    const currentUser = getCurrentUser();
+    const { user, family } = useAuthStore.getState();
     
-    const studentName = familyMembers.students[0]?.name || 'your student';
-    Alert.alert(
-      'Support Sent! 💙',
-      `Your ${selectedType === 'boost' ? `$${boostAmount} care boost` : selectedType.replace('_', ' ')} has been sent to ${studentName}.\n\n"${message}"`,
+    if (!currentUser || !user || !family) {
+      Alert.alert('Error', 'Unable to send message. Please try again.');
+      return;
+    }
 
-      [
-        { text: 'Send Another', onPress: () => {
-          setCustomMessage('');
-        }},
-        { text: 'Done', onPress: () => navigation.goBack() }
-      ]
-    );
+    // Get the correct student info
+    const studentId = selectedStudentId || familyMembers.students[selectedStudentIndex]?.id || familyMembers.students[0]?.id;
+    const studentName = targetStudent;
+    
+    if (!studentId) {
+      Alert.alert('Error', 'Unable to find student to send message to.');
+      return;
+    }
+
+    console.log('📤 Sending message:', {
+      from: currentUser.uid,
+      to: studentId,
+      type: selectedType,
+      content: message,
+      boost_amount: selectedType === 'boost' ? boostAmount : undefined
+    });
+
+    try {
+      const messageData = {
+        from_user_id: currentUser.uid,
+        to_user_id: studentId,
+        from_name: user.name || currentUser.displayName || 'Parent',
+        to_name: studentName,
+        message_type: selectedType,
+        content: message,
+        family_id: family.id,
+        read: false,
+        ...(selectedType === 'boost' && { boost_amount: boostAmount })
+      };
+      
+      const result = await sendMessage(messageData);
+
+      if (result.success) {
+        console.log('✅ Message sent successfully!');
+        Alert.alert(
+          'Support Sent! 💙',
+          `Your ${selectedType === 'boost' ? `$${boostAmount} care boost` : selectedType.replace('_', ' ')} has been sent to ${studentName.split(' ')[0]}.\n\n"${message}"`,
+          [
+            { text: 'Send Another', onPress: () => {
+              setCustomMessage('');
+            }},
+            { text: 'Done', onPress: () => navigation.goBack() }
+          ]
+        );
+      } else {
+        console.error('❌ Failed to send message:', result.error);
+        Alert.alert(
+          'Failed to Send',
+          `Unable to send your message: ${result.error}. Please try again.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error: any) {
+      console.error('❌ Error sending message:', error);
+      Alert.alert(
+        'Error',
+        'Something went wrong while sending your message. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const getRemainingBudget = () => 50 - monthlyEarned;

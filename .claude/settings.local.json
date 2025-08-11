@@ -12,7 +12,8 @@
       "Bash(npx firebase init firestore:*)",
       "Bash(firebase login:*)",
       "Bash(git add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

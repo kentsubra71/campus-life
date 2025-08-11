@@ -92,6 +92,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
             </TouchableOpacity>
 
             <TouchableOpacity
+              style={styles.forgotPasswordButton}
+              onPress={() => navigation.navigate('ForgotPassword')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={styles.linkButton}
               onPress={() => onNavigateToRegister ? onNavigateToRegister() : navigation.navigate('RoleSelection')}
               activeOpacity={0.7}
@@ -185,5 +193,15 @@ const styles = StyleSheet.create({
   linkTextBold: {
     fontWeight: '600',
     color: '#6366f1',
+  },
+  forgotPasswordButton: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  forgotPasswordText: {
+    color: '#6366f1',
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 

@@ -34,6 +34,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
+  const [selectedStudentIndex, setSelectedStudentIndex] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -41,14 +42,22 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
   const loadData = async () => {
     try {
+      console.log('🔄 Loading family members...');
       const members = await getFamilyMembers();
+      console.log('👨‍👩‍👧‍👦 Family members loaded:', {
+        parentsCount: members.parents.length,
+        studentsCount: members.students.length,
+        parents: members.parents.map(p => ({ id: p.id, name: p.name })),
+        students: members.students.map(s => ({ id: s.id, name: s.name }))
+      });
+      
       setFamilyMembers(members);
       
       // Only fetch support data if we have students in the family
       if (members.students.length > 0) {
         await Promise.all([
           fetchSupportMessages(),
-          getEntryByDate(new Date().toDateString())
+          getEntryByDate(new Date().toISOString().split('T')[0])
         ]);
       }
     } catch (error) {
@@ -57,6 +66,14 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       setIsLoading(false);
     }
   };
+
+  // Load data when selected student changes
+  useEffect(() => {
+    if (familyMembers.students.length > 0 && selectedStudentIndex < familyMembers.students.length) {
+      // Reload data for the selected student
+      getEntryByDate(new Date().toISOString().split('T')[0]);
+    }
+  }, [selectedStudentIndex]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -85,19 +102,25 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   };
 
   const sendSupportMessage = (type: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost') => {
-    // Navigate to detailed send support screen with pre-selected type
-    navigation.navigate('SendSupport', { preselectedType: type });
+    // Navigate to detailed send support screen with pre-selected type and selected student
+    navigation.navigate('SendSupport', { 
+      preselectedType: type,
+      selectedStudentId: currentStudent?.id,
+      selectedStudentName: studentName,
+      selectedStudentIndex: selectedStudentIndex
+    });
   };
 
   const getWellnessStatus = () => {
-    const currentStudentName = familyMembers.students[0]?.name || 'your student';
-    if (!todayEntry) return { status: 'No data', color: '#6b7280', suggestion: `Check in with ${currentStudentName} about logging wellness` };
+    const currentStudent = familyMembers.students[selectedStudentIndex];
+    const firstName = currentStudent?.name?.split(' ')[0] || 'them';
+    if (!todayEntry) return { status: 'No data', color: '#6b7280', suggestion: `Check in with ${firstName}` };
     
     const score = todayEntry.wellnessScore;
-    if (score >= 8) return { status: 'Thriving', color: '#10b981', suggestion: 'Great time to celebrate their success!' };
-    if (score >= 6) return { status: 'Doing Well', color: '#059669', suggestion: 'Send encouragement to keep it up' };
-    if (score >= 4) return { status: 'Managing', color: '#d97706', suggestion: 'Consider offering gentle support' };
-    return { status: 'Struggling', color: '#dc2626', suggestion: 'Time for extra care and check-in' };
+    if (score >= 8) return { status: 'Thriving', color: '#10b981', suggestion: `Celebrate ${firstName}'s progress!` };
+    if (score >= 6) return { status: 'Doing Well', color: '#059669', suggestion: `Send ${firstName} encouragement` };
+    if (score >= 4) return { status: 'Managing', color: '#d97706', suggestion: `Offer ${firstName} gentle support` };
+    return { status: 'Struggling', color: '#dc2626', suggestion: `${firstName} needs extra care` };
   };
 
   const copyInviteCode = async () => {
@@ -194,8 +217,17 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   const wellnessStatus = getWellnessStatus();
   const moodInfo = getMoodLevel();
   
-  // Get the student's name (assuming first student for now)
-  const studentName = familyMembers.students[0]?.name || 'Student';
+  // Get the selected student's information
+  const currentStudent = familyMembers.students[selectedStudentIndex];
+  const studentName = currentStudent?.name || (familyMembers.students[0]?.name) || 'Loading...';
+  const hasMultipleStudents = familyMembers.students.length > 1;
+  
+  // Debug logging
+  console.log('🔍 Family members debug:', {
+    studentsCount: familyMembers.students.length,
+    hasMultipleStudents,
+    students: familyMembers.students.map(s => ({ id: s.id, name: s.name }))
+  });
 
   return (
     <View style={styles.container}>
@@ -207,13 +239,40 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>{studentName}'s Week</Text>
+          <Text style={styles.title}>
+            {hasMultipleStudents ? 'Your Family' : `${studentName}'s Week`}
+          </Text>
           <Text style={styles.subtitle}>Supporting from afar with love</Text>
         </View>
 
+        {/* Compact Student Tabs - Only show if multiple students */}
+        {hasMultipleStudents && familyMembers.students.length > 1 && (
+          <View style={styles.compactStudentSelector}>
+            {familyMembers.students.map((student, index) => (
+              <TouchableOpacity
+                key={student.id}
+                style={[
+                  styles.compactTab,
+                  selectedStudentIndex === index && styles.compactTabActive
+                ]}
+                onPress={() => setSelectedStudentIndex(index)}
+              >
+                <Text 
+                  style={[
+                    styles.compactTabText,
+                    selectedStudentIndex === index && styles.compactTabTextActive
+                  ]}
+                >
+                  {student.name.split(' ')[0]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Child Status Overview */}
         <View style={styles.statusCard}>
-          <Text style={styles.statusTitle}>How {studentName}'s Doing</Text>
+          <Text style={styles.statusTitle}>How {studentName.split(' ')[0]}'s Doing</Text>
           <View style={styles.statusRow}>
             <View style={styles.statusItem}>
               <Text style={styles.statusLabel}>Overall</Text>
@@ -235,7 +294,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </View>
           </View>
           <View style={styles.suggestionContainer}>
-            <Text style={styles.suggestionLabel}>💡 Suggestion:</Text>
             <Text style={styles.suggestionText}>{wellnessStatus.suggestion}</Text>
           </View>
         </View>
@@ -351,7 +409,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           <Text style={styles.sectionTitle}>Wellness Insights</Text>
           <TouchableOpacity 
             style={styles.wellnessCard}
-            onPress={() => navigation.navigate('ChildWellness')}
+            onPress={() => navigation.navigate('ChildWellness', { 
+              selectedStudentId: currentStudent?.id,
+              selectedStudentName: studentName 
+            })}
           >
             <View style={styles.wellnessHeader}>
               <Text style={styles.wellnessTitle}>Current Streak</Text>
@@ -361,8 +422,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </View>
             <Text style={styles.wellnessSubtext}>
               {stats.totalEntries === 0 
-                ? `Encourage ${studentName} to start logging wellness` 
-                : `${studentName} has been consistently tracking their wellness`
+                ? `Encourage ${studentName.split(' ')[0]} to start logging wellness` 
+                : `${studentName.split(' ')[0]} has been consistently tracking wellness`
               }
             </Text>
           </TouchableOpacity>
@@ -376,10 +437,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </View>
             <Text style={styles.wellnessSubtext}>
               {stats.totalEntries === 0 
-                ? 'No wellness data yet' 
+                ? `${studentName.split(' ')[0]} hasn't logged wellness yet` 
                 : stats.averageScore >= 7 
-                ? 'Doing really well overall!' 
-                : 'Room for gentle encouragement'
+                ? `${studentName.split(' ')[0]} is doing great!` 
+                : `${studentName.split(' ')[0]} could use encouragement`
               }
             </Text>
           </TouchableOpacity>
@@ -483,21 +544,14 @@ const styles = StyleSheet.create({
   },
   suggestionContainer: {
     backgroundColor: '#374151',
-    padding: 12,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  suggestionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fbbf24',
-    marginRight: 8,
+    padding: 10,
+    borderRadius: 6,
+    marginTop: 8,
   },
   suggestionText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#d1d5db',
-    flex: 1,
+    fontStyle: 'italic',
   },
   section: {
     padding: 20,
@@ -803,5 +857,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#d1fae5',
     lineHeight: 20,
+  },
+  // Compact student selector styles
+  compactStudentSelector: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    gap: 12,
+  },
+  compactTab: {
+    backgroundColor: '#374151',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    maxWidth: 120,
+  },
+  compactTabActive: {
+    backgroundColor: '#6366f1',
+  },
+  compactTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#d1d5db',
+    textAlign: 'center',
+  },
+  compactTabTextActive: {
+    color: '#ffffff',
+  },
+  multipleStudentNote: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 });

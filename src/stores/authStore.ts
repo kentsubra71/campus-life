@@ -1,4 +1,20 @@
 import { create } from 'zustand';
+import { 
+  signUpUser, 
+  signInUser, 
+  signOutUser, 
+  onAuthStateChange, 
+  getUserProfile,
+  updateUserProfile,
+  createFamily as createFamilyFirebase,
+  joinFamily as joinFamilyFirebase,
+  getFamily,
+  getFamilyMembers as getFamilyMembersFirebase,
+  initializeCollections,
+  UserProfile,
+  Family as FirebaseFamily
+} from '../lib/firebase';
+import { User as FirebaseUser } from 'firebase/auth';
 
 interface User {
   id: string;
@@ -53,39 +69,56 @@ interface StudentRegisterData extends RegisterData {
   inviteCode: string;
 }
 
-// Mock database - in real app this would be Supabase/Firebase
-let mockUsers: User[] = [];
-let mockFamilies: Family[] = [];
-
-const generateId = () => Math.random().toString(36).substr(2, 9);
-const generateInviteCode = () => Math.random().toString(36).substr(2, 8).toUpperCase();
+const generateInviteCode = () => Math.random().toString(36).substring(2, 10).toUpperCase();
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  isAuthenticated: false,
-  user: null,
-  family: null,
-  isLoading: false,
+    isAuthenticated: false,
+    user: null,
+    family: null,
+    isLoading: false,
   
   login: async (email: string, password: string) => {
     set({ isLoading: true });
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { user: firebaseUser, error } = await signInUser(email, password);
       
-      // Find user in mock database
-      const user = mockUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-      
-      if (!user) {
+      if (error || !firebaseUser) {
         set({ isLoading: false });
-        return { success: false, error: 'No account found with this email' };
+        return { success: false, error: error || 'Login failed' };
       }
       
-      // In real app, verify password hash
-      // For demo, accept any password
+      // Get user profile from Firestore
+      const profile = await getUserProfile(firebaseUser.uid);
       
-      // Find user's family
-      const family = mockFamilies.find(f => f.id === user.familyId);
+      if (!profile) {
+        set({ isLoading: false });
+        return { success: false, error: 'User profile not found' };
+      }
+      
+      let family: Family | null = null;
+      if (profile.family_id) {
+        const familyData = await getFamily(profile.family_id);
+        if (familyData) {
+          family = {
+            id: familyData.id,
+            name: familyData.name,
+            inviteCode: familyData.inviteCode,
+            parentIds: familyData.parentIds,
+            studentIds: familyData.studentIds,
+            createdAt: familyData.created_at.toDate(),
+          };
+        }
+      }
+      
+      const user: User = {
+        id: profile.id,
+        email: profile.email,
+        name: profile.full_name,
+        role: profile.user_type,
+        familyId: profile.family_id || '',
+        createdAt: profile.created_at.toDate(),
+      };
       
       set({ 
         isAuthenticated: true, 
@@ -94,11 +127,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false 
       });
       
+      // Initialize collections after successful login
+      initializeCollections().catch(console.error);
+      
       return { success: true };
       
-    } catch (error) {
+    } catch (error: any) {
       set({ isLoading: false });
-      return { success: false, error: 'Login failed. Please try again.' };
+      return { success: false, error: error.message || 'Login failed. Please try again.' };
     }
   },
   
@@ -106,55 +142,128 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      // Check if user already exists
-      const existingUser = mockUsers.find(u => u.email.toLowerCase() === data.email.toLowerCase());
-      if (existingUser) {
+      const { user: firebaseUser, error } = await signUpUser(
+        data.email,
+        data.password,
+        data.name,
+        data.role
+      );
+      
+      if (error || !firebaseUser) {
         set({ isLoading: false });
-        return { success: false, error: 'An account with this email already exists' };
+        return { success: false, error: error || 'Registration failed' };
       }
       
-      if (data.role === 'parent') {
-        return await get().createFamily(data as ParentRegisterData);
-      } else {
-        // Student registration requires invite code
+      // Get the created profile
+      const profile = await getUserProfile(firebaseUser.uid);
+      
+      if (!profile) {
         set({ isLoading: false });
-        return { success: false, error: 'Student registration requires an invite code' };
+        return { success: false, error: 'Failed to create user profile' };
       }
       
-    } catch (error) {
+      let family: Family | null = null;
+      if (profile.family_id) {
+        const familyData = await getFamily(profile.family_id);
+        if (familyData) {
+          family = {
+            id: familyData.id,
+            name: familyData.name,
+            inviteCode: familyData.inviteCode,
+            parentIds: familyData.parentIds,
+            studentIds: familyData.studentIds,
+            createdAt: familyData.created_at.toDate(),
+          };
+        }
+      }
+      
+      const user: User = {
+        id: profile.id,
+        email: profile.email,
+        name: profile.full_name,
+        role: profile.user_type,
+        familyId: profile.family_id || '',
+        createdAt: profile.created_at.toDate(),
+      };
+      
+      set({ 
+        isAuthenticated: true, 
+        user, 
+        family,
+        isLoading: false 
+      });
+      
+      // Initialize collections after successful registration
+      initializeCollections().catch(console.error);
+      
+      return { success: true };
+      
+    } catch (error: any) {
       set({ isLoading: false });
-      return { success: false, error: 'Registration failed. Please try again.' };
+      return { success: false, error: error.message || 'Registration failed. Please try again.' };
     }
   },
   
   createFamily: async (parentData: ParentRegisterData) => {
+    console.log('🔥 CREATE FAMILY FUNCTION CALLED - Firebase implementation active');
+    set({ isLoading: true });
+    
     try {
-      // Create family
-      const familyId = generateId();
-      const inviteCode = generateInviteCode();
-      const userId = generateId();
+      // First register the parent
+      const { user: firebaseUser, error } = await signUpUser(
+        parentData.email,
+        parentData.password,
+        parentData.name,
+        parentData.role
+      );
       
-      const family: Family = {
-        id: familyId,
-        name: parentData.familyName,
-        inviteCode,
-        parentIds: [userId],
-        studentIds: [],
-        createdAt: new Date(),
-      };
+      if (error || !firebaseUser) {
+        set({ isLoading: false });
+        return { success: false, error: error || 'Registration failed' };
+      }
+      
+      // Create the family
+      const { familyId, inviteCode, error: familyError } = await createFamilyFirebase(
+        parentData.familyName,
+        firebaseUser.uid
+      );
+      
+      if (familyError || !familyId) {
+        set({ isLoading: false });
+        return { success: false, error: familyError || 'Failed to create family' };
+      }
+      
+      // Get the updated profile with family ID
+      const profile = await getUserProfile(firebaseUser.uid);
+      if (!profile) {
+        set({ isLoading: false });
+        return { success: false, error: 'Failed to get user profile' };
+      }
+      
+      // Get the family data
+      const familyData = await getFamily(familyId);
+      if (!familyData) {
+        set({ isLoading: false });
+        return { success: false, error: 'Failed to get family data' };
+      }
       
       const user: User = {
-        id: userId,
-        email: parentData.email,
-        name: parentData.name,
-        role: 'parent',
-        familyId,
-        createdAt: new Date(),
+        id: profile.id,
+        email: profile.email,
+        name: profile.full_name,
+        role: profile.user_type,
+        familyId: familyId,
+        createdAt: profile.created_at.toDate(),
       };
       
-      // Save to mock database
-      mockFamilies.push(family);
-      mockUsers.push(user);
+      const family: Family = {
+        id: familyData.id,
+        name: familyData.name,
+        inviteCode: familyData.inviteCode,
+        parentIds: familyData.parentIds,
+        studentIds: familyData.studentIds,
+        createdAt: familyData.created_at.toDate(),
+      };
       
       set({ 
         isAuthenticated: true, 
@@ -165,44 +274,72 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       return { success: true, inviteCode };
       
-    } catch (error) {
+    } catch (error: any) {
       set({ isLoading: false });
-      return { success: false, error: 'Failed to create family. Please try again.' };
+      return { success: false, error: error.message || 'Failed to create family' };
     }
   },
   
   joinFamily: async (studentData: StudentRegisterData, inviteCode: string) => {
+    console.log('🔥 JOIN FAMILY FUNCTION CALLED - Firebase implementation active');
     set({ isLoading: true });
     
     try {
-      // Find family by invite code
-      const family = mockFamilies.find(f => f.inviteCode === inviteCode.toUpperCase());
+      // First register the student
+      const { user: firebaseUser, error } = await signUpUser(
+        studentData.email,
+        studentData.password,
+        studentData.name,
+        studentData.role
+      );
       
-      if (!family) {
+      if (error || !firebaseUser) {
         set({ isLoading: false });
-        return { success: false, error: 'Invalid invite code. Please check and try again.' };
+        return { success: false, error: error || 'Registration failed' };
       }
       
-      // Check if user already exists
-      const existingUser = mockUsers.find(u => u.email.toLowerCase() === studentData.email.toLowerCase());
-      if (existingUser) {
+      // Join the family
+      const { familyId, error: familyError } = await joinFamilyFirebase(
+        inviteCode,
+        firebaseUser.uid
+      );
+      
+      if (familyError || !familyId) {
         set({ isLoading: false });
-        return { success: false, error: 'An account with this email already exists' };
+        return { success: false, error: familyError || 'Failed to join family' };
       }
       
-      const userId = generateId();
+      // Get the updated profile with family ID
+      const profile = await getUserProfile(firebaseUser.uid);
+      if (!profile) {
+        set({ isLoading: false });
+        return { success: false, error: 'Failed to get user profile' };
+      }
+      
+      // Get the family data
+      const familyData = await getFamily(familyId);
+      if (!familyData) {
+        set({ isLoading: false });
+        return { success: false, error: 'Failed to get family data' };
+      }
+      
       const user: User = {
-        id: userId,
-        email: studentData.email,
-        name: studentData.name,
-        role: 'student',
-        familyId: family.id,
-        createdAt: new Date(),
+        id: profile.id,
+        email: profile.email,
+        name: profile.full_name,
+        role: profile.user_type,
+        familyId: familyId,
+        createdAt: profile.created_at.toDate(),
       };
       
-      // Add student to family and database
-      family.studentIds.push(userId);
-      mockUsers.push(user);
+      const family: Family = {
+        id: familyData.id,
+        name: familyData.name,
+        inviteCode: familyData.inviteCode,
+        parentIds: familyData.parentIds,
+        studentIds: familyData.studentIds,
+        createdAt: familyData.created_at.toDate(),
+      };
       
       set({ 
         isAuthenticated: true, 
@@ -213,20 +350,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       return { success: true };
       
-    } catch (error) {
+    } catch (error: any) {
       set({ isLoading: false });
-      return { success: false, error: 'Failed to join family. Please try again.' };
+      return { success: false, error: error.message || 'Failed to join family' };
     }
   },
   
   getFamilyMembers: async () => {
-    const { family } = get();
-    if (!family) return { parents: [], students: [] };
+    const { user } = get();
+    if (!user || !user.familyId) {
+      return { parents: [], students: [] };
+    }
     
-    const parents = mockUsers.filter(u => family.parentIds.includes(u.id));
-    const students = mockUsers.filter(u => family.studentIds.includes(u.id));
-    
-    return { parents, students };
+    try {
+      const { parents: parentProfiles, students: studentProfiles } = await getFamilyMembersFirebase(user.familyId);
+      
+      const parents: User[] = parentProfiles.map(profile => ({
+        id: profile.id,
+        email: profile.email,
+        name: profile.full_name,
+        role: profile.user_type,
+        familyId: profile.family_id || '',
+        createdAt: profile.created_at.toDate(),
+      }));
+      
+      const students: User[] = studentProfiles.map(profile => ({
+        id: profile.id,
+        email: profile.email,
+        name: profile.full_name,
+        role: profile.user_type,
+        familyId: profile.family_id || '',
+        createdAt: profile.created_at.toDate(),
+      }));
+      
+      return { parents, students };
+    } catch (error) {
+      console.error('Error getting family members:', error);
+      return { parents: [], students: [] };
+    }
   },
   
   updateProfile: async (updates: Partial<User>) => {
@@ -234,20 +395,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!user) return false;
     
     try {
+      const profileUpdates: Partial<UserProfile> = {};
+      if (updates.name) profileUpdates.full_name = updates.name;
+      if (updates.role) profileUpdates.user_type = updates.role;
+      
+      const { error } = await updateUserProfile(user.id, profileUpdates);
+      if (error) return false;
+      
       const updatedUser = { ...user, ...updates };
-      const userIndex = mockUsers.findIndex(u => u.id === user.id);
-      if (userIndex !== -1) {
-        mockUsers[userIndex] = updatedUser;
-        set({ user: updatedUser });
-        return true;
-      }
-      return false;
+      set({ user: updatedUser });
+      return true;
     } catch {
       return false;
     }
   },
   
-  logout: () => {
+  logout: async () => {
+    await signOutUser();
     set({ 
       isAuthenticated: false, 
       user: null, 

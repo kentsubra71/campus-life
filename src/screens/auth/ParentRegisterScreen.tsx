@@ -80,10 +80,8 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           { 
             text: 'Continue', 
             onPress: () => {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Main' }],
-              });
+              // Navigation will be handled automatically by auth state change
+              // No need to manually reset navigation stack
             }
           }
         ]

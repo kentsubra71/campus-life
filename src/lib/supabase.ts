@@ -1,7 +1,16 @@
-// Mock Supabase client for development
-// This will be replaced with real Supabase once we resolve the bundling issues
+// Firebase adapter to maintain compatibility with existing Supabase API calls
+import { 
+  signUpUser, 
+  signInUser, 
+  signOutUser, 
+  getCurrentUser, 
+  onAuthStateChange, 
+  getUserProfile,
+  auth
+} from './firebase';
+import { User } from 'firebase/auth';
 
-interface MockUser {
+interface SupabaseUser {
   id: string;
   email: string;
   user_metadata?: {
@@ -10,76 +19,139 @@ interface MockUser {
   };
 }
 
-interface MockSession {
-  user: MockUser;
+interface SupabaseSession {
+  user: SupabaseUser;
   access_token: string;
   refresh_token: string;
 }
 
-class MockSupabaseClient {
-  private currentUser: MockUser | null = null;
-  private listeners: Array<(event: string, session: MockSession | null) => void> = [];
+class FirebaseSupabaseAdapter {
+  private listeners: Array<(event: string, session: SupabaseSession | null) => void> = [];
 
   auth = {
     signUp: async ({ email, password, options }: any) => {
-      // Simulate successful registration
-      const user: MockUser = {
-        id: `mock-${Date.now()}`,
-        email,
-        user_metadata: options?.data || {},
+      const { user, error } = await signUpUser(
+        email, 
+        password, 
+        options?.data?.full_name || '', 
+        options?.data?.user_type || 'student'
+      );
+      
+      if (error) {
+        return { data: { user: null, session: null }, error };
+      }
+
+      const supabaseUser: SupabaseUser = {
+        id: user!.uid,
+        email: user!.email!,
+        user_metadata: {
+          full_name: options?.data?.full_name,
+          user_type: options?.data?.user_type,
+        },
       };
-      
-      this.currentUser = user;
-      this.notifyListeners('SIGNED_UP', { user, access_token: 'mock-token', refresh_token: 'mock-refresh' });
-      
-      return { data: { user, session: { user, access_token: 'mock-token', refresh_token: 'mock-refresh' } }, error: null };
+
+      const session: SupabaseSession = {
+        user: supabaseUser,
+        access_token: 'firebase-token',
+        refresh_token: 'firebase-refresh',
+      };
+
+      this.notifyListeners('SIGNED_UP', session);
+      return { data: { user: supabaseUser, session }, error: null };
     },
 
     signInWithPassword: async ({ email, password }: any) => {
-      // Simulate successful login
-      const user: MockUser = {
-        id: `mock-${Date.now()}`,
-        email,
-        user_metadata: { full_name: 'Demo User', user_type: 'student' },
+      const { user, error } = await signInUser(email, password);
+      
+      if (error) {
+        return { data: { user: null, session: null }, error };
+      }
+
+      // Get user profile from Firestore
+      const profile = await getUserProfile(user!.uid);
+
+      const supabaseUser: SupabaseUser = {
+        id: user!.uid,
+        email: user!.email!,
+        user_metadata: {
+          full_name: profile?.full_name || user!.displayName || '',
+          user_type: profile?.user_type || 'student',
+        },
       };
-      
-      this.currentUser = user;
-      this.notifyListeners('SIGNED_IN', { user, access_token: 'mock-token', refresh_token: 'mock-refresh' });
-      
-      return { data: { user, session: { user, access_token: 'mock-token', refresh_token: 'mock-refresh' } }, error: null };
+
+      const session: SupabaseSession = {
+        user: supabaseUser,
+        access_token: 'firebase-token',
+        refresh_token: 'firebase-refresh',
+      };
+
+      this.notifyListeners('SIGNED_IN', session);
+      return { data: { user: supabaseUser, session }, error: null };
     },
 
     signOut: async () => {
-      this.currentUser = null;
-      this.notifyListeners('SIGNED_OUT', null);
-      return { error: null };
+      const { error } = await signOutUser();
+      if (!error) {
+        this.notifyListeners('SIGNED_OUT', null);
+      }
+      return { error };
     },
 
     getSession: async () => {
-      if (this.currentUser) {
-        return { 
-          data: { 
-            session: { 
-              user: this.currentUser, 
-              access_token: 'mock-token', 
-              refresh_token: 'mock-refresh' 
-            } 
-          }, 
-          error: null 
+      const user = getCurrentUser();
+      if (user) {
+        const profile = await getUserProfile(user.uid);
+        
+        const supabaseUser: SupabaseUser = {
+          id: user.uid,
+          email: user.email!,
+          user_metadata: {
+            full_name: profile?.full_name || user.displayName || '',
+            user_type: profile?.user_type || 'student',
+          },
         };
+
+        const session: SupabaseSession = {
+          user: supabaseUser,
+          access_token: 'firebase-token',
+          refresh_token: 'firebase-refresh',
+        };
+
+        return { data: { session }, error: null };
       }
       return { data: { session: null }, error: null };
     },
 
-    onAuthStateChange: (callback: (event: string, session: MockSession | null) => void) => {
+    onAuthStateChange: (callback: (event: string, session: SupabaseSession | null) => void) => {
       this.listeners.push(callback);
+      
+      const unsubscribe = onAuthStateChange(async (user: User | null) => {
+        if (user) {
+          const profile = await getUserProfile(user.uid);
+          
+          const supabaseUser: SupabaseUser = {
+            id: user.uid,
+            email: user.email!,
+            user_metadata: {
+              full_name: profile?.full_name || user.displayName || '',
+              user_type: profile?.user_type || 'student',
+            },
+          };
+
+          const session: SupabaseSession = {
+            user: supabaseUser,
+            access_token: 'firebase-token',
+            refresh_token: 'firebase-refresh',
+          };
+
+          callback('SIGNED_IN', session);
+        } else {
+          callback('SIGNED_OUT', null);
+        }
+      });
+
       return {
-        data: { subscription: { unsubscribe: () => {
-          const index = this.listeners.indexOf(callback);
-          if (index > -1) {
-            this.listeners.splice(index, 1);
-          }
-        }}}
+        data: { subscription: { unsubscribe } }
       };
     },
   };
@@ -88,12 +160,15 @@ class MockSupabaseClient {
     select: (columns: string) => ({
       eq: (column: string, value: any) => ({
         single: async () => {
-          // Mock profile data
+          // Handle profile queries
           if (table === 'profiles' && column === 'id') {
-            return {
-              data: { user_type: this.currentUser?.user_metadata?.user_type || 'student' },
-              error: null
-            };
+            const profile = await getUserProfile(value);
+            if (profile) {
+              return {
+                data: { user_type: profile.user_type },
+                error: null
+              };
+            }
           }
           return { data: null, error: null };
         }
@@ -101,9 +176,9 @@ class MockSupabaseClient {
     })
   });
 
-  private notifyListeners(event: string, session: MockSession | null) {
+  private notifyListeners(event: string, session: SupabaseSession | null) {
     this.listeners.forEach(listener => listener(event, session));
   }
 }
 
-export const supabase = new MockSupabaseClient() as any; 
+export const supabase = new FirebaseSupabaseAdapter() as any; 

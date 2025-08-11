@@ -38,16 +38,6 @@ const ParentMainTabs = () => {
         }}
       />
       <Tab.Screen 
-        name="SendSupport" 
-        component={SendSupportScreen}
-        options={{
-          tabBarLabel: 'Send Love',
-          tabBarIcon: ({ color }) => (
-            <MaterialIcons name="favorite" color={color} size={24} />
-          ),
-        }}
-      />
-      <Tab.Screen 
         name="Profile" 
         component={ProfileScreen}
         options={{
@@ -70,6 +60,7 @@ export const ParentNavigator = () => {
     >
       <Stack.Screen name="ParentTabs" component={ParentMainTabs} />
       <Stack.Screen name="ChildWellness" component={ChildWellnessScreen} />
+      <Stack.Screen name="SendSupport" component={SendSupportScreen} />
     </Stack.Navigator>
   );
 }; 

@@ -56,10 +56,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           style: 'destructive',
           onPress: () => {
             logout();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Auth' }],
-            });
+            // Navigation will be handled automatically by auth state change
+            // No need to manually reset navigation stack
           }
         }
       ]

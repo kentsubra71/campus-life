@@ -25,6 +25,12 @@ export interface UserProfile {
   family_id?: string;
   email_verified: boolean;
   verification_token?: string;
+  // Payment provider info
+  venmo_username?: string;
+  cashapp_cashtag?: string;
+  paypal_id?: string;
+  zelle_email?: string;
+  zelle_phone?: string;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
@@ -491,6 +497,45 @@ export interface Message {
   family_id: string;
   read: boolean;
   created_at: Timestamp;
+}
+
+// Payment system types
+export interface Subscription {
+  id: string;
+  user_id: string;
+  tier: 'basic' | 'semi' | 'premium';
+  cap_cents: number;
+  status: 'active' | 'canceled' | 'past_due';
+  store: 'apple' | 'google' | 'web';
+  store_receipt?: string;
+  current_period_start_utc: Timestamp;
+  current_period_end_utc: Timestamp;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface MonthlySpend {
+  id: string;
+  parent_id: string;
+  period_start_utc: Timestamp;
+  period_end_utc: Timestamp;
+  spent_cents: number;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface Payment {
+  id: string;
+  parent_id: string;
+  student_id: string;
+  provider: 'paypal' | 'venmo' | 'cashapp' | 'zelle';
+  intent_cents: number;
+  note?: string;
+  status: 'initiated' | 'confirmed_by_parent' | 'canceled';
+  provider_metadata?: any;
+  idempotency_key: string;
+  created_at: Timestamp;
+  confirmed_at?: Timestamp;
 }
 
 // Message functions

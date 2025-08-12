@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
@@ -27,6 +28,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     level, 
     mood,
     fetchSupportMessages,
+    fetchMonthlyPayments,
     addExperience,
     acknowledgeSupport
   } = useRewardsStore();
@@ -39,6 +41,17 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   useEffect(() => {
     loadData();
   }, []);
+
+  // Reload data when screen comes into focus (e.g., returning from SendSupport)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (familyMembers.students.length > 0) {
+        const selectedStudent = familyMembers.students[selectedStudentIndex] || familyMembers.students[0];
+        fetchSupportMessages();
+        fetchMonthlyPayments(selectedStudent?.id);
+      }
+    }, [fetchSupportMessages, fetchMonthlyPayments, familyMembers.students.length, selectedStudentIndex])
+  );
 
   const loadData = async () => {
     try {
@@ -55,8 +68,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       
       // Only fetch support data if we have students in the family
       if (members.students.length > 0) {
+        const selectedStudent = members.students[selectedStudentIndex] || members.students[0];
         await Promise.all([
           fetchSupportMessages(),
+          fetchMonthlyPayments(selectedStudent?.id),
           getEntryByDate(new Date().toISOString().split('T')[0])
         ]);
       }
@@ -70,10 +85,12 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   // Load data when selected student changes
   useEffect(() => {
     if (familyMembers.students.length > 0 && selectedStudentIndex < familyMembers.students.length) {
+      const selectedStudent = familyMembers.students[selectedStudentIndex];
       // Reload data for the selected student
       getEntryByDate(new Date().toISOString().split('T')[0]);
+      fetchMonthlyPayments(selectedStudent?.id);
     }
-  }, [selectedStudentIndex]);
+  }, [selectedStudentIndex, fetchMonthlyPayments]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -239,30 +256,28 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       >
         {/* Header */}
         <View style={styles.header}>
+          <Text style={styles.greeting}>Hi there!</Text>
           <Text style={styles.title}>
-            {hasMultipleStudents ? 'Your Family' : `${studentName}'s Week`}
+            {hasMultipleStudents ? 'Your Kids' : studentName.split(' ')[0]}
           </Text>
-          <Text style={styles.subtitle}>Supporting from afar with love</Text>
         </View>
 
-        {/* Compact Student Tabs - Only show if multiple students */}
+        {/* Student Tabs - Only show if multiple students */}
         {hasMultipleStudents && familyMembers.students.length > 1 && (
-          <View style={styles.compactStudentSelector}>
+          <View style={styles.studentTabs}>
             {familyMembers.students.map((student, index) => (
               <TouchableOpacity
                 key={student.id}
                 style={[
-                  styles.compactTab,
-                  selectedStudentIndex === index && styles.compactTabActive
+                  styles.tab,
+                  selectedStudentIndex === index && styles.activeTab
                 ]}
                 onPress={() => setSelectedStudentIndex(index)}
               >
-                <Text 
-                  style={[
-                    styles.compactTabText,
-                    selectedStudentIndex === index && styles.compactTabTextActive
-                  ]}
-                >
+                <Text style={[
+                  styles.tabText,
+                  selectedStudentIndex === index && styles.activeTabText
+                ]}>
                   {student.name.split(' ')[0]}
                 </Text>
               </TouchableOpacity>
@@ -270,32 +285,12 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           </View>
         )}
 
-        {/* Child Status Overview */}
-        <View style={styles.statusCard}>
-          <Text style={styles.statusTitle}>How {studentName.split(' ')[0]}'s Doing</Text>
-          <View style={styles.statusRow}>
-            <View style={styles.statusItem}>
-              <Text style={styles.statusLabel}>Overall</Text>
-              <Text style={[styles.statusValue, { color: wellnessStatus.color }]}>
-                {wellnessStatus.status}
-              </Text>
-            </View>
-            <View style={styles.statusItem}>
-              <Text style={styles.statusLabel}>Mood</Text>
-              <Text style={[styles.statusValue, { color: moodInfo.color }]}>
-                {moodInfo.emoji} {moodInfo.text}
-              </Text>
-            </View>
-            <View style={styles.statusItem}>
-              <Text style={styles.statusLabel}>Level</Text>
-              <Text style={styles.statusValue}>
-                {getLevelTitle(level)} {level}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.suggestionContainer}>
-            <Text style={styles.suggestionText}>{wellnessStatus.suggestion}</Text>
-          </View>
+        {/* Current Status */}
+        <View style={styles.statusSection}>
+          <Text style={styles.currentMood}>
+            {moodInfo.emoji} {studentName.split(' ')[0]} is feeling {moodInfo.text.toLowerCase()} today
+          </Text>
+          <Text style={styles.suggestion}>{wellnessStatus.suggestion}</Text>
         </View>
 
         {/* Support Requests - Priority Alert */}
@@ -324,138 +319,69 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           </View>
         )}
 
-        {/* Quick Support Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Send Support</Text>
-          <Text style={styles.sectionSubtitle}>Choose how to show you care</Text>
+        {/* Quick Actions */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionHeader}>Send Support</Text>
+          <TouchableOpacity 
+            style={styles.actionRow}
+            onPress={() => sendSupportMessage('message')}
+          >
+            <Text style={styles.actionEmoji}>💌</Text>
+            <Text style={styles.actionLabel}>Send a message</Text>
+          </TouchableOpacity>
           
-          <View style={styles.supportActionsGrid}>
-            {/* Encouragement Message */}
-            <TouchableOpacity 
-              style={[styles.supportActionCard, { backgroundColor: '#1e40af' }]}
-              onPress={() => sendSupportMessage('message')}
-            >
-              <Text style={styles.supportActionEmoji}>💬</Text>
-              <Text style={styles.supportActionTitle}>Send Message</Text>
-              <Text style={styles.supportActionDesc}>Words of encouragement</Text>
-            </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.actionRow}
+            onPress={() => sendSupportMessage('boost')}
+          >
+            <Text style={styles.actionEmoji}>✨</Text>
+            <Text style={styles.actionLabel}>Send $5 boost</Text>
+          </TouchableOpacity>
 
-
-            {/* Care Boost */}
-            <TouchableOpacity 
-              style={[styles.supportActionCard, { backgroundColor: '#075985' }]}
-              onPress={() => sendSupportMessage('boost')}
-            >
-              <Text style={styles.supportActionEmoji}>✨</Text>
-              <Text style={styles.supportActionTitle}>Care Boost</Text>
-              <Text style={styles.supportActionDesc}>$5 surprise</Text>
-            </TouchableOpacity>
-
-            {/* PayPal Test - Development Only */}
-            <TouchableOpacity 
-              style={[styles.supportActionCard, { backgroundColor: '#dc2626' }]}
-              onPress={() => navigation.navigate('PayPalTest')}
-            >
-              <Text style={styles.supportActionEmoji}>🔧</Text>
-              <Text style={styles.supportActionTitle}>PayPal Test</Text>
-              <Text style={styles.supportActionDesc}>Debug P2P payments</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity 
+            style={styles.actionRow}
+            onPress={() => navigation.navigate('PayPalTest')}
+          >
+            <Text style={styles.actionEmoji}>🔧</Text>
+            <Text style={styles.actionLabel}>PayPal Test</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Monthly Support Summary */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>This Month's Connection</Text>
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryNumber}>{supportMessages.length}</Text>
-                <Text style={styles.summaryLabel}>Messages Sent</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryNumber}>${monthlyEarned}</Text>
-                <Text style={styles.summaryLabel}>Care Boosts</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryNumber}>${50 - monthlyEarned}</Text>
-                <Text style={styles.summaryLabel}>Remaining</Text>
-              </View>
-            </View>
-            <View style={styles.monthlyLimitBar}>
+        {/* Monthly Summary */}
+        <View style={styles.summarySection}>
+          <Text style={styles.sectionHeader}>This Month</Text>
+          <Text style={styles.summaryText}>
+            You've sent {supportMessages.length} messages and ${monthlyEarned} in care boosts
+          </Text>
+          <View style={styles.budgetContainer}>
+            <View style={styles.budgetBar}>
               <View 
-                style={[
-                  styles.monthlyLimitFill, 
-                  { width: `${(monthlyEarned / 50) * 100}%` }
-                ]} 
+                style={[styles.budgetFill, { width: `${(monthlyEarned / 50) * 100}%` }]} 
               />
             </View>
-            <Text style={styles.monthlyLimitText}>
-              Monthly care boost limit: ${monthlyEarned}/50
-            </Text>
+            <Text style={styles.budgetText}>${50 - monthlyEarned} remaining in monthly budget</Text>
           </View>
         </View>
 
-        {/* Recent Wellness Insights */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Wellness Insights</Text>
-          <TouchableOpacity 
-            style={styles.wellnessCard}
-            onPress={() => navigation.navigate('ChildWellness', { 
-              selectedStudentId: currentStudent?.id,
-              selectedStudentName: studentName 
-            })}
-          >
-            <View style={styles.wellnessHeader}>
-              <Text style={styles.wellnessTitle}>Current Streak</Text>
-              <Text style={styles.wellnessValue}>
-                {stats.totalEntries === 0 ? '--' : `${stats.currentStreak} days`}
-              </Text>
-            </View>
-            <Text style={styles.wellnessSubtext}>
-              {stats.totalEntries === 0 
-                ? `Encourage ${studentName.split(' ')[0]} to start logging wellness` 
-                : `${studentName.split(' ')[0]} has been consistently tracking wellness`
-              }
+        {/* Wellness */}
+        <TouchableOpacity 
+          style={styles.wellnessSection}
+          onPress={() => navigation.navigate('ChildWellness', { 
+            selectedStudentId: currentStudent?.id,
+            selectedStudentName: studentName 
+          })}
+        >
+          <Text style={styles.sectionHeader}>Wellness Check-in</Text>
+          {stats.totalEntries === 0 ? (
+            <Text style={styles.wellnessText}>
+              {studentName.split(' ')[0]} hasn't started tracking wellness yet
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.wellnessCard}>
-            <View style={styles.wellnessHeader}>
-              <Text style={styles.wellnessTitle}>Average Score</Text>
-              <Text style={styles.wellnessValue}>
-                {stats.totalEntries === 0 ? '--' : `${stats.averageScore}/10`}
-              </Text>
-            </View>
-            <Text style={styles.wellnessSubtext}>
-              {stats.totalEntries === 0 
-                ? `${studentName.split(' ')[0]} hasn't logged wellness yet` 
-                : stats.averageScore >= 7 
-                ? `${studentName.split(' ')[0]} is doing great!` 
-                : `${studentName.split(' ')[0]} could use encouragement`
-              }
+          ) : (
+            <Text style={styles.wellnessText}>
+              {studentName.split(' ')[0]} has a {stats.currentStreak} day streak with a {stats.averageScore}/10 average
             </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Connection History */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Support</Text>
-          {supportMessages.slice(0, 3).map((message, index) => (
-            <View key={message.id} style={styles.historyCard}>
-              <View style={styles.historyHeader}>
-                <Text style={styles.historyType}>
-                  {message.type === 'message' ? '💬' : 
-                   message.type === 'voice' ? '🎵' : '✨'} 
-                  {message.type.replace('_', ' ')}
-                </Text>
-                <Text style={styles.historyTime}>
-                  {new Date(message.timestamp).toLocaleDateString()}
-                </Text>
-              </View>
-              <Text style={styles.historyContent}>{message.content}</Text>
-            </View>
-          ))}
-        </View>
+          )}
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -464,7 +390,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#0a0a0a',
   },
   scrollContainer: {
     flex: 1,
@@ -473,223 +399,131 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: '#0a0a0a',
   },
   loadingText: {
-    color: '#f9fafb',
+    color: '#ffffff',
     fontSize: 16,
   },
   header: {
     padding: 24,
     paddingTop: 60,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#f9fafb',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
+  greeting: {
     fontSize: 16,
-    color: '#9ca3af',
-    marginTop: 6,
-  },
-  statusCard: {
-    backgroundColor: '#1f2937',
-    margin: 20,
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#374151',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  statusTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 16,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  statusItem: {
-    alignItems: 'center',
-  },
-  statusLabel: {
-    fontSize: 14,
-    color: '#9ca3af',
+    color: '#a855f7',
+    fontWeight: '400',
     marginBottom: 4,
-    fontWeight: '500',
   },
-  statusValue: {
+  title: {
+    fontSize: 30,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  statusSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+  },
+  currentMood: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#f9fafb',
-  },
-  suggestionContainer: {
-    backgroundColor: '#374151',
-    padding: 10,
-    borderRadius: 6,
-    marginTop: 8,
-  },
-  suggestionText: {
-    fontSize: 13,
-    color: '#d1d5db',
-    fontStyle: 'italic',
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#f9fafb',
+    fontWeight: '500',
+    color: '#ffffff',
     marginBottom: 8,
   },
-  sectionSubtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
-    marginBottom: 16,
+  suggestion: {
+    fontSize: 15,
+    color: '#888888',
   },
-  supportActionsGrid: {
+  studentTabs: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    marginHorizontal: 20,
+    marginBottom: 20,
     gap: 12,
   },
-  supportActionCard: {
+  tab: {
     flex: 1,
-    minWidth: '45%',
-    maxWidth: '48%',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  supportActionEmoji: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  supportActionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  supportActionDesc: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-  },
-  summaryCard: {
-    backgroundColor: '#1f2937',
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  summaryItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#2a2a2a',
     alignItems: 'center',
   },
-  summaryNumber: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#f9fafb',
+  activeTab: {
+    backgroundColor: '#a855f7',
   },
-  summaryLabel: {
-    fontSize: 14,
-    color: '#9ca3af',
-    marginTop: 4,
+  tabText: {
+    fontSize: 15,
     fontWeight: '500',
+    color: '#888888',
   },
-  monthlyLimitBar: {
-    height: 6,
-    backgroundColor: '#374151',
-    borderRadius: 3,
+  activeTabText: {
+    color: '#ffffff',
+  },
+  actionsSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  actionEmoji: {
+    fontSize: 20,
+    marginRight: 16,
+    width: 24,
+  },
+  actionLabel: {
+    fontSize: 16,
+    color: '#ffffff',
+    fontWeight: '400',
+  },
+  sectionHeader: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#a855f7',
     marginBottom: 8,
   },
-  monthlyLimitFill: {
-    height: '100%',
-    backgroundColor: '#6366f1',
-    borderRadius: 3,
+  summarySection: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
   },
-  monthlyLimitText: {
-    fontSize: 14,
-    color: '#9ca3af',
-    textAlign: 'center',
-  },
-  wellnessCard: {
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 12,
+  summaryText: {
+    fontSize: 16,
+    color: '#ffffff',
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
   },
-  wellnessHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  budgetContainer: {
+    marginTop: 8,
+  },
+  budgetBar: {
+    height: 4,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 2,
     marginBottom: 8,
   },
-  wellnessTitle: {
+  budgetFill: {
+    height: '100%',
+    backgroundColor: '#a855f7',
+    borderRadius: 2,
+  },
+  budgetText: {
+    fontSize: 13,
+    color: '#888888',
+  },
+  wellnessSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  wellnessText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#f9fafb',
-  },
-  wellnessValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#10b981',
-  },
-  wellnessSubtext: {
-    fontSize: 14,
-    color: '#9ca3af',
-    fontStyle: 'italic',
-  },
-  historyCard: {
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  historyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  historyType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#f9fafb',
-  },
-  historyTime: {
-    fontSize: 14,
-    color: '#9ca3af',
-  },
-  historyContent: {
-    fontSize: 14,
-    color: '#d1d5db',
-    lineHeight: 20,
+    color: '#ffffff',
   },
   urgentTitle: {
     fontSize: 20,
@@ -735,13 +569,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   waitingCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: '#ffffff',
     margin: 20,
     padding: 32,
     borderRadius: 16,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#374151',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   waitingEmoji: {
     fontSize: 64,
@@ -749,31 +586,37 @@ const styles = StyleSheet.create({
   },
   waitingTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#f9fafb',
+    fontWeight: '800',
+    color: '#111827',
     textAlign: 'center',
     marginBottom: 12,
+    fontFamily: 'System',
   },
   waitingText: {
     fontSize: 16,
-    color: '#d1d5db',
+    color: '#6b7280',
     textAlign: 'center',
     lineHeight: 24,
+    fontFamily: 'System',
   },
   inviteCard: {
-    backgroundColor: '#1e40af',
+    backgroundColor: '#3b82f6',
     margin: 20,
     padding: 24,
     borderRadius: 16,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   inviteLabel: {
     fontSize: 14,
     color: '#dbeafe',
     marginBottom: 12,
     fontWeight: '600',
+    fontFamily: 'System',
   },
   inviteCodeLarge: {
     fontSize: 32,
@@ -782,25 +625,31 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     marginBottom: 12,
     textAlign: 'center',
+    fontFamily: 'System',
   },
   inviteHint: {
     fontSize: 12,
     color: '#93c5fd',
     fontStyle: 'italic',
+    fontFamily: 'System',
   },
   instructionsCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: '#ffffff',
     margin: 20,
     padding: 24,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#374151',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   instructionsTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#f9fafb',
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: 16,
+    fontFamily: 'System',
   },
   instructionsList: {
     gap: 12,
@@ -814,7 +663,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
-    backgroundColor: '#6366f1',
+    backgroundColor: '#3b82f6',
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -824,21 +673,28 @@ const styles = StyleSheet.create({
   instructionText: {
     flex: 1,
     fontSize: 14,
-    color: '#d1d5db',
+    color: '#6b7280',
     lineHeight: 20,
+    fontFamily: 'System',
   },
   previewCard: {
-    backgroundColor: '#059669',
+    backgroundColor: '#10b981',
     margin: 20,
     padding: 24,
     borderRadius: 16,
     marginBottom: 40,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   previewTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#ffffff',
     marginBottom: 16,
+    fontFamily: 'System',
   },
   previewList: {
     gap: 8,
@@ -847,6 +703,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#d1fae5',
     lineHeight: 20,
+    fontFamily: 'System',
   },
   // Compact student selector styles
   compactStudentSelector: {

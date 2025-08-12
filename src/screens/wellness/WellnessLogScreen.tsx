@@ -6,9 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Slider from '@react-native-community/slider';
+import { showMessage } from 'react-native-flash-message';
 import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
 
 interface WellnessLogScreenProps {
@@ -56,13 +57,25 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         ...formData,
         date: today,
       });
-      Alert.alert('Success', 'Wellness entry updated successfully!');
+      showMessage({
+        message: 'Success',
+        description: 'Wellness entry updated successfully!',
+        type: 'success',
+        backgroundColor: '#1f2937',
+        color: '#f9fafb',
+      });
     } else {
       addEntry({
         ...formData,
         date: today,
       });
-      Alert.alert('Success', 'Wellness entry saved successfully!');
+      showMessage({
+        message: 'Success', 
+        description: 'Wellness entry saved successfully!',
+        type: 'success',
+        backgroundColor: '#1f2937',
+        color: '#f9fafb',
+      });
     }
     
     navigation.goBack();
@@ -74,13 +87,9 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     min: number,
     max: number,
     unit: string,
-    onValueChange: (value: number) => void
+    onValueChange: (value: number) => void,
+    step: number = 1
   ) => {
-    const handleValueChange = (newValue: number) => {
-      console.log(`${label}: ${value} -> ${newValue}`);
-      onValueChange(newValue);
-    };
-    
     return (
       <View style={styles.sliderContainer}>
         <View style={styles.sliderHeader}>
@@ -88,42 +97,23 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
           <Text style={styles.sliderValue}>{value} {unit}</Text>
         </View>
         
-        {/* Large touch buttons */}
-        <View style={styles.sliderButtonsContainer}>
-          {Array.from({ length: max - min + 1 }, (_, i) => i + min).map((stepValue) => (
-            <TouchableOpacity
-              key={stepValue}
-              style={[
-                styles.sliderButton,
-                stepValue <= value && styles.sliderButtonActive,
-              ]}
-              onPress={() => handleValueChange(stepValue)}
-              activeOpacity={0.8}
-            >
-              <Text style={[
-                styles.sliderButtonText,
-                stepValue <= value && styles.sliderButtonTextActive
-              ]}>
-                {stepValue}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.sliderWrapper}>
+          <Slider
+            style={styles.slider}
+            minimumValue={min}
+            maximumValue={max}
+            value={value}
+            onValueChange={onValueChange}
+            step={step}
+            minimumTrackTintColor="#6366f1"
+            maximumTrackTintColor="#374151"
+            thumbStyle={styles.sliderThumb}
+          />
         </View>
         
-        {/* Progress bar */}
-        <View style={styles.progressBarContainer}>
-          <View style={styles.progressBar}>
-            <View 
-              style={[
-                styles.progressBarFill, 
-                { width: `${((value - min) / (max - min)) * 100}%` }
-              ]} 
-            />
-          </View>
-          <View style={styles.progressLabels}>
-            <Text style={styles.progressLabel}>{min}</Text>
-            <Text style={styles.progressLabel}>{max}</Text>
-          </View>
+        <View style={styles.sliderLabels}>
+          <Text style={styles.sliderLabelText}>{min}</Text>
+          <Text style={styles.sliderLabelText}>{max}</Text>
         </View>
       </View>
     );
@@ -131,16 +121,15 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
 
   const renderMoodSlider = () => {
     const handleMoodChange = (newMood: number) => {
-      console.log(`Mood: ${formData.mood} -> ${newMood}`);
       setFormData({ ...formData, mood: newMood });
     };
     
-    const getMoodEmoji = (moodValue: number) => {
-      if (moodValue <= 2) return '😢';
-      if (moodValue <= 4) return '😐';
-      if (moodValue <= 6) return '🙂';
-      if (moodValue <= 8) return '😊';
-      return '🤩';
+    const getMoodDescription = (moodValue: number) => {
+      if (moodValue <= 3) return 'Having a tough day';
+      if (moodValue <= 5) return 'Okay, could be better';
+      if (moodValue <= 7) return 'Pretty good';
+      if (moodValue <= 9) return 'Great day';
+      return 'Amazing day';
     };
     
     return (
@@ -150,49 +139,27 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
           <Text style={styles.sliderValue}>{formData.mood}/10</Text>
         </View>
         
-        {/* Large mood buttons */}
-        <View style={styles.sliderButtonsContainer}>
-          {Array.from({ length: 10 }, (_, i) => i + 1).map((moodValue) => (
-            <TouchableOpacity
-              key={moodValue}
-              style={[
-                styles.sliderButton,
-                moodValue <= formData.mood && styles.sliderButtonActive,
-              ]}
-              onPress={() => handleMoodChange(moodValue)}
-              activeOpacity={0.8}
-            >
-              <Text style={[
-                styles.sliderButtonText,
-                moodValue <= formData.mood && styles.sliderButtonTextActive
-              ]}>
-                {getMoodEmoji(moodValue)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.sliderWrapper}>
+          <Slider
+            style={styles.slider}
+            minimumValue={1}
+            maximumValue={10}
+            value={formData.mood}
+            onValueChange={handleMoodChange}
+            step={1}
+            minimumTrackTintColor="#6366f1"
+            maximumTrackTintColor="#374151"
+            thumbStyle={styles.sliderThumb}
+          />
         </View>
         
-        {/* Progress bar */}
-        <View style={styles.progressBarContainer}>
-          <View style={styles.progressBar}>
-            <View 
-              style={[
-                styles.progressBarFill, 
-                { width: `${((formData.mood - 1) / 9) * 100}%` }
-              ]} 
-            />
-          </View>
-          <View style={styles.progressLabels}>
-            <Text style={styles.progressLabel}>😢</Text>
-            <Text style={styles.progressLabel}>🤩</Text>
-          </View>
+        <View style={styles.sliderLabels}>
+          <Text style={styles.sliderLabelText}>1</Text>
+          <Text style={styles.sliderLabelText}>10</Text>
         </View>
         
         <Text style={styles.moodDescription}>
-          {formData.mood <= 3 ? '😢 Having a tough day' :
-           formData.mood <= 5 ? '😐 Okay, could be better' :
-           formData.mood <= 7 ? '🙂 Pretty good!' :
-           formData.mood <= 9 ? '😊 Great day!' : '🤩 Amazing day!'}
+          {getMoodDescription(formData.mood)}
         </Text>
       </View>
     );
@@ -232,7 +199,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
           0,
           12,
           'hours',
-          (value) => setFormData({ ...formData, sleep: value })
+          (value) => setFormData({ ...formData, sleep: value }),
+          0.5
         )}
 
         {/* Exercise */}
@@ -242,7 +210,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
           0,
           120,
           'min',
-          (value) => setFormData({ ...formData, exercise: value })
+          (value) => setFormData({ ...formData, exercise: value }),
+          5
         )}
 
         {/* Nutrition */}
@@ -293,6 +262,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={formData.notes}
             onChangeText={(text) => setFormData({ ...formData, notes: text })}
             placeholder="How was your day? Any highlights or challenges?"
+            placeholderTextColor="#9ca3af"
             multiline
             numberOfLines={4}
             textAlignVertical="top"
@@ -321,7 +291,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#111827',
   },
   header: {
     flexDirection: 'row',
@@ -329,25 +299,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: '#374151',
   },
   backButton: {
     padding: 8,
   },
   backButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: '#6366f1',
     fontWeight: '500',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
   },
   saveButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366f1',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -367,19 +337,21 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 16,
-    color: '#6c757d',
+    color: '#9ca3af',
     fontWeight: '500',
   },
   sliderContainer: {
     marginBottom: 30,
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   sliderHeader: {
     flexDirection: 'row',
@@ -390,118 +362,96 @@ const styles = StyleSheet.create({
   sliderLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
     flex: 1,
   },
   sliderValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#007AFF',
+    color: '#6366f1',
   },
-  sliderButtonsContainer: {
+  sliderWrapper: {
+    marginVertical: 16,
+    marginHorizontal: 8,
+  },
+  slider: {
+    width: '100%',
+    height: 40,
+  },
+  sliderThumb: {
+    backgroundColor: '#6366f1',
+    width: 24,
+    height: 24,
+  },
+  sliderLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginTop: 8,
   },
-  sliderButton: {
-    width: 32,
-    height: 32,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#e9ecef',
-  },
-  sliderButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  sliderButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6c757d',
-  },
-  sliderButtonTextActive: {
-    color: '#fff',
-  },
-  progressBarContainer: {
-    marginBottom: 8,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#e9ecef',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 4,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 4,
-  },
-  progressLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  progressLabel: {
+  sliderLabelText: {
     fontSize: 12,
-    color: '#6c757d',
+    color: '#9ca3af',
+    fontWeight: '500',
   },
   moodDescription: {
     marginTop: 10,
     fontSize: 14,
-    color: '#6c757d',
+    color: '#9ca3af',
     textAlign: 'center',
   },
   notesContainer: {
     marginBottom: 30,
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   notesLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
     marginBottom: 10,
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: '#4b5563',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     minHeight: 100,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#374151',
+    color: '#f9fafb',
   },
   previewContainer: {
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#1f2937',
     padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
     marginBottom: 30,
   },
   previewTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#f9fafb',
     marginBottom: 10,
   },
   previewScore: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: '#10b981',
   },
 });
 

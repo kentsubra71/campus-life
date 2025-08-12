@@ -1,4 +1,10 @@
 import { create } from 'zustand';
+import { 
+  addWellnessEntry, 
+  getWellnessEntries, 
+  WellnessEntry as FirebaseWellnessEntry,
+  getCurrentUser 
+} from '../lib/firebase';
 
 export interface WellnessEntry {
   id: string;
@@ -32,9 +38,10 @@ interface WellnessStore {
   updateEntry: (id: string, updates: Partial<WellnessEntry>) => void;
   getEntryByDate: (date: string) => WellnessEntry | null;
   calculateWellnessScore: (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>) => number;
-  calculateStats: () => void;
+  calculateStats: () => WellnessStats;
   getWeeklyEntries: () => WellnessEntry[];
   getMonthlyEntries: () => WellnessEntry[];
+  loadEntries: () => Promise<void>;
 }
 
 const calculateWellnessScore = (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>): number => {
@@ -75,24 +82,46 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
   },
   todayEntry: null,
 
-  addEntry: (entryData) => {
+  addEntry: async (entryData) => {
+    const user = getCurrentUser();
+    if (!user) return;
+
     const wellnessScore = calculateWellnessScore(entryData);
-    const newEntry: WellnessEntry = {
-      ...entryData,
-      id: `entry-${Date.now()}`,
-      wellnessScore,
+    
+    // Convert to Firebase format
+    const firebaseEntry: Omit<FirebaseWellnessEntry, 'id' | 'created_at'> = {
+      user_id: user.uid,
+      mood: entryData.mood,
+      stress_level: entryData.academic, // Map academic to stress_level
+      sleep_hours: entryData.sleep,
+      exercise_minutes: entryData.exercise,
+      notes: entryData.notes,
     };
 
-    set((state) => {
-      const updatedEntries = [...state.entries, newEntry];
-      const updatedStats = get().calculateStats();
-      
-      return {
-        entries: updatedEntries,
-        todayEntry: newEntry,
-        stats: updatedStats,
+    try {
+      const { id, error } = await addWellnessEntry(firebaseEntry);
+      if (error || !id) {
+        console.error('Failed to add wellness entry:', error);
+        return;
+      }
+
+      const newEntry: WellnessEntry = {
+        ...entryData,
+        id,
+        wellnessScore,
       };
-    });
+
+      set((state) => ({
+        entries: [...state.entries, newEntry],
+        todayEntry: newEntry,
+      }));
+      
+      // Calculate and update stats after setting entries
+      const updatedStats = get().calculateStats();
+      set({ stats: updatedStats });
+    } catch (error) {
+      console.error('Failed to add wellness entry:', error);
+    }
   },
 
   updateEntry: (id, updates) => {
@@ -108,14 +137,16 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         return entry;
       });
 
-      const updatedStats = get().calculateStats();
       
       return {
         entries: updatedEntries,
         todayEntry: updatedEntries.find(entry => entry.date === new Date().toISOString().split('T')[0]) || null,
-        stats: updatedStats,
       };
     });
+    
+    // Calculate and update stats after setting entries
+    const updatedStats = get().calculateStats();
+    set({ stats: updatedStats });
   },
 
   getEntryByDate: (date) => {
@@ -198,5 +229,50 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
     return entries.filter(entry => new Date(entry.date) >= monthAgo);
+  },
+
+  loadEntries: async () => {
+    const user = getCurrentUser();
+    if (!user) return;
+
+    try {
+      const firebaseEntries = await getWellnessEntries(user.uid);
+      
+      // Convert Firebase entries to local format
+      const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
+        id: entry.id || '',
+        date: entry.created_at.toDate().toISOString().split('T')[0],
+        mood: entry.mood,
+        sleep: entry.sleep_hours,
+        exercise: entry.exercise_minutes,
+        nutrition: 5, // Default value since not in Firebase
+        water: 4, // Default value since not in Firebase
+        social: 5, // Default value since not in Firebase
+        academic: entry.stress_level,
+        notes: entry.notes,
+        wellnessScore: calculateWellnessScore({
+          date: entry.created_at.toDate().toISOString().split('T')[0],
+          mood: entry.mood,
+          sleep: entry.sleep_hours,
+          exercise: entry.exercise_minutes,
+          nutrition: 5,
+          water: 4,
+          social: 5,
+          academic: entry.stress_level,
+          notes: entry.notes,
+        }),
+      }));
+
+      const today = new Date().toISOString().split('T')[0];
+      const todayEntry = entries.find(entry => entry.date === today) || null;
+      
+      set({ entries, todayEntry });
+      
+      // Calculate and update stats
+      const stats = get().calculateStats();
+      set({ stats });
+    } catch (error) {
+      console.error('Failed to load wellness entries:', error);
+    }
   },
 })); 

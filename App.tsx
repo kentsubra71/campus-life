@@ -1,92 +1,157 @@
-import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import 'whatwg-fetch'; // Add fetch polyfill for better compatibility
+import React, { useEffect, useRef } from 'react';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthNavigator } from './src/navigation/AuthNavigator';
+import { createStackNavigator } from '@react-navigation/stack';
 import { StudentNavigator } from './src/navigation/StudentNavigator';
 import { ParentNavigator } from './src/navigation/ParentNavigator';
 import { useAuthStore } from './src/stores/authStore';
-import { supabase } from './src/lib/supabase';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, StatusBar, Alert } from 'react-native';
+import * as Linking from 'expo-linking';
+
+// Auth screens
+import { RoleSelectionScreen } from './src/screens/auth/RoleSelectionScreen';
+import { ParentRegisterScreen } from './src/screens/auth/ParentRegisterScreen';
+import { StudentRegisterScreen } from './src/screens/auth/StudentRegisterScreen';
+import { LoginScreen } from './src/screens/auth/LoginScreen';
+import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
+import { ResetPasswordScreen } from './src/screens/auth/ResetPasswordScreen';
+
+const Stack = createStackNavigator();
 
 export default function App() {
-  const { user, userType, setUser, setUserType } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(true);
+  const { isAuthenticated, user, isLoading } = useAuthStore();
+  const navigationRef = useRef<any>();
 
+  // Handle deep links for email verification and password reset
   useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setUser(session.user);
-        // Get user type from profile
-        fetchUserProfile(session.user.id);
+    const handleDeepLink = (url: string) => {
+      console.log('Deep link received:', url);
+      
+      if (url.includes('campuslife://verified')) {
+        Alert.alert(
+          'Email Verified! 🎉',
+          'Your email has been successfully verified. Welcome to Campus Life!',
+          [{ text: 'Continue', style: 'default' }]
+        );
+        
+        // User data will be updated automatically
+      } else if (url.includes('campuslife://verification-failed')) {
+        Alert.alert(
+          'Verification Failed',
+          'Email verification failed. Please try requesting a new verification email.',
+          [
+            { text: 'OK', style: 'default' },
+            { text: 'Resend Email', style: 'default', onPress: handleResendVerification }
+          ]
+        );
+      } else if (url.includes('campuslife://reset-password/')) {
+        // Extract token from password reset deep link
+        const token = url.split('campuslife://reset-password/')[1];
+        if (token && !isAuthenticated && navigationRef.current) {
+          // Navigate to ResetPassword screen with token
+          navigationRef.current.navigate('ResetPassword', { token });
+          console.log('Password reset token received:', token);
+        }
+      } else if (url.includes('campuslife://pay/')) {
+        // Handle payment return/cancel
+        const urlParts = url.split('campuslife://pay/')[1];
+        const [action, queryString] = urlParts.split('?');
+        const params = new URLSearchParams(queryString);
+        const paymentId = params.get('paymentId');
+        
+        if (paymentId && isAuthenticated && navigationRef.current) {
+          navigationRef.current.navigate('PaymentReturn', { 
+            paymentId, 
+            action,
+            token: params.get('token'),
+            PayerID: params.get('PayerID'),
+            status: params.get('status')
+          });
+        }
       }
-      setIsLoading(false);
+    };
+
+    const handleResendVerification = async () => {
+      if (user) {
+        try {
+          const { resendVerificationEmail } = await import('./src/lib/emailVerification');
+          const result = await resendVerificationEmail(user.id);
+          
+          if (result.success) {
+            Alert.alert('Email Sent', 'A new verification email has been sent to your email address.');
+          } else {
+            Alert.alert('Error', result.error || 'Failed to send verification email.');
+          }
+        } catch (error: any) {
+          Alert.alert('Error', 'Failed to resend verification email.');
+        }
+      }
+    };
+
+    // Handle app opened via deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink(url);
+      }
     });
 
-    // Listen for auth changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (session) {
-          setUser(session.user);
-          await fetchUserProfile(session.user.id);
-        } else {
-          setUser(null);
-          setUserType(null);
-        }
-        setIsLoading(false);
-      }
-    );
+    // Handle deep links when app is running
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
 
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_type')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching user profile:', error);
-      } else if (data) {
-        setUserType(data.user_type);
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-    }
-  };
-
-  const handleLoginSuccess = () => {
-    // Auth state will be updated by the listener
-  };
+    return () => subscription?.remove();
+  }, [user]);
 
   if (isLoading) {
     return (
       <SafeAreaProvider>
+        <StatusBar barStyle="light-content" backgroundColor="#111827" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3498db" />
+          <ActivityIndicator size="large" color="#6366f1" />
           <Text style={styles.loadingText}>Loading CampusLife...</Text>
         </View>
       </SafeAreaProvider>
     );
   }
 
+  const customDarkTheme = {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: '#6366f1',
+      background: '#111827',
+      card: '#1f2937',
+      text: '#f9fafb',
+      border: '#374151',
+    },
+  };
+
+  const AuthStack = () => (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="ParentRegister" component={ParentRegisterScreen} />
+      <Stack.Screen name="StudentRegister" component={StudentRegisterScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+    </Stack.Navigator>
+  );
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        {!user ? (
-          <AuthNavigator onLoginSuccess={handleLoginSuccess} />
-        ) : userType === 'student' ? (
+      <StatusBar barStyle="light-content" backgroundColor="#111827" />
+      <NavigationContainer ref={navigationRef} theme={customDarkTheme}>
+        {!isAuthenticated ? (
+          <AuthStack />
+        ) : user?.role === 'student' ? (
           <StudentNavigator />
-        ) : userType === 'parent' ? (
+        ) : user?.role === 'parent' ? (
           <ParentNavigator />
         ) : (
           <View style={styles.loadingContainer}>
-            <Text>Loading user profile...</Text>
+            <Text style={styles.loadingText}>Loading user profile...</Text>
           </View>
         )}
       </NavigationContainer>
@@ -99,11 +164,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#111827',
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#7f8c8d',
+    color: '#9ca3af',
   },
 });

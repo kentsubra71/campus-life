@@ -1,97 +1,125 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   ScrollView, 
   RefreshControl, 
   View, 
   Text, 
   StyleSheet,
-  TouchableOpacity 
+  TouchableOpacity
 } from 'react-native';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { StudentDashboardScreenProps } from '../../types/navigation';
+import { handleAsyncError, AppError } from '../../utils/errorHandling';
+import { Alert } from 'react-native';
 
-interface DashboardScreenProps {
-  navigation: any;
-}
-
-export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
+export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMain'>> = ({ navigation }) => {
   const { stats, todayEntry, getEntryByDate } = useWellnessStore();
   const { 
     activeRewards, 
     supportMessages, 
-    totalEarned, 
-    monthlyEarned, 
+    totalEarned,
     level, 
     experience, 
     mood,
+    lastSupportRequest,
     fetchActiveRewards, 
     fetchSupportMessages,
     claimReward,
     updateMood,
-    markMessageRead 
+    markMessageRead,
+    requestSupport
   } = useRewardsStore();
+  const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingErrors, setLoadingErrors] = useState<AppError[]>([]);
 
   useEffect(() => {
     loadData();
+    
+    // Fallback timeout to ensure loading doesn't get stuck
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 3000);
+    
+    return () => clearTimeout(timeout);
   }, []);
 
-  const loadData = async () => {
-    try {
-      await Promise.all([
-        fetchActiveRewards(),
-        fetchSupportMessages(),
-      ]);
-    } finally {
-      setIsLoading(false);
+  const loadData = useCallback(async () => {
+    setLoadingErrors([]);
+    
+    const results = await Promise.allSettled([
+      handleAsyncError(() => fetchActiveRewards(), 'Loading rewards'),
+      handleAsyncError(() => fetchSupportMessages(), 'Loading messages')
+    ]);
+    
+    const errors: AppError[] = [];
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value.error) {
+        errors.push(result.value.error);
+      } else if (result.status === 'rejected') {
+        errors.push({
+          code: 'UNKNOWN_ERROR',
+          message: 'Failed to load data',
+          context: index === 0 ? 'rewards' : 'messages'
+        });
+      }
+    });
+    
+    if (errors.length > 0) {
+      setLoadingErrors(errors);
+      console.warn('Some data failed to load:', errors);
     }
-  };
+    
+    setIsLoading(false);
+  }, [fetchActiveRewards, fetchSupportMessages]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
-  };
+  }, [loadData]);
 
-  const getLevelTitle = (level: number) => {
+  const getLevelTitle = useMemo(() => (level: number) => {
     if (level <= 5) return 'Freshman';
     if (level <= 10) return 'Sophomore';
     if (level <= 15) return 'Junior';
     if (level <= 20) return 'Senior';
     return 'Graduate';
-  };
+  }, []);
 
-  const getCategoryIcon = (category: string) => {
+  const getCategoryName = useMemo(() => (category: string) => {
     switch (category) {
-      case 'sleep': return '😴';
-      case 'meals': return '🍽️';
-      case 'exercise': return '💪';
-      case 'wellness': return '🌟';
-      case 'streak': return '🔥';
-      default: return '🎯';
+      case 'sleep': return 'Sleep';
+      case 'meals': return 'Nutrition';
+      case 'exercise': return 'Exercise';
+      case 'wellness': return 'Wellness';
+      case 'streak': return 'Streak';
+      default: return 'Goal';
     }
-  };
+  }, []);
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = useMemo(() => (type: string) => {
     switch (type) {
       case 'automatic': return '#10b981';
       case 'manual': return '#6366f1';
       case 'challenge': return '#f59e0b';
       default: return '#6b7280';
     }
-  };
+  }, []);
 
-  const getMessageIcon = (type: string) => {
+  const getMessageType = useMemo(() => (type: string) => {
     switch (type) {
-      case 'message': return '💬';
-      case 'voice': return '🎵';
-      case 'care_package': return '🎁';
-      case 'video_call': return '📞';
-      case 'boost': return '💰';
-      default: return '💌';
+      case 'message': return 'Message';
+      case 'voice': return 'Voice Note';
+      case 'care_package': return 'Care Package';
+      case 'video_call': return 'Video Call';
+      case 'boost': return 'Boost';
+      default: return 'Note';
     }
-  };
+  }, []);
 
   const formatTimeAgo = (timestamp: Date) => {
     const now = new Date();
@@ -104,67 +132,62 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     return 'Just now';
   };
 
-  const getMoodEmoji = (mood: string | null) => {
-    switch (mood) {
-      case 'great': return '😊';
-      case 'good': return '🙂';
-      case 'okay': return '😐';
-      case 'struggling': return '😔';
-      default: return '🤔';
-    }
-  };
+  const getMoodLevel = useMemo(() => {
+    // Use today's entry mood if available, otherwise fallback to stored mood
+    const currentMood = todayEntry?.mood || null;
+    
+    if (currentMood === null) return 'Not logged';
+    if (currentMood >= 9) return 'Amazing';
+    if (currentMood >= 7) return 'Great';
+    if (currentMood >= 5) return 'Okay';
+    if (currentMood >= 3) return 'Struggling';
+    return 'Difficult';
+  }, [todayEntry?.mood]);
 
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <Text>Loading...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Good morning, Sarah! 👋</Text>
-        <Text style={styles.subtitle}>Your family is thinking of you</Text>
-      </View>
-
-      {/* Family Connection Card */}
-      <View style={styles.connectionCard}>
-        <Text style={styles.connectionTitle}>Family Connection</Text>
-        <View style={styles.connectionStats}>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>{supportMessages.filter(m => !m.read).length}</Text>
-            <Text style={styles.statLabel}>New Messages</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>${monthlyEarned}</Text>
-            <Text style={styles.statLabel}>This Month</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>{getMoodEmoji(mood)}</Text>
-            <Text style={styles.statLabel}>Your Mood</Text>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Good morning, {user?.name || 'Student'}!</Text>
+            <Text style={styles.subtitle}>Stay close when you're far apart</Text>
           </View>
         </View>
-      </View>
 
-      {/* Support Messages */}
+      {/* Support Messages - Now Priority #1 */}
       {supportMessages.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Family Support</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Messages from Family</Text>
+            {supportMessages.filter(m => !m.read).length > 0 && (
+              <Text style={styles.newMessagesBadge}>
+                {supportMessages.filter(m => !m.read).length} new
+              </Text>
+            )}
+          </View>
           {supportMessages.slice(0, 3).map((message) => (
             <TouchableOpacity 
               key={message.id} 
               style={[styles.messageCard, !message.read && styles.unreadMessage]}
               onPress={() => markMessageRead(message.id)}
             >
-              <Text style={styles.messageIcon}>{getMessageIcon(message.type)}</Text>
+              <View style={styles.messageTypeContainer}>
+                <Text style={styles.messageType}>{getMessageType(message.type)}</Text>
+              </View>
               <View style={styles.messageContent}>
                 <Text style={styles.messageText}>{message.content}</Text>
                 <Text style={styles.messageTime}>{formatTimeAgo(message.timestamp)}</Text>
@@ -174,6 +197,59 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           ))}
         </View>
       )}
+
+      {/* Family Connection Card */}
+      <View style={styles.connectionCard}>
+        <Text style={styles.connectionTitle}>Family Love</Text>
+        <View style={styles.connectionStats}>
+          <View style={styles.stat}>
+            <Text style={styles.statNumber}>{supportMessages.filter(m => !m.read).length}</Text>
+            <Text style={styles.statLabel}>New Messages</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statNumber}>{supportMessages.length}</Text>
+            <Text style={styles.statLabel}>Care Moments</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.stat}
+            onPress={() => navigation.navigate('WellnessLog')}
+          >
+            <Text style={styles.statNumber}>{getMoodLevel}</Text>
+            <Text style={styles.statLabel}>How You Feel</Text>
+            <Text style={styles.statHint}>Tap to update</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* I Need Support Button */}
+        <TouchableOpacity 
+          style={[
+            styles.supportButton,
+            lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+              ? styles.supportButtonSent 
+              : null
+          ]}
+          onPress={() => {
+            requestSupport();
+          }}
+          disabled={lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000}
+        >
+          <Text style={[
+            styles.supportButtonText,
+            lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+              ? styles.supportButtonTextSent 
+              : null
+          ]}>
+            {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+              ? 'Support request sent! ✓' 
+              : 'I need support 💙'}
+          </Text>
+          <Text style={styles.supportButtonSubtext}>
+            {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+              ? 'Your family has been notified and will reach out soon' 
+              : 'Let your family know you could use some help'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Level & Experience */}
       <View style={styles.levelCard}>
@@ -190,7 +266,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           />
         </View>
         <Text style={styles.experienceText}>{experience % 200} / 200 XP</Text>
-        <Text style={styles.totalEarned}>Total Support: ${totalEarned}</Text>
+        <Text style={styles.totalEarned}>Family Love: {supportMessages.length + Math.floor(totalEarned/5)} moments</Text>
       </View>
 
       {/* Wellness Score */}
@@ -198,16 +274,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         style={styles.scoreCard}
         onPress={() => navigation.navigate('WellnessLog')}
       >
-        <Text style={styles.scoreTitle}>Today's Wellness</Text>
-        <Text style={styles.scoreValue}>
-          {todayEntry ? Math.round(todayEntry.wellnessScore * 10) / 10 : '--'}
-        </Text>
-        <Text style={styles.scoreMax}>/ 10</Text>
+        <Text style={styles.scoreTitle}>Today's Wellness Score</Text>
+        <View style={styles.scoreContainer}>
+          <Text style={styles.scoreValue}>
+            {todayEntry ? Math.round(todayEntry.wellnessScore * 10) / 10 : '--'}
+          </Text>
+          <Text style={styles.scoreMax}>/ 10</Text>
+        </View>
         <Text style={styles.scoreMessage}>
           {todayEntry ? 
-            (todayEntry.wellnessScore >= 8 ? 'Feeling great!' : 
-             todayEntry.wellnessScore >= 6 ? 'Doing well!' : 'Hang in there!') :
-            'Log your wellness today!'}
+            (todayEntry.wellnessScore >= 8 ? 'Excellent progress!' : 
+             todayEntry.wellnessScore >= 6 ? 'Good work!' : 'Keep going!') :
+            'Tap to log your wellness today'}
         </Text>
       </TouchableOpacity>
 
@@ -225,7 +303,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           onPress={() => navigation.navigate('WellnessLog')}
         >
           <Text style={styles.wellnessActionTitle}>
-            {todayEntry ? '📝 Update Today\'s Log' : '📝 Log Today\'s Wellness'}
+            {todayEntry ? 'Update Today\'s Log' : 'Log Today\'s Wellness'}
           </Text>
           <Text style={styles.wellnessActionSubtitle}>
             {todayEntry ? 'Update your daily wellness entry' : 'Start tracking your daily wellness'}
@@ -234,12 +312,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.currentStreak}</Text>
-            <Text style={styles.statLabel}>Day Streak</Text>
+            <Text style={styles.statNumber}>
+              {stats.totalEntries === 0 ? '--' : stats.currentStreak}
+            </Text>
+            <Text style={styles.statLabel}>
+              {stats.totalEntries === 0 ? 'Start Logging' : 'Day Streak'}
+            </Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.averageScore}</Text>
-            <Text style={styles.statLabel}>Avg Score</Text>
+            <Text style={styles.statNumber}>
+              {stats.totalEntries === 0 ? '--' : stats.averageScore.toFixed(1)}
+            </Text>
+            <Text style={styles.statLabel}>
+              {stats.totalEntries === 0 ? 'To See Score' : 'Avg Score'}
+            </Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{stats.totalEntries}</Text>
@@ -248,32 +334,40 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         </View>
       </View>
 
-      {/* Available Rewards */}
+      {/* Care Boosts - De-emphasized, moved to bottom */}
       {activeRewards.length > 0 && (
         <View style={styles.section}>
           <View style={styles.rewardsHeader}>
-            <Text style={styles.sectionTitle}>Available Support</Text>
-            <Text style={styles.rewardsTotal}>
-              ${activeRewards.reduce((sum, r) => sum + r.amount, 0)} possible
-            </Text>
+            <Text style={styles.smallSectionTitle}>Occasional Care Boosts</Text>
+            <View style={styles.rewardsTotalContainer}>
+              <Text style={styles.rewardsSmallTotal}>
+                {activeRewards.length}
+              </Text>
+              <Text style={styles.rewardsTotalLabel}>available</Text>
+            </View>
           </View>
+          <Text style={styles.rewardsSubtext}>
+            Small surprises from family when you're doing great ✨
+          </Text>
           
           {activeRewards.map((reward) => (
             <TouchableOpacity 
               key={reward.id} 
-              style={styles.rewardCard}
+              style={styles.smallRewardCard}
               onPress={() => claimReward(reward.id)}
             >
               <View style={styles.rewardHeader}>
                 <View style={styles.rewardInfo}>
-                  <Text style={styles.rewardIcon}>{getCategoryIcon(reward.category)}</Text>
+                  <View style={styles.rewardCategoryContainer}>
+                    <Text style={styles.rewardCategory}>{getCategoryName(reward.category)}</Text>
+                  </View>
                   <View style={styles.rewardText}>
-                    <Text style={styles.rewardTitle}>{reward.title}</Text>
-                    <Text style={styles.rewardDescription}>{reward.description}</Text>
+                    <Text style={styles.smallRewardTitle}>{reward.title}</Text>
+                    <Text style={styles.smallRewardDescription}>{reward.description}</Text>
                   </View>
                 </View>
                 <View style={styles.rewardAmount}>
-                  <Text style={styles.amountText}>${reward.amount}</Text>
+                  <Text style={styles.smallAmountText}>${reward.amount}</Text>
                   <View style={[styles.typeBadge, { backgroundColor: getTypeColor(reward.type) }]}>
                     <Text style={styles.typeText}>{reward.type}</Text>
                   </View>
@@ -296,50 +390,62 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
           ))}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#111827',
+  },
+  scrollContainer: {
+    flex: 1,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#111827',
+  },
+  loadingText: {
+    color: '#f9fafb',
+    fontSize: 16,
   },
   header: {
-    padding: 20,
-    paddingTop: 40,
+    padding: 24,
+    paddingTop: 60,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#f9fafb',
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
-    marginTop: 4,
+    color: '#9ca3af',
+    marginTop: 6,
   },
   connectionCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#1f2937',
     margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   connectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#6366f1',
-    marginBottom: 16,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#f9fafb',
+    marginBottom: 20,
   },
   connectionStats: {
     flexDirection: 'row',
@@ -349,56 +455,77 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#f9fafb',
   },
   statLabel: {
     fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
+    color: '#9ca3af',
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  statHint: {
+    fontSize: 10,
+    color: '#6366f1',
+    marginTop: 2,
+    fontWeight: '600',
   },
   section: {
     padding: 20,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 12,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#f9fafb',
+    marginBottom: 16,
   },
   messageCard: {
-    backgroundColor: 'white',
-    padding: 16,
+    backgroundColor: '#1f2937',
+    padding: 18,
     borderRadius: 12,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   unreadMessage: {
     borderLeftWidth: 4,
     borderLeftColor: '#6366f1',
   },
-  messageIcon: {
-    fontSize: 24,
+  messageTypeContainer: {
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     marginRight: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  messageType: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'white',
+    textTransform: 'uppercase',
   },
   messageContent: {
     flex: 1,
   },
   messageText: {
     fontSize: 14,
-    color: '#1f2937',
+    color: '#f9fafb',
     marginBottom: 4,
+    fontWeight: '500',
   },
   messageTime: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   unreadDot: {
     width: 8,
@@ -407,15 +534,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#6366f1',
   },
   levelCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#1f2937',
     margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   levelHeader: {
     flexDirection: 'row',
@@ -424,14 +553,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   levelTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#6366f1',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#f9fafb',
   },
   levelNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   experienceBar: {
     height: 8,
@@ -446,68 +575,82 @@ const styles = StyleSheet.create({
   },
   experienceText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
+    fontWeight: '500',
   },
   totalEarned: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#10b981',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#4ade80',
     textAlign: 'center',
     marginTop: 8,
+    letterSpacing: 0.5,
   },
   scoreCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#1f2937',
     margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    padding: 24,
+    borderRadius: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   scoreTitle: {
     fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 8,
+    color: '#9ca3af',
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  scoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
   },
   scoreValue: {
     fontSize: 48,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: '#10b981',
   },
   scoreMax: {
-    fontSize: 18,
-    color: '#6b7280',
+    fontSize: 20,
+    color: '#9ca3af',
+    fontWeight: '500',
+    marginLeft: 4,
   },
   scoreMessage: {
     fontSize: 16,
     color: '#6366f1',
-    marginTop: 8,
+    marginTop: 12,
     fontWeight: '600',
   },
   card: {
-    backgroundColor: 'white',
+    backgroundColor: '#1f2937',
     padding: 16,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6b7280',
+    color: '#9ca3af',
   },
   cardValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#f9fafb',
     marginTop: 4,
   },
   cardStreak: {
@@ -521,21 +664,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  rewardsTotalContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
   rewardsTotal: {
-    fontSize: 14,
-    color: '#6366f1',
-    fontWeight: '600',
+    fontSize: 16,
+    color: '#10b981',
+    fontWeight: '700',
+  },
+  rewardsTotalLabel: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginLeft: 4,
+    fontWeight: '500',
   },
   rewardCard: {
-    backgroundColor: 'white',
-    padding: 16,
+    backgroundColor: '#1f2937',
+    padding: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   rewardHeader: {
     flexDirection: 'row',
@@ -548,9 +703,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  rewardIcon: {
-    fontSize: 24,
+  rewardCategoryContainer: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     marginRight: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  rewardCategory: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'white',
+    textTransform: 'uppercase',
   },
   rewardText: {
     flex: 1,
@@ -615,51 +781,131 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   wellnessActionCard: {
-    backgroundColor: 'white',
-    padding: 16,
+    backgroundColor: '#1f2937',
+    padding: 20,
     borderRadius: 12,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   wellnessActionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
+    fontWeight: '700',
+    color: '#f9fafb',
+    marginBottom: 6,
   },
   wellnessActionSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#9ca3af',
+    fontWeight: '500',
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   statCard: {
-    backgroundColor: 'white',
-    padding: 12,
+    backgroundColor: '#1f2937',
+    padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: '#374151',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  newMessagesBadge: {
+    fontSize: 12,
+    color: '#6366f1',
+    fontWeight: '600',
+    backgroundColor: '#1e1b4b',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  smallSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#9ca3af',
+    marginBottom: 8,
+  },
+  rewardsSmallTotal: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  rewardsSubtext: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  smallRewardCard: {
+    backgroundColor: '#1f2937',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#374151',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
   },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#6366f1',
+  smallRewardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f9fafb',
   },
-  statLabel: {
+  smallRewardDescription: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#9ca3af',
     marginTop: 2,
+  },
+  smallAmountText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10b981',
+    marginBottom: 4,
+  },
+  supportButton: {
+    backgroundColor: '#2563eb',
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  supportButtonSent: {
+    backgroundColor: '#059669',
+  },
+  supportButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  supportButtonTextSent: {
+    color: '#ffffff',
+  },
+  supportButtonSubtext: {
+    fontSize: 12,
+    color: '#dbeafe',
+    textAlign: 'center',
   },
 }); 

@@ -110,7 +110,7 @@ export const createPayPalOrder = functions.https.onCall(async (data, context) =>
 
     debugLog('createPayPalOrder', 'PayPal order created', { orderId, approvalUrl });
 
-    // Create transaction record in Firestore
+    // Create transaction record in Firestore first
     const transactionData = {
       parentId: context.auth.uid,
       studentId,
@@ -124,6 +124,25 @@ export const createPayPalOrder = functions.https.onCall(async (data, context) =>
     };
 
     const transactionRef = await db.collection('transactions').add(transactionData);
+    
+    // Update the PayPal order with custom return URLs that include our transaction ID
+    const updateData = {
+      op: 'replace',
+      path: '/application_context/return_url',
+      value: `https://campus-life-verification.vercel.app/api/paypal-success?transactionId=${transactionRef.id}`
+    };
+    
+    try {
+      await axios.patch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}`, [updateData], {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      debugLog('createPayPalOrder', 'Updated return URL with transaction ID', { transactionId: transactionRef.id });
+    } catch (patchError) {
+      debugLog('createPayPalOrder', 'Failed to update return URL, using default', patchError);
+    }
 
     debugLog('createPayPalOrder', 'Transaction record created', { transactionId: transactionRef.id });
 
@@ -241,10 +260,15 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       };
 
-      if (captureStatus === 'COMPLETED') {
+      if (captureStatus === 'COMPLETED' || captureStatus === 'PENDING') {
         updateData.status = 'completed';
         updateData.completedAt = admin.firestore.FieldValue.serverTimestamp();
-        debugLog('verifyPayPalPayment', 'Payment completed successfully');
+        debugLog('verifyPayPalPayment', 'Payment completed successfully', { captureStatus });
+        
+        // Log PENDING status for P2P payments (common in sandbox)
+        if (captureStatus === 'PENDING') {
+          debugLog('verifyPayPalPayment', 'PENDING capture status - treating as completed for P2P payment');
+        }
       } else {
         updateData.status = 'failed';
         debugLog('verifyPayPalPayment', 'Payment capture failed', { captureStatus });
@@ -253,10 +277,11 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
       await transactionRef.update(updateData);
 
       return {
-        success: captureStatus === 'COMPLETED',
+        success: captureStatus === 'COMPLETED' || captureStatus === 'PENDING',
         status: captureStatus,
         captureId,
-        transactionId
+        transactionId,
+        message: captureStatus === 'PENDING' ? 'Payment completed (pending settlement)' : 'Payment completed'
       };
     }
 

@@ -287,10 +287,12 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
         {/* Current Status */}
         <View style={styles.statusSection}>
-          <Text style={styles.currentMood}>
-            {moodInfo.emoji} {studentName.split(' ')[0]} is feeling {moodInfo.text.toLowerCase()} today
-          </Text>
-          <Text style={styles.suggestion}>{wellnessStatus.suggestion}</Text>
+          <View style={styles.statusContainer}>
+            <Text style={styles.currentMood}>
+              {moodInfo.emoji} {studentName.split(' ')[0]} is feeling {moodInfo.text.toLowerCase()} today
+            </Text>
+            <Text style={styles.suggestion}>{wellnessStatus.suggestion}</Text>
+          </View>
         </View>
 
         {/* Support Requests - Priority Alert */}
@@ -322,66 +324,73 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         {/* Quick Actions */}
         <View style={styles.actionsSection}>
           <Text style={styles.sectionHeader}>Send Support</Text>
-          <TouchableOpacity 
-            style={styles.actionRow}
-            onPress={() => sendSupportMessage('message')}
-          >
-            <Text style={styles.actionEmoji}>💌</Text>
-            <Text style={styles.actionLabel}>Send a message</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.actionRow}
-            onPress={() => sendSupportMessage('boost')}
-          >
-            <Text style={styles.actionEmoji}>✨</Text>
-            <Text style={styles.actionLabel}>Send $5 boost</Text>
-          </TouchableOpacity>
+          <View style={styles.actionsGrid}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => sendSupportMessage('message')}
+            >
+              <Text style={styles.actionEmoji}>💌</Text>
+              <Text style={styles.actionLabel}>Send Message</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => sendSupportMessage('boost')}
+            >
+              <Text style={styles.actionEmoji}>✨</Text>
+              <Text style={styles.actionLabel}>$5 Boost</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.actionRow}
-            onPress={() => navigation.navigate('PayPalTest')}
-          >
-            <Text style={styles.actionEmoji}>🔧</Text>
-            <Text style={styles.actionLabel}>PayPal Test</Text>
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('PayPalTest')}
+            >
+              <Text style={styles.actionEmoji}>🔧</Text>
+              <Text style={styles.actionLabel}>PayPal Test</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Monthly Summary */}
         <View style={styles.summarySection}>
           <Text style={styles.sectionHeader}>This Month</Text>
-          <Text style={styles.summaryText}>
-            You've sent {supportMessages.length} messages and ${monthlyEarned} in care boosts
-          </Text>
-          <View style={styles.budgetContainer}>
-            <View style={styles.budgetBar}>
-              <View 
-                style={[styles.budgetFill, { width: `${(monthlyEarned / 50) * 100}%` }]} 
-              />
+          <View style={styles.summaryContainer}>
+            <Text style={styles.summaryText}>
+              You've sent {supportMessages.length} messages and ${monthlyEarned} in care boosts
+            </Text>
+            <View style={styles.budgetContainer}>
+              <View style={styles.budgetBar}>
+                <View 
+                  style={[styles.budgetFill, { width: `${(monthlyEarned / 50) * 100}%` }]} 
+                />
+              </View>
+              <Text style={styles.budgetText}>${50 - monthlyEarned} remaining in monthly budget</Text>
             </View>
-            <Text style={styles.budgetText}>${50 - monthlyEarned} remaining in monthly budget</Text>
           </View>
         </View>
 
         {/* Wellness */}
-        <TouchableOpacity 
-          style={styles.wellnessSection}
-          onPress={() => navigation.navigate('ChildWellness', { 
-            selectedStudentId: currentStudent?.id,
-            selectedStudentName: studentName 
-          })}
-        >
+        <View style={styles.wellnessSection}>
           <Text style={styles.sectionHeader}>Wellness Check-in</Text>
-          {stats.totalEntries === 0 ? (
-            <Text style={styles.wellnessText}>
-              {studentName.split(' ')[0]} hasn't started tracking wellness yet
-            </Text>
-          ) : (
-            <Text style={styles.wellnessText}>
-              {studentName.split(' ')[0]} has a {stats.currentStreak} day streak with a {stats.averageScore}/10 average
-            </Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.wellnessContainer}
+            onPress={() => navigation.navigate('ChildWellness', { 
+              selectedStudentId: currentStudent?.id,
+              selectedStudentName: studentName 
+            })}
+          >
+            {stats.totalEntries === 0 ? (
+              <Text style={styles.wellnessText}>
+                {studentName.split(' ')[0]} hasn't started tracking wellness yet
+              </Text>
+            ) : (
+              <Text style={styles.wellnessText}>
+                {studentName.split(' ')[0]} has a {stats.currentStreak} day streak with a {stats.averageScore}/10 average
+              </Text>
+            )}
+            <Text style={styles.tapHint}>→</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -422,9 +431,19 @@ const styles = StyleSheet.create({
   },
   statusSection: {
     paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    paddingVertical: 20,
+  },
+  statusContainer: {
+    borderWidth: 1,
+    borderColor: '#2d2d44',
+    borderRadius: 16,
+    padding: 20,
+    backgroundColor: '#1a1a2e',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   currentMood: {
     fontSize: 18,
@@ -463,24 +482,35 @@ const styles = StyleSheet.create({
   },
   actionsSection: {
     paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    paddingVertical: 20,
   },
-  actionRow: {
+  actionsGrid: {
     flexDirection: 'row',
+    gap: 12,
+  },
+  actionCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#2d2d44',
+    borderRadius: 16,
+    padding: 18,
+    backgroundColor: '#1a1a2e',
     alignItems: 'center',
-    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   actionEmoji: {
-    fontSize: 20,
-    marginRight: 16,
-    width: 24,
+    fontSize: 24,
+    marginBottom: 8,
   },
   actionLabel: {
-    fontSize: 16,
+    fontSize: 13,
     color: '#ffffff',
-    fontWeight: '400',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   sectionHeader: {
     fontSize: 16,
@@ -490,9 +520,19 @@ const styles = StyleSheet.create({
   },
   summarySection: {
     paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    paddingVertical: 20,
+  },
+  summaryContainer: {
+    borderWidth: 1,
+    borderColor: '#1e3a8a',
+    borderRadius: 16,
+    padding: 20,
+    backgroundColor: '#16213e',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   summaryText: {
     fontSize: 16,
@@ -519,11 +559,32 @@ const styles = StyleSheet.create({
   },
   wellnessSection: {
     paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingVertical: 20,
+  },
+  wellnessContainer: {
+    borderWidth: 1,
+    borderColor: '#166534',
+    borderRadius: 16,
+    padding: 20,
+    backgroundColor: '#0f2621',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   wellnessText: {
     fontSize: 16,
     color: '#ffffff',
+    flex: 1,
+  },
+  tapHint: {
+    fontSize: 18,
+    color: '#a855f7',
+    fontWeight: '600',
   },
   urgentTitle: {
     fontSize: 20,

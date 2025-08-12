@@ -88,14 +88,42 @@ export const PayPalP2PReturnHandler: React.FC<PayPalP2PReturnHandlerProps> = ({
           ]
         );
       } else {
-        Alert.alert(
-          'Verification Failed',
-          result.error || 'Could not verify the PayPal payment. Please contact support if you completed the payment.',
-          [
-            { text: 'Retry', onPress: handleVerifyPayment },
-            { text: 'Cancel', onPress: () => navigation.navigate('ParentTabs') }
-          ]
-        );
+        // Handle different failure types
+        if (result.status === 'pending_payment') {
+          Alert.alert(
+            'Payment Not Completed',
+            result.message || 'Please complete your payment in PayPal first.',
+            [
+              { 
+                text: 'Open PayPal', 
+                onPress: () => {
+                  if (result.approvalUrl) {
+                    // Copy URL to clipboard and show
+                    Alert.alert(
+                      'PayPal Payment URL',
+                      `Please open this URL to complete your payment:\n\n${result.approvalUrl}`,
+                      [
+                        { text: 'OK' },
+                        { text: 'Try Again', onPress: handleVerifyPayment }
+                      ]
+                    );
+                  }
+                }
+              },
+              { text: 'Try Again', onPress: handleVerifyPayment },
+              { text: 'Cancel', onPress: () => navigation.navigate('ParentTabs') }
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Verification Failed',
+            result.error || 'Could not verify the PayPal payment. Please contact support if you completed the payment.',
+            [
+              { text: 'Retry', onPress: handleVerifyPayment },
+              { text: 'Cancel', onPress: () => navigation.navigate('ParentTabs') }
+            ]
+          );
+        }
       }
     } catch (error: any) {
       debugLog('Verification error', error);

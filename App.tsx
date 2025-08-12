@@ -55,19 +55,59 @@ export default function App() {
         }
       } else if (url.includes('campuslife://pay/')) {
         // Handle payment return/cancel
-        const urlParts = url.split('campuslife://pay/')[1];
-        const [action, queryString] = urlParts.split('?');
-        const params = new URLSearchParams(queryString);
-        const paymentId = params.get('paymentId');
-        
-        if (paymentId && isAuthenticated && navigationRef.current) {
-          navigationRef.current.navigate('PaymentReturn', { 
-            paymentId, 
-            action,
-            token: params.get('token'),
-            PayerID: params.get('PayerID'),
-            status: params.get('status')
-          });
+        console.log('Payment deep link received:', url);
+        try {
+          const urlParts = url.split('campuslife://pay/')[1];
+          const [action, queryString] = urlParts.split('?');
+          const params = new URLSearchParams(queryString || '');
+          const paymentId = params.get('paymentId');
+          
+          console.log('Payment deep link parsed:', { action, paymentId, queryString });
+          
+          if (paymentId) {
+            if (!isAuthenticated) {
+              console.log('User not authenticated, showing login prompt');
+              Alert.alert(
+                'Login Required',
+                'Please log in to view your payment details.',
+                [{ text: 'OK', style: 'default' }]
+              );
+              return;
+            }
+            
+            if (!navigationRef.current) {
+              console.log('Navigation ref not ready, retrying...');
+              // Retry after a short delay if navigation isn't ready
+              setTimeout(() => {
+                if (navigationRef.current) {
+                  navigationRef.current.navigate('PaymentReturn', { 
+                    paymentId, 
+                    action,
+                    token: params.get('token'),
+                    PayerID: params.get('PayerID'),
+                    status: params.get('status')
+                  });
+                }
+              }, 1000);
+              return;
+            }
+            
+            // Navigate to PaymentReturn screen
+            navigationRef.current.navigate('PaymentReturn', { 
+              paymentId, 
+              action,
+              token: params.get('token'),
+              PayerID: params.get('PayerID'),
+              status: params.get('status')
+            });
+            
+            console.log('Navigated to PaymentReturn screen');
+          } else {
+            console.error('Missing paymentId in deep link');
+          }
+        } catch (error) {
+          console.error('Error parsing payment deep link:', error);
+          Alert.alert('Error', 'Invalid payment link received.');
         }
       }
     };

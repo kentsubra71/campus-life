@@ -1,10 +1,21 @@
 import { create } from 'zustand';
+import { useAuthStore } from './authStore';
+import { 
+  addRewardEntry, 
+  getRewardEntries, 
+  getUserTotalPoints, 
+  getCurrentUser,
+  getMessagesForUser,
+  getMessagesSentByUser 
+} from '../lib/firebase';
 
 interface SupportMessage {
   id: string;
-  type: 'message' | 'voice' | 'care_package' | 'video_call' | 'boost';
+  type: 'message' | 'voice' | 'boost';
   content: string;
-  from: 'parent';
+  from: string; // User ID of sender
+  to: string; // User ID of recipient 
+  familyId: string;
   timestamp: Date;
   read: boolean;
 }
@@ -21,154 +32,144 @@ interface Reward {
   isSurprise?: boolean;
 }
 
+interface SupportRequest {
+  id: string;
+  timestamp: Date;
+  message: string;
+  from: string; // Student user ID
+  familyId: string;
+  acknowledged: boolean;
+}
+
 interface ConnectionState {
   activeRewards: Reward[];
   supportMessages: SupportMessage[];
+  supportRequests: SupportRequest[];
   totalEarned: number;
   monthlyEarned: number;
   level: number;
   experience: number;
   mood: 'great' | 'good' | 'okay' | 'struggling' | null;
   lastMoodCheck: Date | null;
+  lastSupportRequest: Date | null;
   fetchActiveRewards: () => Promise<void>;
   fetchSupportMessages: () => Promise<void>;
   claimReward: (id: string) => Promise<void>;
   addExperience: (amount: number) => void;
   updateMood: (mood: 'great' | 'good' | 'okay' | 'struggling') => void;
   markMessageRead: (id: string) => void;
+  requestSupport: () => void;
+  acknowledgeSupport: (id: string) => void;
 }
 
 export const useRewardsStore = create<ConnectionState>((set, get) => ({
-  activeRewards: [
-    {
-      id: '1',
-      title: 'Sleep Champion',
-      description: 'Maintain great sleep for 7 days',
-      amount: 5,
-      progress: 5,
-      maxProgress: 7,
-      type: 'automatic',
-      category: 'sleep',
-    },
-    {
-      id: '2',
-      title: 'Wellness Warrior',
-      description: 'Keep wellness score above 80 for a week',
-      amount: 10,
-      progress: 3,
-      maxProgress: 7,
-      type: 'automatic',
-      category: 'wellness',
-    },
-  ],
+  activeRewards: [],
   
-  supportMessages: [
-    {
-      id: '1',
-      type: 'message',
-      content: 'So proud of your sleep schedule this week! 🌟',
-      from: 'parent',
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      read: false,
-    },
-    {
-      id: '2',
-      type: 'care_package',
-      content: 'Care package arriving Thursday! 🎁',
-      from: 'parent',
-      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-      read: true,
-    },
-    {
-      id: '3',
-      type: 'video_call',
-      content: 'Video call scheduled for Sunday 3pm 📞',
-      from: 'parent',
-      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-      read: true,
-    },
-  ],
+  supportMessages: [],
   
-  totalEarned: 320,
-  monthlyEarned: 25,
-  level: 8,
-  experience: 1250,
-  mood: 'good',
-  lastMoodCheck: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
+  supportRequests: [],
+  totalEarned: 0,
+  monthlyEarned: 0,
+  level: 1,
+  experience: 0,
+  mood: null,
+  lastMoodCheck: null,
+  lastSupportRequest: null,
   
   fetchActiveRewards: async () => {
-    // TODO: Fetch from Supabase
-    const mockRewards: Reward[] = [
-      {
-        id: '1',
-        title: 'Sleep Champion',
-        description: 'Maintain great sleep for 7 days',
-        amount: 5,
-        progress: 5,
-        maxProgress: 7,
-        type: 'automatic',
-        category: 'sleep',
-      },
-      {
-        id: '2',
-        title: 'Wellness Warrior',
-        description: 'Keep wellness score above 80 for a week',
-        amount: 10,
-        progress: 3,
-        maxProgress: 7,
-        type: 'automatic',
-        category: 'wellness',
-      },
-    ];
-    
-    set({ activeRewards: mockRewards });
+    const user = getCurrentUser();
+    if (!user) return;
+
+    try {
+      // Load total points with better error handling
+      const totalPoints = await getUserTotalPoints(user.uid);
+      set({ totalEarned: totalPoints });
+      
+      // TODO: Implement reward generation logic based on user activities
+      set({ activeRewards: [] });
+    } catch (error: any) {
+      console.log('Note: Rewards not available yet, this is normal for new users');
+      // Set default values instead of failing
+      set({ 
+        totalEarned: 0,
+        activeRewards: [] 
+      });
+    }
   },
   
   fetchSupportMessages: async () => {
-    // TODO: Fetch from Supabase
-    const mockMessages: SupportMessage[] = [
-      {
-        id: '1',
-        type: 'message',
-        content: 'So proud of your sleep schedule this week! 🌟',
-        from: 'parent',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        read: false,
-      },
-      {
-        id: '2',
-        type: 'care_package',
-        content: 'Care package arriving Thursday! 🎁',
-        from: 'parent',
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        read: true,
-      },
-      {
-        id: '3',
-        type: 'video_call',
-        content: 'Video call scheduled for Sunday 3pm 📞',
-        from: 'parent',
-        timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        read: true,
-      },
-    ];
-    
-    set({ supportMessages: mockMessages });
+    const user = getCurrentUser();
+    if (!user) return;
+
+    try {
+      console.log('🔍 Fetching messages for user:', user.uid);
+      
+      // Get user profile to determine if parent or student
+      const { getUserProfile } = await import('../lib/firebase');
+      const userProfile = await getUserProfile(user.uid);
+      
+      let firebaseMessages;
+      if (userProfile?.user_type === 'parent') {
+        // Parents want to see messages they SENT
+        console.log('👨‍👩‍👧‍👦 Parent user - fetching sent messages');
+        firebaseMessages = await getMessagesSentByUser(user.uid);
+      } else {
+        // Students want to see messages they RECEIVED
+        console.log('🎓 Student user - fetching received messages');
+        firebaseMessages = await getMessagesForUser(user.uid);
+      }
+      
+      console.log('📥 Messages fetched:', firebaseMessages.length);
+      
+      // Convert Firebase messages to our SupportMessage format
+      const supportMessages = firebaseMessages.map(msg => ({
+        id: msg.id,
+        type: msg.message_type,
+        content: msg.content,
+        from: msg.from_user_id,
+        to: msg.to_user_id,
+        familyId: msg.family_id,
+        timestamp: msg.created_at.toDate(),
+        read: msg.read
+      }));
+      
+      console.log('📧 Converted messages:', supportMessages);
+      set({ supportMessages });
+    } catch (error: any) {
+      console.error('Error fetching support messages:', error);
+      set({ supportMessages: [] });
+    }
   },
   
   claimReward: async (id: string) => {
+    const user = getCurrentUser();
+    if (!user) return;
+
     const current = get();
     const reward = current.activeRewards.find(r => r.id === id);
     
     if (reward && current.monthlyEarned + reward.amount <= 50) {
-      // Add to totals
-      set({ 
-        totalEarned: current.totalEarned + reward.amount,
-        monthlyEarned: current.monthlyEarned + reward.amount,
-        experience: current.experience + (reward.amount * 10),
-        level: Math.floor((current.experience + (reward.amount * 10)) / 200) + 1,
-        activeRewards: current.activeRewards.filter(r => r.id !== id)
-      });
+      try {
+        // Add reward entry to Firebase
+        const { error } = await addRewardEntry({
+          user_id: user.uid,
+          points: reward.amount,
+          reason: `Claimed reward: ${reward.title}`,
+        });
+
+        if (!error) {
+          // Update local state
+          set({ 
+            totalEarned: current.totalEarned + reward.amount,
+            monthlyEarned: current.monthlyEarned + reward.amount,
+            experience: current.experience + (reward.amount * 10),
+            level: Math.floor((current.experience + (reward.amount * 10)) / 200) + 1,
+            activeRewards: current.activeRewards.filter(r => r.id !== id)
+          });
+        }
+      } catch (error) {
+        console.error('Failed to claim reward:', error);
+      }
     }
   },
   
@@ -196,5 +197,38 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       msg.id === id ? { ...msg, read: true } : msg
     );
     set({ supportMessages: updatedMessages });
+  },
+
+  requestSupport: () => {
+    const current = get();
+    const now = new Date();
+    
+    // Check if already requested within last hour
+    if (current.lastSupportRequest && 
+        now.getTime() - current.lastSupportRequest.getTime() < 60 * 60 * 1000) {
+      return;
+    }
+
+    const newRequest: SupportRequest = {
+      id: Date.now().toString(),
+      timestamp: now,
+      message: 'I could use some extra support right now 💙',
+      from: 'student-1',
+      familyId: 'family-1',
+      acknowledged: false,
+    };
+
+    set({ 
+      supportRequests: [newRequest, ...current.supportRequests],
+      lastSupportRequest: now
+    });
+  },
+
+  acknowledgeSupport: (id: string) => {
+    const current = get();
+    const updatedRequests = current.supportRequests.map(req => 
+      req.id === id ? { ...req, acknowledged: true } : req
+    );
+    set({ supportRequests: updatedRequests });
   },
 })); 

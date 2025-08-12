@@ -5,24 +5,23 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../stores/authStore';
+import { AuthScreenProps } from '../../types/navigation';
 
-interface LoginScreenProps {
-  onNavigateToRegister: () => void;
-  onLoginSuccess: () => void;
+interface LoginScreenProps extends AuthScreenProps<'Login'> {
+  onNavigateToRegister?: () => void;
+  onLoginSuccess?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({
-  onNavigateToRegister,
-  onLoginSuccess,
-}) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigateToRegister, onLoginSuccess }) => {
+  const { login, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -30,134 +29,179 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       return;
     }
 
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    const result = await login(email, password);
 
-      if (error) {
-        Alert.alert('Login Error', error.message);
-      } else {
+    if (result.success) {
+      // Use callback if provided, otherwise handle navigation directly
+      if (onLoginSuccess) {
         onLoginSuccess();
+      } else {
+        // Navigation will be handled automatically by auth state change
+        // No need to manually reset navigation stack
       }
-    } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
-    } finally {
-      setLoading(false);
+    } else {
+      Alert.alert('Login Failed', result.error || 'Please try again');
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.content}>
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Sign in to your CampusLife account</Text>
+    <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.content}>
+          <View style={styles.headerContainer}>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Sign in to continue your wellness journey</Text>
+          </View>
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          <View style={styles.formContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#9ca3af"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-          />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#9ca3af"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+            />
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Signing In...' : 'Sign In'}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.loginButton, isLoading && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
+              activeOpacity={0.8}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In</Text>
+              )}
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.linkButton}
-            onPress={onNavigateToRegister}
-          >
-            <Text style={styles.linkText}>
-              Don't have an account? Sign up
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.forgotPasswordButton}
+              onPress={() => navigation.navigate('ForgotPassword')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => onNavigateToRegister ? onNavigateToRegister() : navigation.navigate('RoleSelection')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.linkText}>
+                Don't have an account? <Text style={styles.linkTextBold}>Sign up</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#111827',
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: 24,
+  },
+  headerContainer: {
+    alignItems: 'center',
+    marginBottom: 48,
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontWeight: '800',
+    color: '#f9fafb',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: '#7f8c8d',
+    color: '#9ca3af',
     textAlign: 'center',
-    marginBottom: 40,
+    lineHeight: 22,
   },
-  form: {
+  formContainer: {
     width: '100%',
   },
   input: {
-    backgroundColor: 'white',
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginBottom: 15,
+    backgroundColor: '#1f2937',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 12,
     fontSize: 16,
+    color: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#e1e8ed',
-  },
-  button: {
-    backgroundColor: '#3498db',
-    paddingVertical: 15,
-    borderRadius: 10,
+    borderColor: '#374151',
     marginBottom: 20,
   },
+  loginButton: {
+    backgroundColor: '#6366f1',
+    marginTop: 12,
+    marginBottom: 32,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   buttonDisabled: {
-    backgroundColor: '#bdc3c7',
+    backgroundColor: '#4b5563',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   buttonText: {
     color: 'white',
-    textAlign: 'center',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
   linkButton: {
     alignItems: 'center',
+    paddingVertical: 12,
   },
   linkText: {
-    color: '#3498db',
+    color: '#9ca3af',
     fontSize: 16,
+  },
+  linkTextBold: {
+    fontWeight: '600',
+    color: '#6366f1',
+  },
+  forgotPasswordButton: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  forgotPasswordText: {
+    color: '#6366f1',
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 

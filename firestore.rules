@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is in same family
+    function isInSameFamily(userId, targetUserId) {
+      let userDoc = get(/databases/$(database)/documents/users/$(userId));
+      let targetDoc = get(/databases/$(database)/documents/users/$(targetUserId));
+      return userDoc.data.family_id != null && 
+             userDoc.data.family_id == targetDoc.data.family_id;
+    }
+    
+    // Verification tokens - allow public read/write for email verification
+    match /verification_tokens/{tokenId} {
+      allow read, write: if true; // Public access for email verification
+    }
+    
+    // Users collection - allow own access and email verification
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow email verification updates
+      allow update: if request.resource.data.email_verified == true;
+      // Allow reading for password reset lookup (need to query by email)
+      allow read: if true;
+      // Allow password reset updates
+      allow update: if request.resource.data.keys().hasAny(['password_reset_pending', 'password_reset_token', 'password_reset_requested_at', 'updated_at']);
+    }
+    
+    // Profiles collection - allow own access and email verification  
+    match /profiles/{profileId} {
+      allow read, write: if request.auth != null && request.auth.uid == profileId;
+      allow create: if request.auth != null && request.auth.uid == profileId;
+      // Allow email verification updates (only email_verified field)
+      allow update: if request.resource.data.email_verified == true;
+    }
+    
+    // Family-based access control
+    match /families/{familyId} {
+      allow read, write: if request.auth != null && 
+        (resource.data.parentIds.hasAny([request.auth.uid]) || 
+         resource.data.studentIds.hasAny([request.auth.uid]));
+      allow create: if request.auth != null;
+    }
+    
+    // Wellness entries - user can access their own, family members can read
+    match /wellness_entries/{entryId} {
+      allow read: if request.auth != null && 
+        (resource.data.user_id == request.auth.uid || 
+         isInSameFamily(request.auth.uid, resource.data.user_id));
+      allow write: if request.auth != null && 
+        request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.user_id;
+    }
+    
+    // Rewards - user can access their own, family members can read
+    match /rewards/{rewardId} {
+      allow read: if request.auth != null && 
+        (resource.data.user_id == request.auth.uid || 
+         isInSameFamily(request.auth.uid, resource.data.user_id));
+      allow write: if request.auth != null && 
+        request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.user_id;
+    }
+    
+    // Payments - only parents can create, family members can read their own
+    match /payments/{paymentId} {
+      allow read: if request.auth != null && 
+        (resource.data.parent_id == request.auth.uid || 
+         resource.data.student_id == request.auth.uid);
+      allow create: if request.auth != null && 
+        request.resource.data.parent_id == request.auth.uid;
+      allow update: if request.auth != null && 
+        resource.data.parent_id == request.auth.uid;
+    }
+
+    // Subscriptions - parents can read/write their own
+    match /subscriptions/{subscriptionId} {
+      allow read, write: if request.auth != null && 
+        resource.data.user_id == request.auth.uid;
+      allow create: if request.auth != null && 
+        request.resource.data.user_id == request.auth.uid;
+    }
+
+    // Monthly spend tracking - parents can read/write their own
+    match /monthly_spend/{spendId} {
+      allow read, write: if request.auth != null && 
+        resource.data.parent_id == request.auth.uid;
+      allow create: if request.auth != null && 
+        request.resource.data.parent_id == request.auth.uid;
+    }
+
+    // Messages - users can read their own messages and write to family members
+    match /messages/{messageId} {
+      allow read: if request.auth != null && 
+        (resource.data.from_user_id == request.auth.uid || 
+         resource.data.to_user_id == request.auth.uid);
+      allow create: if request.auth != null && 
+        request.resource.data.from_user_id == request.auth.uid &&
+        isInSameFamily(request.auth.uid, request.resource.data.to_user_id);
+      allow update: if request.auth != null && 
+        resource.data.to_user_id == request.auth.uid;
+    }
+  }
+}

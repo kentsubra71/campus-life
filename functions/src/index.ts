@@ -181,57 +181,127 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
     // Get PayPal access token
     const accessToken = await getPayPalAccessToken();
 
-    // Capture the payment
-    const captureResponse = await axios.post(
-      `${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}/capture`,
-      {},
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    // First, check the current order status
+    const orderResponse = await axios.get(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-    const captureData = captureResponse.data;
-    const captureStatus = captureData.status;
-    const captureId = captureData.purchase_units?.[0]?.payments?.captures?.[0]?.id;
+    const orderData = orderResponse.data;
+    const orderStatus = orderData.status;
 
-    debugLog('verifyPayPalPayment', 'PayPal capture response', { captureStatus, captureId });
+    debugLog('verifyPayPalPayment', 'PayPal order status', { orderStatus, orderData });
 
-    // Update transaction based on capture status
-    const updateData: any = {
-      paypalCaptureId: captureId,
-      paypalCaptureData: captureData,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    };
+    // Handle different order statuses
+    if (orderStatus === 'CREATED') {
+      // Order was created but not approved/paid by user
+      await transactionRef.update({
+        status: 'pending_payment',
+        paypalOrderData: orderData,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
 
-    if (captureStatus === 'COMPLETED') {
-      updateData.status = 'completed';
-      updateData.completedAt = admin.firestore.FieldValue.serverTimestamp();
-      debugLog('verifyPayPalPayment', 'Payment completed successfully');
-    } else {
-      updateData.status = 'failed';
-      debugLog('verifyPayPalPayment', 'Payment capture failed', { captureStatus });
+      return {
+        success: false,
+        status: 'pending_payment',
+        message: 'Payment not completed yet. Please complete the payment in PayPal first.',
+        transactionId,
+        approvalUrl: orderData.links?.find((link: any) => link.rel === 'approve')?.href
+      };
     }
 
-    await transactionRef.update(updateData);
+    if (orderStatus === 'APPROVED') {
+      // Order was approved by user, now capture it
+      debugLog('verifyPayPalPayment', 'Order approved, capturing payment');
+
+      const captureResponse = await axios.post(
+        `${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}/capture`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const captureData = captureResponse.data;
+      const captureStatus = captureData.status;
+      const captureId = captureData.purchase_units?.[0]?.payments?.captures?.[0]?.id;
+
+      debugLog('verifyPayPalPayment', 'PayPal capture response', { captureStatus, captureId });
+
+      // Update transaction based on capture status
+      const updateData: any = {
+        paypalCaptureId: captureId,
+        paypalCaptureData: captureData,
+        paypalOrderData: orderData,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      if (captureStatus === 'COMPLETED') {
+        updateData.status = 'completed';
+        updateData.completedAt = admin.firestore.FieldValue.serverTimestamp();
+        debugLog('verifyPayPalPayment', 'Payment completed successfully');
+      } else {
+        updateData.status = 'failed';
+        debugLog('verifyPayPalPayment', 'Payment capture failed', { captureStatus });
+      }
+
+      await transactionRef.update(updateData);
+
+      return {
+        success: captureStatus === 'COMPLETED',
+        status: captureStatus,
+        captureId,
+        transactionId
+      };
+    }
+
+    if (orderStatus === 'COMPLETED') {
+      // Order already completed
+      await transactionRef.update({
+        status: 'completed',
+        paypalOrderData: orderData,
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      return {
+        success: true,
+        status: 'COMPLETED',
+        message: 'Payment already completed',
+        transactionId
+      };
+    }
+
+    // Handle other statuses (CANCELLED, etc.)
+    await transactionRef.update({
+      status: 'failed',
+      paypalOrderData: orderData,
+      error: `PayPal order status: ${orderStatus}`,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
 
     return {
-      success: captureStatus === 'COMPLETED',
-      status: captureStatus,
-      captureId,
+      success: false,
+      status: orderStatus,
+      message: `Payment ${orderStatus.toLowerCase()}`,
       transactionId
     };
 
   } catch (error: any) {
     debugLog('verifyPayPalPayment', 'Error verifying payment', error);
     
+    const errorMessage = error.response?.data?.message || error.message;
+    
     // Update transaction as failed
     try {
       await db.collection('transactions').doc(transactionId).update({
         status: 'failed',
-        error: error.message,
+        error: errorMessage,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
     } catch (updateError) {
@@ -242,7 +312,7 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
       throw error;
     }
     
-    throw new functions.https.HttpsError('internal', 'Failed to verify payment');
+    throw new functions.https.HttpsError('internal', `Failed to verify payment: ${errorMessage}`);
   }
 });
 

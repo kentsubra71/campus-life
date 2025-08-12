@@ -33,6 +33,8 @@ export interface PayPalVerificationResult {
   captureId?: string;
   transactionId?: string;
   error?: string;
+  message?: string;
+  approvalUrl?: string;
 }
 
 export interface TransactionStatus {

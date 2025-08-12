@@ -103,5 +103,17 @@ service cloud.firestore {
       allow update: if request.auth != null && 
         resource.data.to_user_id == request.auth.uid;
     }
+
+    // Transactions (PayPal P2P) - parents and students can read their own transactions
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null && 
+        (resource.data.parentId == request.auth.uid || 
+         resource.data.studentId == request.auth.uid);
+      allow create: if request.auth != null && 
+        request.resource.data.parentId == request.auth.uid &&
+        isInSameFamily(request.auth.uid, request.resource.data.studentId);
+      allow update: if request.auth != null && 
+        resource.data.parentId == request.auth.uid;
+    }
   }
 }

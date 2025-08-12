@@ -350,6 +350,16 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
               <Text style={styles.supportActionTitle}>Care Boost</Text>
               <Text style={styles.supportActionDesc}>$5 surprise</Text>
             </TouchableOpacity>
+
+            {/* PayPal Test - Development Only */}
+            <TouchableOpacity 
+              style={[styles.supportActionCard, { backgroundColor: '#dc2626' }]}
+              onPress={() => navigation.navigate('PayPalTest')}
+            >
+              <Text style={styles.supportActionEmoji}>🔧</Text>
+              <Text style={styles.supportActionTitle}>PayPal Test</Text>
+              <Text style={styles.supportActionDesc}>Debug P2P payments</Text>
+            </TouchableOpacity>
           </View>
         </View>
 

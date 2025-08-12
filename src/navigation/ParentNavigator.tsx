@@ -8,6 +8,8 @@ import { SendSupportScreen } from '../screens/parent/SendSupportScreen';
 import { ActivityHistoryScreen } from '../screens/parent/ActivityHistoryScreen';
 import { ProfileScreen } from '../screens/shared/ProfileScreen';
 import { PaymentReturnHandler } from '../components/PaymentReturnHandler';
+import { PayPalP2PReturnHandler } from '../components/PayPalP2PReturnHandler';
+import { PayPalTestScreen } from '../screens/parent/PayPalTestScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -74,6 +76,8 @@ export const ParentNavigator = () => {
       <Stack.Screen name="ChildWellness" component={ChildWellnessScreen} />
       <Stack.Screen name="SendSupport" component={SendSupportScreen} />
       <Stack.Screen name="PaymentReturn" component={PaymentReturnHandler} />
+      <Stack.Screen name="PayPalP2PReturn" component={PayPalP2PReturnHandler} />
+      <Stack.Screen name="PayPalTest" component={PayPalTestScreen} />
     </Stack.Navigator>
   );
 }; 

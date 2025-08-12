@@ -11,6 +11,11 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { createPaymentIntent, getCurrentSpendingCaps, SUBSCRIPTION_TIERS } from '../../lib/payments';
+import { 
+  createPayPalP2POrder, 
+  testPayPalConnection, 
+  formatPaymentAmount 
+} from '../../lib/paypalP2P';
 
 interface SendPaymentScreenProps {
   navigation: any;
@@ -117,10 +122,11 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
     // TESTING BYPASS: Skip limit checks for development
     const TESTING_MODE = true; // Set to false when ready for production
 
-    console.log('Checking limits:', { 
+    console.log('🔍 [SendPayment] Starting payment process', { 
+      provider: selectedProvider,
       amountCents, 
+      targetStudentId,
       remainingCents: spendingInfo?.remainingCents || 0,
-      spendingInfo,
       TESTING_MODE
     });
     
@@ -143,49 +149,69 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
     setIsLoading(true);
 
     try {
-      const result = await createPaymentIntent(
-        targetStudentId,
-        amountCents,
-        selectedProvider,
-        note || `CampusLife reward: $${amount}`
-      );
+      if (selectedProvider === 'paypal') {
+        // Use new PayPal P2P system
+        console.log('🔍 [SendPayment] Using PayPal P2P system');
+        
+        const result = await createPayPalP2POrder(
+          targetStudentId,
+          amountCents,
+          note || `Campus Life reward: ${formatPaymentAmount(amountCents)}`
+        );
 
-      if (result.success) {
-        // Open the provider app/website
-        if (result.redirectUrl) {
-          await Linking.openURL(result.redirectUrl);
+        console.log('🔍 [SendPayment] PayPal P2P result:', result);
+
+        if (result.success && result.approvalUrl) {
+          // Open PayPal for payment
+          await Linking.openURL(result.approvalUrl);
+          
+          // Show user what to expect
+          Alert.alert(
+            'PayPal Payment Started',
+            'Complete your payment in PayPal, then return to Campus Life. The payment will be automatically verified.',
+            [
+              { text: 'OK' },
+              { 
+                text: 'Debug: Test Success', 
+                onPress: () => navigation.navigate('PayPalP2PReturn', { 
+                  transactionId: result.transactionId,
+                  orderId: result.orderId,
+                  status: 'success'
+                })
+              }
+            ]
+          );
+        } else {
+          Alert.alert('Error', result.error || 'Failed to create PayPal payment');
         }
+      } else {
+        // Use legacy system for other providers
+        console.log('🔍 [SendPayment] Using legacy system for', selectedProvider);
+        
+        const result = await createPaymentIntent(
+          targetStudentId,
+          amountCents,
+          selectedProvider,
+          note || `CampusLife reward: $${amount}`
+        );
 
-        // Navigate to confirmation screen or wait for return
-        if (result.manual) {
+        if (result.success) {
+          // Open the provider app/website
+          if (result.redirectUrl) {
+            await Linking.openURL(result.redirectUrl);
+          }
+
           // For manual providers, immediately show confirmation screen
           navigation.navigate('PaymentReturn', {
             paymentId: result.paymentId,
             action: 'return'
           });
         } else {
-          // For PayPal, wait for return via deep link
-          // TESTING: Since deep links don't work in dev, show manual option
-          Alert.alert(
-            'Payment Sent to PayPal',
-            'After completing PayPal payment, tap "Test Return" to simulate the return flow.',
-            [
-              { text: 'OK' },
-              { 
-                text: 'Test Return', 
-                onPress: () => navigation.navigate('PaymentReturn', { 
-                  paymentId: result.paymentId,
-                  action: 'return',
-                  status: 'success'
-                })
-              }
-            ]
-          );
+          Alert.alert('Error', result.error || 'Failed to create payment');
         }
-      } else {
-        Alert.alert('Error', result.error || 'Failed to create payment');
       }
     } catch (error: any) {
+      console.error('🔍 [SendPayment] Error:', error);
       Alert.alert('Error', error.message || 'Failed to send payment');
     } finally {
       setIsLoading(false);

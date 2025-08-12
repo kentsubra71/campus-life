@@ -54,6 +54,7 @@ interface ConnectionState {
   lastSupportRequest: Date | null;
   fetchActiveRewards: () => Promise<void>;
   fetchSupportMessages: () => Promise<void>;
+  fetchMonthlyPayments: (studentId?: string) => Promise<void>;
   claimReward: (id: string) => Promise<void>;
   addExperience: (amount: number) => void;
   updateMood: (mood: 'great' | 'good' | 'okay' | 'struggling') => void;
@@ -138,6 +139,53 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     } catch (error: any) {
       console.error('Error fetching support messages:', error);
       set({ supportMessages: [] });
+    }
+  },
+
+  fetchMonthlyPayments: async (studentId?: string) => {
+    const user = getCurrentUser();
+    if (!user) return;
+
+    try {
+      console.log('💰 Fetching monthly payments for user:', user.uid, 'student:', studentId);
+      
+      // Get start of current month
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      // Import Firebase functions - use same approach as ActivityHistoryScreen
+      const { collection, query, where, getDocs, orderBy } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      // Query all payments (same as ActivityHistoryScreen)
+      const paymentsQuery = query(
+        collection(db, 'payments'),
+        where('parent_id', '==', user.uid),
+        orderBy('created_at', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(paymentsQuery);
+      
+      let monthlyTotal = 0;
+      querySnapshot.forEach((doc) => {
+        const payment = doc.data();
+        const paymentDate = payment.created_at.toDate();
+        
+        // Filter for current month, confirmed status, and optionally by student
+        const isCurrentMonth = paymentDate >= startOfMonth;
+        const isConfirmed = payment.status === 'confirmed_by_parent' || payment.status === 'confirmed';
+        const isForStudent = !studentId || payment.student_id === studentId;
+        
+        if (isCurrentMonth && isConfirmed && isForStudent) {
+          monthlyTotal += payment.intent_cents / 100; // Convert cents to dollars
+        }
+      });
+      
+      console.log('💰 Monthly confirmed payments total:', monthlyTotal, 'for student:', studentId || 'all');
+      set({ monthlyEarned: monthlyTotal });
+    } catch (error: any) {
+      console.error('Error fetching monthly payments:', error);
+      // Don't reset monthlyEarned on error, keep existing value
     }
   },
   

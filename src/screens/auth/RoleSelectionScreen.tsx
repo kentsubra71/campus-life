@@ -13,33 +13,29 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Welcome to CampusLife</Text>
-        <Text style={styles.subtitle}>Stay close when you're far apart</Text>
-        
-        <View style={styles.descriptionCard}>
-          <Text style={styles.descriptionTitle}>Choose your role to get started</Text>
-          <Text style={styles.description}>
-            CampusLife connects families through wellness tracking, support messages, 
-            and meaningful care - not just transactions.
-          </Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>CampusLife</Text>
+          <Text style={styles.subtitle}>Connect • Care • Thrive</Text>
         </View>
 
-        <View style={styles.roleCards}>
+        {/* Role Selection */}
+        <View style={styles.roleSelection}>
+          <Text style={styles.sectionTitle}>Get Started</Text>
+          
           {/* Parent Card */}
           <TouchableOpacity 
             style={[styles.roleCard, styles.parentCard]}
             onPress={() => navigation.navigate('ParentRegister')}
           >
-            <Text style={styles.roleEmoji}>👨‍👩‍👧‍👦</Text>
-            <Text style={styles.roleTitle}>I'm a Parent</Text>
-            <Text style={styles.roleDescription}>
-              Create a family account and get an invite code for your college student
-            </Text>
-            <View style={styles.roleFeatures}>
-              <Text style={styles.roleFeature}>• Send love and support</Text>
-              <Text style={styles.roleFeature}>• Monitor wellness trends</Text>
-              <Text style={styles.roleFeature}>• Celebrate achievements</Text>
-              <Text style={styles.roleFeature}>• Respond when help is needed</Text>
+            <View style={styles.cardHeader}>
+              <View style={styles.iconContainer}>
+                <Text style={styles.cardIcon}>👨‍👩‍👧‍👦</Text>
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>Parent</Text>
+                <Text style={styles.cardSubtitle}>Create family account</Text>
+              </View>
             </View>
           </TouchableOpacity>
 
@@ -48,25 +44,34 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
             style={[styles.roleCard, styles.studentCard]}
             onPress={() => navigation.navigate('StudentRegister')}
           >
-            <Text style={styles.roleEmoji}>🎓</Text>
-            <Text style={styles.roleTitle}>I'm a Student</Text>
-            <Text style={styles.roleDescription}>
-              Join your family's account using the invite code they created
-            </Text>
-            <View style={styles.roleFeatures}>
-              <Text style={styles.roleFeature}>• Track your wellness journey</Text>
-              <Text style={styles.roleFeature}>• Receive family support</Text>
-              <Text style={styles.roleFeature}>• Request help when needed</Text>
-              <Text style={styles.roleFeature}>• Share your progress</Text>
+            <View style={styles.cardHeader}>
+              <View style={styles.iconContainer}>
+                <Text style={styles.cardIcon}>🎓</Text>
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>Student</Text>
+                <Text style={styles.cardSubtitle}>Join with invite code</Text>
+              </View>
             </View>
           </TouchableOpacity>
         </View>
 
+        {/* Features */}
+        <View style={styles.features}>
+          <Text style={styles.featuresTitle}>What makes us different</Text>
+          <View style={styles.featuresList}>
+            <Text style={styles.feature}>🌟 Wellness tracking & support</Text>
+            <Text style={styles.feature}>💬 Meaningful family connection</Text>
+            <Text style={styles.feature}>🎯 Care beyond transactions</Text>
+          </View>
+        </View>
+
+        {/* Login Link */}
         <TouchableOpacity 
           style={styles.loginButton}
           onPress={() => navigation.navigate('Login')}
         >
-          <Text style={styles.loginButtonText}>Already have an account? Sign In</Text>
+          <Text style={styles.loginButtonText}>Already have an account? Sign in</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -76,7 +81,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#0f0f23',
   },
   scrollView: {
     flex: 1,
@@ -85,101 +90,117 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 24,
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 30,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 40,
   },
   title: {
     fontSize: 32,
-    fontWeight: '800',
-    color: '#f9fafb',
-    textAlign: 'center',
+    fontWeight: '900',
+    color: '#ffffff',
     letterSpacing: -1,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#9ca3af',
-    textAlign: 'center',
-    marginBottom: 32,
-    fontStyle: 'italic',
+    fontSize: 16,
+    color: '#a855f7',
+    fontWeight: '500',
+    letterSpacing: 1,
   },
-  descriptionCard: {
-    backgroundColor: '#1f2937',
-    padding: 20,
-    borderRadius: 12,
+  roleSelection: {
     marginBottom: 32,
-    borderWidth: 1,
-    borderColor: '#374151',
   },
-  descriptionTitle: {
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 12,
+    color: '#ffffff',
+    marginBottom: 20,
     textAlign: 'center',
-  },
-  description: {
-    fontSize: 14,
-    color: '#d1d5db',
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  roleCards: {
-    gap: 20,
-    marginBottom: 32,
   },
   roleCard: {
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 2,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2d2d44',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
   },
   parentCard: {
-    backgroundColor: '#1e40af',
+    backgroundColor: '#1e3a8a',
     borderColor: '#3b82f6',
   },
   studentCard: {
-    backgroundColor: '#059669',
-    borderColor: '#10b981',
+    backgroundColor: '#166534',
+    borderColor: '#22c55e',
   },
-  roleEmoji: {
-    fontSize: 48,
-    textAlign: 'center',
-    marginBottom: 16,
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  roleTitle: {
-    fontSize: 24,
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  cardIcon: {
+    fontSize: 28,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 22,
     fontWeight: '800',
     color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  roleDescription: {
+  cardSubtitle: {
     fontSize: 14,
-    color: '#e5e7eb',
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+  },
+  features: {
+    backgroundColor: '#16213e',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#1e3a8a',
+  },
+  featuresTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 12,
     textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 20,
   },
-  roleFeatures: {
-    gap: 6,
+  featuresList: {
+    gap: 8,
   },
-  roleFeature: {
-    fontSize: 12,
-    color: '#e5e7eb',
-    lineHeight: 16,
+  feature: {
+    fontSize: 14,
+    color: '#e2e8f0',
+    textAlign: 'center',
+    fontWeight: '500',
   },
   loginButton: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   loginButtonText: {
     fontSize: 16,
-    color: '#6366f1',
+    color: '#a855f7',
     fontWeight: '600',
-    textDecorationLine: 'underline',
   },
 });

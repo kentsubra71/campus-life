@@ -2,7 +2,7 @@
 // This file ensures the Resend API key is properly loaded without modifying existing email verification code
 
 export const RESEND_CONFIG = {
-  apiKey: 're_9b7uhhxy_7dpYZtuYvahgXryuVXXS7rMz',
+  apiKey: process.env.EXPO_PUBLIC_RESEND_API_KEY,
   apiUrl: 'https://api.resend.com/emails',
   fromEmail: 'Campus Life <noreply@ronaldli.ca>',
 };

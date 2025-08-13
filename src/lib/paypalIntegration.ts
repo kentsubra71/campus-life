@@ -78,6 +78,19 @@ export const createPayPalOrder = async (
   
   const approvalUrl = order.links.find((link: any) => link.rel === 'approve')?.href;
   
+  // Store the PayPal Order ID in our payment record for later verification
+  const { updateDoc, doc } = await import('firebase/firestore');
+  const { db } = await import('./firebase');
+  
+  try {
+    await updateDoc(doc(db, 'payments', payment_id), {
+      paypal_order_id: order.id
+    });
+    console.log('✅ Stored PayPal Order ID in payment record:', order.id);
+  } catch (error) {
+    console.error('⚠️  Failed to store PayPal Order ID:', error);
+  }
+
   return {
     orderId: order.id,
     approvalUrl
@@ -100,6 +113,100 @@ export const capturePayPalPayment = async (orderId: string): Promise<boolean> =>
   const result = await response.json();
   
   return response.ok && result.status === 'COMPLETED';
+};
+
+// Check PayPal order status
+export const checkPayPalOrderStatus = async (orderId: string): Promise<{ success: boolean; status?: string; error?: string }> => {
+  try {
+    const accessToken = await getPayPalAccessToken();
+    
+    const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      }
+    });
+    
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}` };
+    }
+    
+    const order = await response.json();
+    return { 
+      success: true, 
+      status: order.status // CREATED, APPROVED, COMPLETED, etc.
+    };
+    
+  } catch (error: any) {
+    console.error('PayPal order status check error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Auto-verify completed PayPal payments by checking stored Order IDs
+export const autoVerifyPendingPayPalPayments = async (userId: string): Promise<number> => {
+  const { collection, query, where, getDocs } = await import('firebase/firestore');
+  const { db } = await import('./firebase');
+  
+  try {
+    // Get all pending PayPal payments for this user that have Order IDs
+    const q = query(
+      collection(db, 'payments'),
+      where('parent_id', '==', userId),
+      where('provider', '==', 'paypal'),
+      where('status', '==', 'initiated')
+    );
+    
+    const snapshot = await getDocs(q);
+    let verifiedCount = 0;
+    
+    console.log(`🔍 Checking ${snapshot.size} pending PayPal payments...`);
+    
+    for (const paymentDoc of snapshot.docs) {
+      const payment = paymentDoc.data();
+      
+      // Skip if no PayPal Order ID stored
+      if (!payment.paypal_order_id) {
+        console.log(`⏭️  Skipping payment ${paymentDoc.id} - no PayPal Order ID`);
+        continue;
+      }
+      
+      // Check PayPal order status
+      console.log(`🔍 Checking PayPal status for payment ${paymentDoc.id} with Order ID: ${payment.paypal_order_id}`);
+      const statusResult = await checkPayPalOrderStatus(payment.paypal_order_id);
+      
+      console.log(`📊 PayPal status result:`, statusResult);
+      
+      if (statusResult.success && (statusResult.status === 'COMPLETED' || statusResult.status === 'APPROVED')) {
+        console.log(`✅ Found ${statusResult.status} PayPal payment: ${paymentDoc.id}`);
+        
+        // For APPROVED payments, we need to capture them first, then verify
+        // For COMPLETED payments, just verify
+        const verifyResult = await verifyPayPalPayment(paymentDoc.id, payment.paypal_order_id);
+        
+        console.log(`🔧 Verification result:`, verifyResult);
+        
+        if (verifyResult.success) {
+          verifiedCount++;
+          console.log(`🎉 Auto-verified payment: ${paymentDoc.id}`);
+        } else {
+          console.error(`❌ Verification failed for ${paymentDoc.id}:`, verifyResult.error);
+        }
+      } else {
+        console.log(`⏳ Payment ${paymentDoc.id} still pending on PayPal: ${statusResult.status || 'Unknown'}`);
+        if (!statusResult.success) {
+          console.error(`❌ Error checking PayPal status:`, statusResult.error);
+        }
+      }
+    }
+    
+    return verifiedCount;
+    
+  } catch (error: any) {
+    console.error('Auto-verify error:', error);
+    return 0;
+  }
 };
 
 // Verify PayPal payment and update our records

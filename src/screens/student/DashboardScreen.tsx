@@ -13,6 +13,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { StudentDashboardScreenProps } from '../../types/navigation';
 import { handleAsyncError, AppError } from '../../utils/errorHandling';
 import { Alert } from 'react-native';
+import { ReceivedPayments } from '../../components/ReceivedPayments';
 
 export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMain'>> = ({ navigation }) => {
   const { stats, todayEntry, getEntryByDate } = useWellnessStore();
@@ -390,6 +391,9 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           ))}
         </View>
       )}
+
+      {/* Received Payments */}
+      <ReceivedPayments />
       </ScrollView>
     </View>
   );

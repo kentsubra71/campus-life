@@ -309,40 +309,38 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           <Text style={styles.title}>Family Dashboard</Text>
         </View>
 
-        {/* Student Selector for Multiple Kids */}
+        {/* Student Selector - Full Width Segments */}
         {hasMultipleStudents && familyMembers.students.length > 1 && (
           <View style={styles.tabContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScrollView}>
+            <View style={styles.segmentedControl}>
               {familyMembers.students.map((student, index) => (
                 <TouchableOpacity
                   key={student.id}
                   style={[
-                    styles.modernTab,
-                    selectedStudentIndex === index && styles.activeModernTab
+                    styles.segment,
+                    { flex: 1 / familyMembers.students.length },
+                    selectedStudentIndex === index && styles.activeSegment
                   ]}
                   onPress={() => setSelectedStudentIndex(index)}
                 >
                   <Text style={[
-                    styles.modernTabText,
-                    selectedStudentIndex === index && styles.activeModernTabText
+                    styles.segmentText,
+                    selectedStudentIndex === index && styles.activeSegmentText
                   ]}>
                     {student.name.split(' ')[0]}
                   </Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
           </View>
         )}
 
-        {/* Current Status - No Card */}
+        {/* Current Status - Clean */}
         <View style={styles.statusSection}>
           <View style={styles.statusHeader}>
-            <View style={styles.statusTitleSection}>
-              <View style={[styles.statusIndicator, { backgroundColor: getMoodGradient(moodInfo.text) }]} />
-              <Text style={styles.statusTitle}>
-                {studentName.split(' ')[0]} is {moodInfo.text.toLowerCase()}
-              </Text>
-            </View>
+            <Text style={styles.statusTitle}>
+              {studentName.split(' ')[0]} is {moodInfo.text.toLowerCase()}
+            </Text>
             <View style={[styles.statusBadge, { backgroundColor: getMoodGradient(moodInfo.text) }]}>
               <Text style={styles.statusBadgeText}>{wellnessStatus.status}</Text>
             </View>
@@ -439,13 +437,12 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </View>
           </TouchableOpacity>
           
-          {/* Secondary Actions - List Style */}
+          {/* Secondary Actions - Clean List */}
           <View style={styles.secondaryActions}>
             <TouchableOpacity 
               style={styles.actionItem}
               onPress={() => sendSupportMessage('boost')}
             >
-              <View style={[styles.actionIndicator, { backgroundColor: theme.colors.success }]} />
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>$5 Boost</Text>
                 <Text style={styles.actionSubtitle}>Quick money</Text>
@@ -459,7 +456,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
               style={styles.actionItem}
               onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id })}
             >
-              <View style={[styles.actionIndicator, { backgroundColor: theme.colors.primary }]} />
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Check Wellness</Text>
                 <Text style={styles.actionSubtitle}>Full details</Text>
@@ -471,7 +467,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
               style={styles.actionItem}
               onPress={() => navigation.navigate('PayPalTest')}
             >
-              <View style={[styles.actionIndicator, { backgroundColor: theme.colors.textSecondary }]} />
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>PayPal Test</Text>
                 <Text style={styles.actionSubtitle}>Development testing</Text>
@@ -483,49 +478,62 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           </View>
         </View>
 
-        {/* Recent Activity List - Only show if there's real activity */}
+        {/* Recent Activity - Clean List */}
         <View style={styles.recentSection}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
           
           {wellnessScore && (
-            <ListCard
-              title="Wellness Check"
-              subtitle={`${wellnessScore}/10 score today`}
-              rightText="View Details"
-              leftIcon="📊"
-              status={wellnessScore > 7 ? 'success' : wellnessScore < 5 ? 'warning' : 'active'}
+            <TouchableOpacity 
+              style={styles.activityItem}
               onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id })}
-            />
+            >
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Wellness Check</Text>
+                <Text style={styles.activitySubtitle}>{wellnessScore}/10 score today</Text>
+              </View>
+              <Text style={[styles.activityScore, {
+                color: wellnessScore > 7 ? theme.colors.success : wellnessScore < 5 ? theme.colors.warning : theme.colors.primary
+              }]}>
+                {wellnessScore}/10
+              </Text>
+            </TouchableOpacity>
           )}
           
           {(supportMessages.length > 0 || monthlyEarned > 0) && (
-            <ListCard
-              title="Monthly Summary" 
-              subtitle={`${supportMessages.length} messages • $${monthlyEarned || 0} sent`}
-              rightText="View All"
-              leftIcon="📈"
+            <TouchableOpacity 
+              style={styles.activityItem}
               onPress={() => navigation.navigate('Activity')}
-            />
+            >
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Monthly Summary</Text>
+                <Text style={styles.activitySubtitle}>{supportMessages.length} messages • ${monthlyEarned || 0} sent</Text>
+              </View>
+              <Text style={styles.activityAction}>View All</Text>
+            </TouchableOpacity>
           )}
           
           {familyMembers.students.length > 1 && (
-            <ListCard
-              title="Switch Student View"
-              subtitle={`${familyMembers.students.length} children in family`}
-              rightText="Switch"
-              leftIcon="👨‍👩‍👧‍👦"
+            <TouchableOpacity 
+              style={styles.activityItem}
               onPress={() => setSelectedStudentIndex((prev) => (prev + 1) % familyMembers.students.length)}
-            />
+            >
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Switch Student View</Text>
+                <Text style={styles.activitySubtitle}>{familyMembers.students.length} children in family</Text>
+              </View>
+              <Text style={styles.activityAction}>Switch</Text>
+            </TouchableOpacity>
           )}
           
           {/* If no real activity, show helpful message */}
           {!wellnessScore && supportMessages.length === 0 && monthlyEarned === 0 && (
-            <ListCard
-              title="No activity yet"
-              subtitle="Your family is just getting started!"
-              leftIcon="✨"
-              rightText=""
-            />
+            <View style={styles.activityItem}>
+              <View style={[styles.activityIndicator, { backgroundColor: theme.colors.backgroundTertiary }]} />
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>No activity yet</Text>
+                <Text style={styles.activitySubtitle}>Your family is just getting started!</Text>
+              </View>
+            </View>
           )}
         </View>
 
@@ -562,33 +570,35 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   
-  // Modern Tab System
+  // Segmented Control System
   tabContainer: {
     paddingHorizontal: 24,
     marginBottom: 20,
   },
-  tabScrollView: {
-    flexGrow: 0,
-  },
-  modernTab: {
-    backgroundColor: 'transparent',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 12,
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    overflow: 'hidden',
   },
-  activeModernTab: {
+  segment: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: theme.colors.border,
+  },
+  activeSegment: {
     backgroundColor: theme.colors.secondary,
-    borderColor: theme.colors.primaryDark,
   },
-  modernTabText: {
+  segmentText: {
     fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textSecondary,
   },
-  activeModernTabText: {
+  activeSegmentText: {
     color: theme.colors.primaryDark,
     fontWeight: '600',
   },
@@ -624,6 +634,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginTop: 24,
   },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  activityScore: {
+    fontSize: 16,
+    fontWeight: '700',
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 1,
+  },
+  activitySubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  activityAction: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
   
   // Urgent Section
   urgentSection: {
@@ -657,22 +698,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 8,
   },
-  statusTitleSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 12,
-  },
-  statusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
   statusTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: theme.colors.textPrimary,
+    flex: 1,
+    marginRight: 12,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -816,11 +847,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  actionIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  actionSquare: {
+    width: 8,
+    height: 8,
     marginRight: 12,
+  },
+  actionTriangle: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 4,
+    borderRightWidth: 4,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    marginRight: 12,
+    marginLeft: 4,
+  },
+  actionLine: {
+    width: 16,
+    height: 2,
+    marginRight: 12,
+    marginLeft: -4,
   },
   actionContent: {
     flex: 1,

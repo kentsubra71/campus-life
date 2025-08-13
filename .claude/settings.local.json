@@ -16,7 +16,8 @@
       "Bash(rm:*)",
       "Bash(firebase init:*)",
       "Bash(find:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(python3:*)"
     ],
     "deny": []
   }

@@ -6,7 +6,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -14,6 +15,7 @@ import { sendMessage, getCurrentUser } from '../../lib/firebase';
 import { createPaymentIntent, getCurrentSpendingCaps } from '../../lib/payments';
 import { createTestSubscription } from '../../lib/subscriptionWebhooks';
 import * as Linking from 'expo-linking';
+import { theme } from '../../styles/theme';
 
 interface SendSupportScreenProps {
   navigation: any;
@@ -35,7 +37,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
   const selectedStudentId = route?.params?.selectedStudentId;
   const selectedStudentIndex = route?.params?.selectedStudentIndex || 0;
   
-  const [selectedType, setSelectedType] = useState<'message' | 'boost'>(preselectedType === 'voice' ? 'message' : preselectedType);
+  const [selectedType, setSelectedType] = useState<'message' | 'boost'>(preselectedType || 'message');
   const [customMessage, setCustomMessage] = useState('');
   const [boostAmount, setBoostAmount] = useState(5);
   const [selectedProvider, setSelectedProvider] = useState<'paypal' | 'venmo' | 'cashapp' | 'zelle' | null>(null);
@@ -106,11 +108,11 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
   const supportTemplates = {
     message: [
-      "So proud of how you're taking care of yourself! 💜",
-      "Just wanted you to know I'm thinking of you today ☀️",
-      "You're doing an amazing job growing and learning! 🌟",
-      "Miss you and love seeing your progress 💙",
-      "Remember that you're strong and capable of anything! 💪"
+      "So proud of how you're taking care of yourself!",
+      "Just wanted you to know I'm thinking of you today",
+      "You're doing an amazing job growing and learning!",
+      "Miss you and love seeing your progress",
+      "Remember that you're strong and capable of anything!"
     ],
     boost: [
       "Great job maintaining your wellness routine!",
@@ -233,6 +235,24 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
   const getRemainingBudget = () => 50 - monthlyEarned;
 
+
+  const getProviderLogo = (providerId: string) => {
+    switch (providerId) {
+      case 'paypal': return require('../../../assets/icons/paypal.png');
+      case 'venmo': return require('../../../assets/icons/venmo.png');
+      case 'cashapp': return require('../../../assets/icons/cashapp.png');
+      case 'zelle': return null; // DEV: Use proper Zelle logo later
+      default: return null;
+    }
+  };
+
+  const getProviderTempColor = (providerId: string) => {
+    switch (providerId) {
+      case 'zelle': return '#6d1ed3';
+      default: return theme.colors.primary;
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollContainer}>
@@ -243,7 +263,11 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           </TouchableOpacity>
           <Text style={styles.title}>Send Support to {targetStudent}</Text>
           {route?.params?.preselectedType ? (
-            <Text style={styles.subtitle}>💙 Responding to their support request</Text>
+            <View style={styles.statusRow}>
+              <View style={styles.supportRequestBadge}>
+                <Text style={styles.supportRequestBadgeText}>Support Request</Text>
+              </View>
+            </View>
           ) : (
             <Text style={styles.subtitle}>Choose how to show you care</Text>
           )}
@@ -251,8 +275,8 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
         {/* Support Request Context */}
         {route?.params?.preselectedType && (
-          <View style={styles.contextCard}>
-            <Text style={styles.contextTitle}>💙 {targetStudent} requested support</Text>
+          <View style={styles.contextSection}>
+            <Text style={styles.contextTitle}>{targetStudent} requested support</Text>
             <Text style={styles.contextText}>
               They're letting you know they could use some extra care right now. 
               Choose the best way to support them below.
@@ -260,54 +284,56 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           </View>
         )}
 
-        {/* Monthly Budget Indicator */}
-        <View style={styles.budgetCard}>
-          <Text style={styles.budgetTitle}>Monthly Care Budget</Text>
-          <View style={styles.budgetBar}>
-            <View 
-              style={[
-                styles.budgetFill, 
-                { width: `${(monthlyEarned / 50) * 100}%` }
-              ]} 
-            />
+        {/* Monthly Budget - Clean Progress */}
+        <View style={styles.budgetSection}>
+          <View style={styles.budgetHeader}>
+            <Text style={styles.budgetTitle}>Monthly Budget</Text>
+            <Text style={styles.budgetRemaining}>${getRemainingBudget()} left</Text>
           </View>
-          <Text style={styles.budgetText}>
-            ${monthlyEarned} used / ${getRemainingBudget()} remaining of $50
-          </Text>
+          <View style={styles.budgetBarContainer}>
+            <View style={styles.budgetBar}>
+              <View 
+                style={[
+                  styles.budgetFill, 
+                  { width: `${(monthlyEarned / 50) * 100}%` }
+                ]} 
+              />
+            </View>
+            <Text style={styles.budgetText}>
+              ${monthlyEarned} of $50 used
+            </Text>
+          </View>
         </View>
 
-        {/* Support Type Selection */}
+        {/* Support Type Selection - Segmented Control */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Type of Support</Text>
-          <View style={styles.typeGrid}>
+          <View style={styles.segmentedControl}>
             <TouchableOpacity 
-              style={[styles.typeCard, selectedType === 'message' && styles.typeCardActive]}
+              style={[styles.segment, selectedType === 'message' && styles.activeSegment]}
               onPress={() => setSelectedType('message')}
             >
-              <Text style={styles.typeEmoji}>💬</Text>
-              <Text style={styles.typeTitle}>Message</Text>
-              <Text style={styles.typeDesc}>Words of love</Text>
+              <Text style={[styles.segmentText, selectedType === 'message' && styles.activeSegmentText]}>
+                Message
+              </Text>
             </TouchableOpacity>
-
-
-
             <TouchableOpacity 
-              style={[styles.typeCard, selectedType === 'boost' && styles.typeCardActive]}
+              style={[styles.segment, selectedType === 'boost' && styles.activeSegment]}
               onPress={() => setSelectedType('boost')}
             >
-              <Text style={styles.typeEmoji}>✨</Text>
-              <Text style={styles.typeTitle}>Care Boost</Text>
-              <Text style={styles.typeDesc}>Small surprise</Text>
+              <Text style={[styles.segmentText, selectedType === 'boost' && styles.activeSegmentText]}>
+                Care Boost
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Care Boost Amount Selection */}
+        {/* Care Boost Amount - Simple Cards */}
         {selectedType === 'boost' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Care Boost Amount</Text>
             <View style={styles.amountOptions}>
-              {[5, 10, 15, 20].map(amount => (
+              {[5, 10, 15, 20, 25, 30].map(amount => (
                 <TouchableOpacity
                   key={amount}
                   style={[
@@ -325,9 +351,6 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
                   ]}>
                     ${amount}
                   </Text>
-                  {spendingInfo && amount * 100 > (spendingInfo.remainingCents || 0) && (
-                    <Text style={styles.exceededText}>Exceeds limit</Text>
-                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -341,24 +364,45 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
             <Text style={styles.sectionSubtitle}>Choose how to send the money</Text>
             <View style={styles.paymentProviders}>
               {[
-                { id: 'paypal', name: 'PayPal', emoji: '💙', desc: 'Best experience' },
-                { id: 'venmo', name: 'Venmo', emoji: '💙', desc: 'Quick & easy' },
-                { id: 'cashapp', name: 'Cash App', emoji: '💚', desc: 'Instant transfer' },
-                { id: 'zelle', name: 'Zelle', emoji: '⚡', desc: 'Bank to bank' }
+                { id: 'paypal', name: 'PayPal', desc: 'Best experience' },
+                { id: 'venmo', name: 'Venmo', desc: 'Quick & easy' },
+                { id: 'cashapp', name: 'Cash App', desc: 'Instant transfer' },
+                { id: 'zelle', name: 'Zelle', desc: 'Bank to bank' }
               ].map((provider) => (
                 <TouchableOpacity
                   key={provider.id}
                   style={[
-                    styles.providerOption,
-                    selectedProvider === provider.id && styles.providerOptionActive
+                    styles.providerRow,
+                    selectedProvider === provider.id && styles.providerRowActive
                   ]}
                   onPress={() => setSelectedProvider(provider.id as any)}
                 >
-                  <Text style={styles.providerEmoji}>{provider.emoji}</Text>
-                  <View style={styles.providerInfo}>
-                    <Text style={styles.providerName}>{provider.name}</Text>
-                    <Text style={styles.providerDesc}>{provider.desc}</Text>
+                  <View style={styles.providerContent}>
+                    <View style={styles.providerLogoContainer}>
+                      {getProviderLogo(provider.id) ? (
+                        <Image
+                          source={getProviderLogo(provider.id)}
+                          style={styles.providerLogoImage}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <View style={[styles.tempLogoContainer, { backgroundColor: getProviderTempColor(provider.id) }]}>
+                          <Text style={styles.tempLogoText}>
+                            {provider.id === 'zelle' ? 'Z' : provider.name.charAt(0)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.providerInfo}>
+                      <Text style={styles.providerName}>{provider.name}</Text>
+                      <Text style={styles.providerDesc}>{provider.desc}</Text>
+                    </View>
                   </View>
+                  {selectedProvider === provider.id && (
+                    <View style={styles.selectedIndicator}>
+                      <Text style={styles.selectedIndicatorText}>✓</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -369,15 +413,18 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Message Templates</Text>
           <Text style={styles.sectionSubtitle}>Tap to use, or write your own below</Text>
-          {supportTemplates[selectedType].map((template, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.templateCard}
-              onPress={() => setCustomMessage(template)}
-            >
-              <Text style={styles.templateText}>{template}</Text>
-            </TouchableOpacity>
-          ))}
+          <View style={styles.templateList}>
+            {supportTemplates[selectedType].map((template, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.templateRow}
+                onPress={() => setCustomMessage(template)}
+              >
+                <Text style={styles.templateText}>{template.replace(/[💜☀️🌟💙💪]/g, '').trim()}</Text>
+                <Text style={styles.templateArrow}>→</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Custom Message */}
@@ -406,9 +453,9 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           >
             <Text style={styles.sendButtonText}>
               {selectedType === 'boost' 
-                ? `Send $${boostAmount} via ${selectedProvider || 'Provider'}`
+                ? `Send $${boostAmount}`
                 : 'Send Message'
-              } 💙
+              }
             </Text>
           </TouchableOpacity>
           
@@ -432,239 +479,303 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
   },
   header: {
-    padding: 24,
+    paddingHorizontal: 24,
     paddingTop: 60,
+    paddingBottom: 20,
   },
   backButton: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
     marginBottom: 12,
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginTop: 6,
   },
-  budgetCard: {
-    backgroundColor: '#1f2937',
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  budgetTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 12,
-  },
-  budgetBar: {
-    height: 6,
-    backgroundColor: '#374151',
-    borderRadius: 3,
-    marginBottom: 8,
-  },
-  budgetFill: {
-    height: '100%',
-    backgroundColor: 'theme.colors.primary',
-    borderRadius: 3,
-  },
-  budgetText: {
-    fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'center',
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#9ca3af',
-    marginBottom: 16,
-  },
-  typeGrid: {
+  // Status Row for Support Request
+  statusRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  typeCard: {
-    width: '48%',
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#374151',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  typeCardActive: {
-    borderColor: 'theme.colors.primary',
-    backgroundColor: '#1e1b4b',
-  },
-  typeEmoji: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  typeTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 4,
-  },
-  typeDesc: {
-    fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'center',
-  },
-  amountOptions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  amountOption: {
-    flex: 1,
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#374151',
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  amountOptionActive: {
-    borderColor: 'theme.colors.primary',
-    backgroundColor: '#1e1b4b',
-  },
-  amountOptionDisabled: {
-    backgroundColor: '#0f172a',
-    borderColor: '#374151',
-  },
-  amountText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#f9fafb',
-  },
-  amountTextActive: {
-    color: 'theme.colors.primary',
-  },
-  amountTextDisabled: {
-    color: '#6b7280',
-  },
-  exceededText: {
-    fontSize: 10,
-    color: '#dc2626',
-    marginTop: 4,
-  },
-  templateCard: {
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  templateText: {
-    fontSize: 14,
-    color: '#f9fafb',
-    lineHeight: 20,
-  },
-  messageInput: {
-    backgroundColor: '#1f2937',
-    borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    color: '#f9fafb',
-    textAlignVertical: 'top',
-    minHeight: 100,
-  },
-  sendButton: {
-    backgroundColor: 'theme.colors.primary',
-    padding: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#4b5563',
-  },
-  sendButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  limitWarning: {
-    fontSize: 12,
-    color: '#dc2626',
-    textAlign: 'center',
     marginTop: 8,
-    fontStyle: 'italic',
   },
-  contextCard: {
-    backgroundColor: '#1e40af',
-    margin: 20,
-    padding: 20,
+  supportRequestBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  supportRequestBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+  },
+  // Context Section
+  contextSection: {
+    paddingHorizontal: 24,
+    marginBottom: 20,
+    backgroundColor: theme.colors.secondary,
+    marginHorizontal: 24,
+    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#3b82f6',
+    borderColor: theme.colors.border,
   },
   contextTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
     textAlign: 'center',
   },
   contextText: {
     fontSize: 14,
-    color: '#dbeafe',
+    color: theme.colors.textSecondary,
     lineHeight: 20,
     textAlign: 'center',
   },
-  paymentProviders: {
-    // gap: 8, // Commented out in case of RN compatibility
+  // Budget Section - Clean Progress
+  budgetSection: {
+    paddingHorizontal: 24,
+    marginBottom: 20,
   },
-  providerOption: {
+  budgetHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#374151',
+    marginBottom: 12,
+  },
+  budgetTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  budgetRemaining: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.primary,
+  },
+  budgetBarContainer: {
+    gap: 8,
+  },
+  budgetBar: {
+    height: 6,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  budgetFill: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 3,
+  },
+  budgetText: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  section: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
-  providerOptionActive: {
-    borderColor: 'theme.colors.primary',
-    backgroundColor: '#1e1b4b',
+  sectionSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 16,
   },
-  providerEmoji: {
-    fontSize: 20,
+  // Segmented Control
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    overflow: 'hidden',
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: theme.colors.border,
+  },
+  activeSegment: {
+    backgroundColor: theme.colors.secondary,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+  },
+  activeSegmentText: {
+    color: theme.colors.primaryDark,
+    fontWeight: '600',
+  },
+  // Amount Options - Clean Grid
+  amountOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  amountOption: {
+    flex: 1,
+    minWidth: '30%',
+    backgroundColor: theme.colors.backgroundSecondary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+  },
+  amountOptionActive: {
+    backgroundColor: theme.colors.secondary,
+    borderColor: theme.colors.primary,
+  },
+  amountOptionDisabled: {
+    opacity: 0.3,
+  },
+  amountText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  amountTextActive: {
+    color: theme.colors.primaryDark,
+  },
+  amountTextDisabled: {
+    color: theme.colors.textTertiary,
+  },
+  exceededText: {
+    fontSize: 10,
+    color: theme.colors.error,
+    marginTop: 4,
+  },
+  // Template Messages
+  templateList: {
+    gap: 4,
+  },
+  templateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  templateText: {
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+    flex: 1,
+    lineHeight: 20,
+  },
+  templateArrow: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  messageInput: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    textAlignVertical: 'top',
+    minHeight: 100,
+  },
+  sendButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 25,
+    alignItems: 'center',
+    minWidth: 200,
+  },
+  sendButtonDisabled: {
+    backgroundColor: theme.colors.textTertiary,
+    opacity: 0.5,
+  },
+  sendButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+  },
+  limitWarning: {
+    fontSize: 12,
+    color: theme.colors.error,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  // Payment Providers - Clean List
+  paymentProviders: {
+    gap: 4,
+  },
+  providerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  providerRowActive: {
+    backgroundColor: theme.colors.secondary,
+    marginHorizontal: -24,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  providerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  providerLogoContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
+  },
+  providerLogoImage: {
+    width: 28,
+    height: 28,
+  },
+  tempLogoContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tempLogoText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   providerInfo: {
     flex: 1,
@@ -672,11 +783,24 @@ const styles = StyleSheet.create({
   providerName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 2,
   },
   providerDesc: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
+  },
+  selectedIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedIndicatorText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });

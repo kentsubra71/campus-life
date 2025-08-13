@@ -8,6 +8,7 @@ import { ParentNavigator } from './src/navigation/ParentNavigator';
 import { useAuthStore } from './src/stores/authStore';
 import { View, Text, ActivityIndicator, StyleSheet, StatusBar, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
+import { theme } from './src/styles/theme';
 
 // Auth screens
 import { RoleSelectionScreen } from './src/screens/auth/RoleSelectionScreen';
@@ -21,7 +22,7 @@ const Stack = createStackNavigator();
 
 export default function App() {
   const { isAuthenticated, user, isLoading } = useAuthStore();
-  const navigationRef = useRef<any>();
+  const navigationRef = useRef<any>(null);
 
   // Handle deep links for email verification and password reset
   useEffect(() => {
@@ -147,9 +148,9 @@ export default function App() {
   if (isLoading) {
     return (
       <SafeAreaProvider>
-        <StatusBar barStyle="light-content" backgroundColor="#111827" />
+        <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Loading CampusLife...</Text>
         </View>
       </SafeAreaProvider>
@@ -160,28 +161,36 @@ export default function App() {
     ...DarkTheme,
     colors: {
       ...DarkTheme.colors,
-      primary: '#6366f1',
-      background: '#111827',
-      card: '#1f2937',
-      text: '#f9fafb',
-      border: '#374151',
+      primary: theme.colors.primary,
+      background: theme.colors.background,
+      card: theme.colors.backgroundSecondary,
+      text: theme.colors.textPrimary,
+      border: theme.colors.border,
     },
   };
 
   const AuthStack = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
-      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Login">
+        {(props) => <LoginScreen {...props} />}
+      </Stack.Screen>
       <Stack.Screen name="ParentRegister" component={ParentRegisterScreen} />
-      <Stack.Screen name="StudentRegister" component={StudentRegisterScreen} />
-      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Stack.Screen name="StudentRegister">
+        {(props) => <StudentRegisterScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen name="ForgotPassword">
+        {(props) => <ForgotPasswordScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen name="ResetPassword">
+        {(props) => <ResetPasswordScreen {...props} />}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="light-content" backgroundColor="#111827" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
       <NavigationContainer ref={navigationRef} theme={customDarkTheme}>
         {!isAuthenticated ? (
           <AuthStack />
@@ -204,11 +213,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#9ca3af',
+    ...theme.typography.bodyMedium,
+    marginTop: theme.spacing.md,
+    color: theme.colors.textSecondary,
   },
 });

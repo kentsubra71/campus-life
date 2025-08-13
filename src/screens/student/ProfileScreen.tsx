@@ -14,14 +14,14 @@ import { useAuthStore } from '../../stores/authStore';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { showMessage } from 'react-native-flash-message';
-import { supabase } from '../../lib/supabase';
+// Removed supabase import as it's not used in this version
 
 interface ProfileScreenProps {
   navigation: any;
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
-  const { user, setUser, userType } = useAuthStore();
+  const { user } = useAuthStore();
   const { stats } = useWellnessStore();
   const { level, totalEarned } = useRewardsStore();
   
@@ -202,16 +202,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       <Switch
         value={preferences[key]}
         onValueChange={(value) => setPreferences({ ...preferences, [key]: value })}
-        trackColor={{ false: '#374151', true: '#6366f1' }}
+        trackColor={{ false: '#374151', true: 'theme.colors.primary' }}
         thumbColor={preferences[key] ? '#f9fafb' : '#9ca3af'}
       />
     </View>
   );
 
   const getMembershipDuration = () => {
-    if (!user?.created_at) return 'New member';
+    if (!user?.createdAt) return 'New member';
     
-    const joinDate = new Date(user.created_at);
+    const joinDate = new Date(user.createdAt);
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - joinDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
   },
   overviewStatus: {
     fontSize: 12,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
   },
   statsRow: {
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     marginBottom: 4,
   },
   statLabel: {
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
     color: '#f9fafb',
   },
   editButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,

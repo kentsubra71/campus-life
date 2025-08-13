@@ -204,7 +204,7 @@ export const PayPalTestScreen: React.FC<PayPalTestScreenProps> = ({ navigation }
 
       {loading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
+          <ActivityIndicator size="large" color="theme.colors.primary" />
           <Text style={styles.loadingText}>Running test...</Text>
         </View>
       )}
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
     marginBottom: 12,
   },
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#059669',
   },
   secondaryButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
   },
   warningButton: {
     backgroundColor: '#dc2626',

@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   streakNumber: {
     fontSize: 48,
     fontWeight: '800',
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     marginBottom: 8,
   },
   streakLabel: {
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     marginBottom: 4,
   },
   statLabel: {

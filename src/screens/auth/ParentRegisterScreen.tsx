@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
     marginBottom: 16,
   },
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   registerButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   },
   loginLinkText: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
   },
 });

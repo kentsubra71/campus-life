@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
     marginBottom: 12,
   },
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   },
   budgetFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     borderRadius: 3,
   },
   budgetText: {
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
   },
   presetButtonActive: {
     backgroundColor: '#1e1b4b',
-    borderColor: '#6366f1',
+    borderColor: 'theme.colors.primary',
   },
   presetButtonText: {
     fontSize: 14,
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
   },
   presetButtonTextActive: {
-    color: '#6366f1',
+    color: 'theme.colors.primary',
   },
   noteInput: {
     backgroundColor: '#1f2937',
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   providerCardActive: {
-    borderColor: '#6366f1',
+    borderColor: 'theme.colors.primary',
     backgroundColor: '#1e1b4b',
   },
   providerCardDisabled: {

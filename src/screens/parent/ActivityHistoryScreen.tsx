@@ -11,6 +11,9 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { theme } from '../../styles/theme';
+import { commonStyles } from '../../styles/components';
+import { NavigationProp } from '@react-navigation/native';
 
 interface ActivityItem {
   id: string;
@@ -25,7 +28,16 @@ interface ActivityItem {
   message_type?: string;
 }
 
-export const ActivityHistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+type ParentStackParamList = {
+  ActivityHistory: undefined;
+  [key: string]: undefined | object;
+};
+
+interface ActivityHistoryScreenProps {
+  navigation: NavigationProp<ParentStackParamList>;
+}
+
+export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,14 +181,14 @@ export const ActivityHistoryScreen: React.FC<{ navigation: any }> = ({ navigatio
         case 'completed': return '#10b981';
         case 'confirmed_by_parent': return '#10b981';
         case 'sent': return '#f59e0b';
-        case 'initiated': return '#6366f1';
-        case 'pending': return '#6366f1';
+        case 'initiated': return theme.colors.primary;
+        case 'pending': return theme.colors.primary;
         default: return '#9ca3af';
       }
     } else {
       switch (status) {
         case 'read': return '#10b981';
-        case 'sent': return '#6366f1';
+        case 'sent': return theme.colors.primary;
         default: return '#9ca3af';
       }
     }
@@ -230,8 +242,7 @@ export const ActivityHistoryScreen: React.FC<{ navigation: any }> = ({ navigatio
         <View style={styles.activityHeader}>
           <View style={styles.activityInfo}>
             <Text style={styles.activityType}>
-              {item.type === 'payment' ? '💰' : '💬'} 
-              {item.type === 'payment' ? ' Payment' : ' Message'}
+              {item.type === 'payment' ? 'Payment' : 'Message'}
               {item.student_name && ` to ${item.student_name.split(' ')[0]}`}
             </Text>
             <Text style={styles.activityTime}>{formatTime(item.timestamp)}</Text>
@@ -258,7 +269,7 @@ export const ActivityHistoryScreen: React.FC<{ navigation: any }> = ({ navigatio
               {item.message_content}
             </Text>
             <Text style={styles.messageType}>
-              {item.message_type === 'voice' ? '🎙️ Voice Message' : '📝 Text Message'}
+              {item.message_type === 'voice' ? 'Voice Message' : 'Text Message'}
             </Text>
           </View>
         )}
@@ -269,6 +280,9 @@ export const ActivityHistoryScreen: React.FC<{ navigation: any }> = ({ navigatio
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>← Back</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Activity History</Text>
         <Text style={styles.subtitle}>Payments and messages sent</Text>
         <Text style={styles.pullHint}>Pull down to refresh and verify payments</Text>
@@ -280,7 +294,7 @@ export const ActivityHistoryScreen: React.FC<{ navigation: any }> = ({ navigatio
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#6366f1"
+            tintColor={theme.colors.primary}
           />
         }
       >
@@ -290,7 +304,6 @@ export const ActivityHistoryScreen: React.FC<{ navigation: any }> = ({ navigatio
           </View>
         ) : activities.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>📱</Text>
             <Text style={styles.emptyTitle}>No Activity Yet</Text>
             <Text style={styles.emptyText}>
               Your payments and messages will appear here
@@ -308,23 +321,26 @@ export const ActivityHistoryScreen: React.FC<{ navigation: any }> = ({ navigatio
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#111827',
+    ...commonStyles.container,
   },
   header: {
-    padding: 24,
-    paddingTop: 60,
-    paddingBottom: 20,
+    ...commonStyles.headerWithSubtitle,
+  },
+  backButton: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    fontWeight: '600',
+    marginBottom: 12,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
-    marginBottom: 8,
+    color: theme.colors.textPrimary,
+    letterSpacing: -0.5,
+    marginBottom: theme.spacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
+    ...commonStyles.subtitle,
   },
   pullHint: {
     fontSize: 12,
@@ -333,99 +349,76 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   scrollView: {
-    flex: 1,
+    ...commonStyles.scrollContainer,
   },
   loadingContainer: {
-    padding: 40,
-    alignItems: 'center',
+    ...commonStyles.loadingContainer,
   },
   loadingText: {
-    fontSize: 16,
-    color: '#9ca3af',
+    ...commonStyles.loadingText,
   },
   emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
+    ...commonStyles.emptyContainer,
   },
   emptyEmoji: {
-    fontSize: 64,
-    marginBottom: 16,
+    ...commonStyles.emptyEmoji,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 8,
+    ...commonStyles.emptyTitle,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#9ca3af',
-    textAlign: 'center',
+    ...commonStyles.emptyText,
   },
   activitiesContainer: {
-    padding: 20,
+    ...commonStyles.containerPadding,
   },
   activityItem: {
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
+    ...commonStyles.listItem,
   },
   activityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    ...commonStyles.listItemHeader,
   },
   activityInfo: {
-    flex: 1,
+    ...commonStyles.listItemContent,
   },
   activityType: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#f9fafb',
-    marginBottom: 4,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.xs,
   },
   activityTime: {
-    fontSize: 14,
-    color: '#9ca3af',
+    ...theme.typography.subtitleSmall,
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    ...commonStyles.statusBadge,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#ffffff',
+    ...commonStyles.statusText,
   },
   paymentDetails: {
-    marginTop: 8,
+    marginTop: theme.spacing.sm,
   },
   paymentAmount: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#10b981',
-    marginBottom: 4,
+    color: theme.colors.success,
+    marginBottom: theme.spacing.xs,
   },
   paymentNote: {
-    fontSize: 14,
-    color: '#d1d5db',
+    ...theme.typography.bodySmall,
+    color: theme.colors.textTertiary,
     fontStyle: 'italic',
   },
   messageDetails: {
-    marginTop: 8,
+    marginTop: theme.spacing.sm,
   },
   messageContent: {
-    fontSize: 14,
-    color: '#d1d5db',
-    marginBottom: 4,
+    ...theme.typography.bodySmall,
+    color: theme.colors.textTertiary,
+    marginBottom: theme.spacing.xs,
   },
   messageType: {
-    fontSize: 12,
-    color: '#9ca3af',
+    ...theme.typography.caption,
   },
 });

@@ -5,7 +5,8 @@ import {
   View, 
   Text, 
   StyleSheet,
-  TouchableOpacity
+  TouchableOpacity,
+  Alert
 } from 'react-native';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
@@ -14,6 +15,8 @@ import { StudentDashboardScreenProps } from '../../types/navigation';
 import { handleAsyncError, AppError } from '../../utils/errorHandling';
 import { Alert } from 'react-native';
 import { ReceivedPayments } from '../../components/ReceivedPayments';
+import { theme } from '../../styles/theme';
+import { commonStyles } from '../../styles/components';
 
 export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMain'>> = ({ navigation }) => {
   const { stats, todayEntry, getEntryByDate } = useWellnessStore();
@@ -105,7 +108,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
   const getTypeColor = useMemo(() => (type: string) => {
     switch (type) {
       case 'automatic': return '#10b981';
-      case 'manual': return '#6366f1';
+      case 'manual': return 'theme.colors.primary';
       case 'challenge': return '#f59e0b';
       default: return '#6b7280';
     }
@@ -402,7 +405,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: 'theme.colors.background',
   },
   scrollContainer: {
     flex: 1,
@@ -411,10 +414,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: 'theme.colors.background',
   },
   loadingText: {
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
     fontSize: 16,
   },
   header: {
@@ -424,21 +427,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     marginTop: 6,
   },
   connectionCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     margin: 20,
     padding: 24,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -448,7 +451,7 @@ const styles = StyleSheet.create({
   connectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
     marginBottom: 20,
   },
   connectionStats: {
@@ -461,17 +464,17 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
   },
   statLabel: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     marginTop: 6,
     fontWeight: '500',
   },
   statHint: {
     fontSize: 10,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     marginTop: 2,
     fontWeight: '600',
   },
@@ -481,18 +484,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
     marginBottom: 16,
   },
   messageCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     padding: 18,
     borderRadius: 12,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -501,10 +504,10 @@ const styles = StyleSheet.create({
   },
   unreadMessage: {
     borderLeftWidth: 4,
-    borderLeftColor: '#6366f1',
+    borderLeftColor: 'theme.colors.primary',
   },
   messageTypeContainer: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -523,27 +526,27 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 14,
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
     marginBottom: 4,
     fontWeight: '500',
   },
   messageTime: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
   },
   levelCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     margin: 20,
     padding: 24,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -559,12 +562,12 @@ const styles = StyleSheet.create({
   levelTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
   },
   levelNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
   },
   experienceBar: {
     height: 8,
@@ -574,7 +577,7 @@ const styles = StyleSheet.create({
   },
   experienceFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     borderRadius: 4,
   },
   experienceText: {
@@ -592,13 +595,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   scoreCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     margin: 20,
     padding: 24,
     borderRadius: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -607,7 +610,7 @@ const styles = StyleSheet.create({
   },
   scoreTitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     marginBottom: 12,
     fontWeight: '500',
   },
@@ -623,22 +626,22 @@ const styles = StyleSheet.create({
   },
   scoreMax: {
     fontSize: 20,
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     fontWeight: '500',
     marginLeft: 4,
   },
   scoreMessage: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     marginTop: 12,
     fontWeight: '600',
   },
   card: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -649,12 +652,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
   },
   cardValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
     marginTop: 4,
   },
   cardStreak: {
@@ -679,16 +682,16 @@ const styles = StyleSheet.create({
   },
   rewardsTotalLabel: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     marginLeft: 4,
     fontWeight: '500',
   },
   rewardCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -728,7 +731,7 @@ const styles = StyleSheet.create({
   rewardTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: 'theme.colors.backgroundSecondary',
   },
   rewardDescription: {
     fontSize: 14,
@@ -770,7 +773,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     borderRadius: 2,
   },
   sectionHeader: {
@@ -781,16 +784,16 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     fontSize: 14,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
   },
   wellnessActionCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     padding: 20,
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -800,12 +803,12 @@ const styles = StyleSheet.create({
   wellnessActionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
     marginBottom: 6,
   },
   wellnessActionSubtitle: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     fontWeight: '500',
   },
   statsRow: {
@@ -813,14 +816,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   statCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -829,7 +832,7 @@ const styles = StyleSheet.create({
   },
   newMessagesBadge: {
     fontSize: 12,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
     backgroundColor: '#1e1b4b',
     paddingHorizontal: 8,
@@ -839,7 +842,7 @@ const styles = StyleSheet.create({
   smallSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     marginBottom: 8,
   },
   rewardsSmallTotal: {
@@ -854,11 +857,11 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   smallRewardCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     padding: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -869,11 +872,11 @@ const styles = StyleSheet.create({
   smallRewardTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
   },
   smallRewardDescription: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     marginTop: 2,
   },
   smallAmountText: {

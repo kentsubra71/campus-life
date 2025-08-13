@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MaterialIcons } from '@expo/vector-icons';
+import { theme } from '../styles/theme';
 import { DashboardScreen } from '../screens/student/DashboardScreen';
 import { LogWellnessScreen } from '../screens/student/LogWellnessScreen';
 import { RewardsScreen } from '../screens/student/RewardsScreen';
@@ -26,8 +27,8 @@ export const StudentNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#6366f1',
-        tabBarInactiveTintColor: '#9ca3af',
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarStyle: {
           backgroundColor: '#1f2937',
           borderTopColor: '#374151',

@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MaterialIcons } from '@expo/vector-icons';
+import { theme } from '../styles/theme';
 import { ParentDashboardScreen } from '../screens/parent/ParentDashboardScreen';
 import { ChildWellnessScreen } from '../screens/parent/ChildWellnessScreen';
 import { SendSupportScreen } from '../screens/parent/SendSupportScreen';
@@ -19,11 +20,11 @@ const ParentMainTabs = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#6366f1',
-        tabBarInactiveTintColor: '#9ca3af',
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarStyle: {
-          backgroundColor: '#1f2937',
-          borderTopColor: '#374151',
+          backgroundColor: theme.colors.backgroundSecondary,
+          borderTopColor: theme.colors.border,
         },
         tabBarLabelStyle: {
           fontSize: 12,

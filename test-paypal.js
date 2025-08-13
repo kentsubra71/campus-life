@@ -1,9 +1,10 @@
 // Simple PayPal API Test Script
 const axios = require('axios');
 
-// Your PayPal credentials from the .env file
-const PAYPAL_CLIENT_ID = 'AUwfzm6qAkoeoQRjK--9ovv36PKtRndoZYnFIoACjhSCA8fqAuC-uXYC7nM06eS7eDcsheQg2wSpivQM';
-const PAYPAL_CLIENT_SECRET = 'EJgB1tqYXJCFxEmuZDT7hoTJSMvfm-_EsskwIKWmQZOoiUy4NgOf2TWwqZ7pYN_iPcHk7cx-ivFwjedM';
+// Load PayPal credentials from environment variables
+require('dotenv').config();
+const PAYPAL_CLIENT_ID = process.env.EXPO_PUBLIC_PAYPAL_CLIENT_ID;
+const PAYPAL_CLIENT_SECRET = process.env.EXPO_PUBLIC_PAYPAL_CLIENT_SECRET;
 const PAYPAL_BASE_URL = 'https://api-m.sandbox.paypal.com';
 
 // Test functions

@@ -52,6 +52,20 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
     try {
       setLoading(true);
+      
+      // Auto-verify any pending PayPal payments first
+      console.log('🔄 Auto-verifying pending PayPal payments...');
+      try {
+        const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+        const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+        if (verifiedCount > 0) {
+          console.log(`✅ Auto-verified ${verifiedCount} PayPal payments`);
+        }
+      } catch (verifyError) {
+        console.error('⚠️ Auto-verify failed:', verifyError);
+        // Don't block loading activities if auto-verify fails
+      }
+      
       const allActivities: ActivityItem[] = [];
 
       // Load payments
@@ -271,6 +285,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         </TouchableOpacity>
         <Text style={styles.title}>Activity History</Text>
         <Text style={styles.subtitle}>Payments and messages sent</Text>
+        <Text style={styles.pullHint}>Pull down to refresh and verify payments</Text>
       </View>
 
       <ScrollView
@@ -326,6 +341,12 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...commonStyles.subtitle,
+  },
+  pullHint: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   scrollView: {
     ...commonStyles.scrollContainer,

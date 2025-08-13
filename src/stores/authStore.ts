@@ -15,6 +15,7 @@ import {
   Family as FirebaseFamily
 } from '../lib/firebase';
 import { User as FirebaseUser } from 'firebase/auth';
+import { cache, CACHE_CONFIGS } from '../utils/universalCache';
 
 interface User {
   id: string;
@@ -362,7 +363,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { parents: [], students: [] };
     }
     
+    // Try cache first
+    const cached = await cache.get(CACHE_CONFIGS.FAMILY_MEMBERS, user.id);
+    if (cached) {
+      console.log('📦 Using cached family members');
+      return cached;
+    }
+    
     try {
+      console.log('🔄 Loading fresh family members...');
       const { parents: parentProfiles, students: studentProfiles } = await getFamilyMembersFirebase(user.familyId);
       
       const parents: User[] = parentProfiles.map(profile => ({
@@ -383,7 +392,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         createdAt: profile.created_at.toDate(),
       }));
       
-      return { parents, students };
+      const result = { parents, students };
+      
+      // Cache the result
+      await cache.set(CACHE_CONFIGS.FAMILY_MEMBERS, result, user.id);
+      console.log('💾 Cached family members');
+      
+      return result;
     } catch (error) {
       console.error('Error getting family members:', error);
       return { parents: [], students: [] };
@@ -411,6 +426,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   logout: async () => {
+    const { user } = get();
+    
+    // Clear user caches before logout
+    if (user) {
+      try {
+        await cache.clearUserCaches(user.id);
+        console.log('🗑️ Cleared user caches on logout');
+      } catch (error) {
+        console.error('Error clearing user caches on logout:', error);
+      }
+    }
+    
     await signOutUser();
     set({ 
       isAuthenticated: false, 

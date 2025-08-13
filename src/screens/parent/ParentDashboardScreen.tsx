@@ -15,6 +15,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
+import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
 // New component imports
 import { HeroCard } from '../../components/cards/HeroCard';
 import { StatsCard } from '../../components/cards/StatsCard';
@@ -80,41 +81,91 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     }, [fetchSupportMessages, fetchMonthlyPayments, familyMembers.students.length, selectedStudentIndex])
   );
 
-  const loadData = async () => {
-    try {
-      // Auto-verify any pending PayPal payments first
-      if (user) {
-        try {
-          console.log('🔄 Auto-verifying pending PayPal payments...');
-          const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
-          const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
-          if (verifiedCount > 0) {
-            console.log(`✅ Auto-verified ${verifiedCount} PayPal payments on dashboard refresh`);
-          }
-        } catch (verifyError) {
-          console.error('⚠️ Auto-verify failed on dashboard:', verifyError);
-        }
-      }
+  const loadData = async (forceRefresh = false) => {
+    if (!user) return;
 
-      console.log('🔄 Loading family members...');
-      const members = await getFamilyMembers();
-      console.log('👨‍👩‍👧‍👦 Family members loaded:', {
-        parentsCount: members.parents.length,
-        studentsCount: members.students.length,
-        parents: members.parents.map(p => ({ id: p.id, name: p.name })),
-        students: members.students.map(s => ({ id: s.id, name: s.name }))
-      });
-      
-      setFamilyMembers(members);
-      
-      // Only fetch support data if we have students in the family
+    try {
+      // Smart refresh family members with caching
+      await smartRefresh(
+        CACHE_CONFIGS.FAMILY_MEMBERS,
+        async () => {
+          console.log('🔄 Loading family members...');
+          const members = await getFamilyMembers();
+          console.log('👨‍👩‍👧‍👦 Family members loaded:', {
+            parentsCount: members.parents.length,
+            studentsCount: members.students.length,
+            parents: members.parents.map(p => ({ id: p.id, name: p.name })),
+            students: members.students.map(s => ({ id: s.id, name: s.name }))
+          });
+          return members;
+        },
+        (cachedMembers) => {
+          // Show cached data immediately
+          console.log('📦 Using cached family members');
+          setFamilyMembers(cachedMembers);
+        },
+        (freshMembers) => {
+          // Update with fresh data
+          console.log('✅ Updated with fresh family members');
+          setFamilyMembers(freshMembers);
+        },
+        user.id
+      );
+
+      // Get family members (either from cache or fresh)
+      const members = await cache.get(CACHE_CONFIGS.FAMILY_MEMBERS, user.id) || 
+                      await getFamilyMembers();
+
+      // Load dashboard data with caching if we have students
       if (members.students.length > 0) {
         const selectedStudent = members.students[selectedStudentIndex] || members.students[0];
-        await Promise.all([
-          fetchSupportMessages(),
-          fetchMonthlyPayments(selectedStudent?.id),
-          getEntryByDate(new Date().toISOString().split('T')[0])
-        ]);
+        
+        await smartRefresh(
+          CACHE_CONFIGS.DASHBOARD_DATA,
+          async () => {
+            console.log('🔄 Loading dashboard data...');
+            await Promise.all([
+              fetchSupportMessages(),
+              fetchMonthlyPayments(selectedStudent?.id),
+              getEntryByDate(new Date().toISOString().split('T')[0])
+            ]);
+            
+            // Return dashboard state for caching
+            return {
+              supportMessages,
+              monthlyEarned,
+              level,
+              mood,
+              stats,
+              todayEntry,
+              lastUpdated: new Date().toISOString()
+            };
+          },
+          (cachedDashboard) => {
+            console.log('📦 Using cached dashboard data');
+            // Dashboard data already in stores, just log
+          },
+          (freshDashboard) => {
+            console.log('✅ Updated with fresh dashboard data');
+          },
+          `${user.id}_${selectedStudent?.id}`
+        );
+
+        // PayPal verification (reduced delay)
+        setTimeout(async () => {
+          try {
+            console.log('🔄 Auto-verifying pending PayPal payments...');
+            const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+            const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+            if (verifiedCount > 0) {
+              console.log(`✅ Auto-verified ${verifiedCount} PayPal payments`);
+              // Refresh monthly payments to show updates
+              fetchMonthlyPayments(selectedStudent?.id);
+            }
+          } catch (verifyError) {
+            console.error('⚠️ Auto-verify failed on dashboard:', verifyError);
+          }
+        }, 100); // Almost immediate verification
       }
     } catch (error) {
       console.log('Error loading data:', error);

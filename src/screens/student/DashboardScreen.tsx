@@ -13,10 +13,11 @@ import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { StudentDashboardScreenProps } from '../../types/navigation';
 import { handleAsyncError, AppError } from '../../utils/errorHandling';
-import { Alert } from 'react-native';
 import { ReceivedPayments } from '../../components/ReceivedPayments';
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
+import { useDataSync } from '../../hooks/useRefreshOnFocus';
+import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
 
 export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMain'>> = ({ navigation }) => {
   const { stats, todayEntry, getEntryByDate } = useWellnessStore();
@@ -52,32 +53,74 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
   }, []);
 
   const loadData = useCallback(async () => {
+    if (!user) return;
+    
     setLoadingErrors([]);
     
-    const results = await Promise.allSettled([
-      handleAsyncError(() => fetchActiveRewards(), 'Loading rewards'),
-      handleAsyncError(() => fetchSupportMessages(), 'Loading messages')
-    ]);
-    
-    const errors: AppError[] = [];
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && result.value.error) {
-        errors.push(result.value.error);
-      } else if (result.status === 'rejected') {
-        errors.push({
-          code: 'UNKNOWN_ERROR',
-          message: 'Failed to load data',
-          context: index === 0 ? 'rewards' : 'messages'
-        });
-      }
-    });
-    
-    if (errors.length > 0) {
-      setLoadingErrors(errors);
-      console.warn('Some data failed to load:', errors);
+    try {
+      // Smart refresh dashboard data with caching
+      await smartRefresh(
+        CACHE_CONFIGS.DASHBOARD_DATA,
+        async () => {
+          console.log('🔄 Loading student dashboard data...');
+          const results = await Promise.allSettled([
+            handleAsyncError(() => fetchActiveRewards(), 'Loading rewards'),
+            handleAsyncError(() => fetchSupportMessages(), 'Loading messages'),
+            handleAsyncError(() => getEntryByDate(new Date().toISOString().split('T')[0]), 'Loading wellness entry')
+          ]);
+          
+          const errors: AppError[] = [];
+          results.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value.error) {
+              errors.push(result.value.error);
+            } else if (result.status === 'rejected') {
+              const contexts = ['rewards', 'messages', 'wellness'];
+              errors.push({
+                code: 'UNKNOWN_ERROR',
+                message: 'Failed to load data',
+                context: contexts[index]
+              });
+            }
+          });
+          
+          if (errors.length > 0) {
+            setLoadingErrors(errors);
+            console.warn('Some data failed to load:', errors);
+          }
+          
+          // Return data for caching
+          return {
+            activeRewards,
+            supportMessages,
+            totalEarned,
+            level,
+            experience,
+            mood,
+            stats,
+            todayEntry,
+            lastUpdated: new Date().toISOString()
+          };
+        },
+        (cachedDashboard) => {
+          console.log('📦 Using cached student dashboard data');
+          // Data is in stores, just show it's cached
+        },
+        (freshDashboard) => {
+          console.log('✅ Updated with fresh student dashboard data');
+        },
+        user.id
+      );
+      
+    } catch (error) {
+      console.error('Error loading student dashboard:', error);
+      setLoadingErrors([{
+        code: 'LOAD_ERROR',
+        message: 'Failed to load dashboard data',
+        context: 'dashboard'
+      }]);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   }, [fetchActiveRewards, fetchSupportMessages]);
 
   const onRefresh = useCallback(async () => {
@@ -85,6 +128,14 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     await loadData();
     setRefreshing(false);
   }, [loadData]);
+
+  // Auto-sync data when screen comes into focus and periodically
+  // Use longer intervals to reduce load
+  useDataSync(loadData, {
+    refreshOnFocus: true,
+    periodicRefresh: true,
+    intervalMs: 60000 // Refresh every 60 seconds (reduced from 30s)
+  });
 
   const getLevelTitle = useMemo(() => (level: number) => {
     if (level <= 5) return 'Freshman';

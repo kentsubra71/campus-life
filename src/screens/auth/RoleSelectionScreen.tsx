@@ -1,8 +1,21 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { theme } from '../../styles/theme';
+import { commonStyles } from '../../styles/components';
+
+import { NavigationProp } from '@react-navigation/native';
+
+type AuthStackParamList = {
+  RoleSelection: undefined;
+  Login: undefined;
+  ParentRegister: undefined;
+  StudentRegister: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: undefined;
+};
 
 interface RoleSelectionScreenProps {
-  navigation: any;
+  navigation: NavigationProp<AuthStackParamList>;
 }
 
 export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation }) => {
@@ -81,77 +94,55 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f23',
+    backgroundColor: theme.colors.backgroundAuth,
   },
   scrollView: {
     flex: 1,
   },
   content: {
     flexGrow: 1,
-    padding: 24,
-    paddingTop: 60,
-    paddingBottom: 30,
+    padding: theme.spacing.xxl,
+    paddingTop: theme.spacing.massive,
+    paddingBottom: theme.spacing.xxxl,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: theme.spacing.huge,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: -1,
-    marginBottom: 8,
+    ...theme.typography.titleLarge,
+    marginBottom: theme.spacing.sm,
   },
   subtitle: {
     fontSize: 16,
-    color: '#a855f7',
+    color: theme.colors.primary,
     fontWeight: '500',
     letterSpacing: 1,
   },
   roleSelection: {
-    marginBottom: 32,
+    marginBottom: theme.spacing.xxxl,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 20,
+    ...theme.typography.subtitleLarge,
+    marginBottom: theme.spacing.xl,
     textAlign: 'center',
   },
   roleCard: {
-    backgroundColor: '#1a1a2e',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#2d2d44',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    ...commonStyles.cardElevated,
+    marginBottom: theme.spacing.lg,
   },
   parentCard: {
-    backgroundColor: '#1e3a8a',
-    borderColor: '#3b82f6',
+    ...commonStyles.parentCard,
   },
   studentCard: {
-    backgroundColor: '#166534',
-    borderColor: '#22c55e',
+    ...commonStyles.studentCard,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
+    ...commonStyles.iconContainer,
   },
   cardIcon: {
     fontSize: 28,
@@ -162,45 +153,35 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 4,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.xs,
   },
   cardSubtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: theme.colors.textMuted,
     fontWeight: '500',
   },
   features: {
-    backgroundColor: '#16213e',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#1e3a8a',
+    ...commonStyles.featureCard,
+    marginBottom: theme.spacing.xxl,
   },
   featuresTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 12,
+    ...theme.typography.bodyLarge,
+    marginBottom: theme.spacing.md,
     textAlign: 'center',
   },
   featuresList: {
-    gap: 8,
+    gap: theme.spacing.sm,
   },
   feature: {
-    fontSize: 14,
-    color: '#e2e8f0',
+    ...theme.typography.bodySmall,
+    color: theme.colors.textTertiary,
     textAlign: 'center',
-    fontWeight: '500',
   },
   loginButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
+    ...commonStyles.linkButton,
   },
   loginButtonText: {
-    fontSize: 16,
-    color: '#a855f7',
-    fontWeight: '600',
+    ...commonStyles.linkButtonText,
   },
 });

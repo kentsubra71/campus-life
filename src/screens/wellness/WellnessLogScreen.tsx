@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { theme } from '../../styles/theme';
+import { commonStyles } from '../../styles/components';
 import {
   View,
   Text,
@@ -105,9 +107,9 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={value}
             onValueChange={onValueChange}
             step={step}
-            minimumTrackTintColor="#6366f1"
+            minimumTrackTintColor="#3b82f6"
             maximumTrackTintColor="#374151"
-            thumbStyle={styles.sliderThumb}
+            thumbTintColor="#ffffff"
           />
         </View>
         
@@ -147,9 +149,9 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={formData.mood}
             onValueChange={handleMoodChange}
             step={1}
-            minimumTrackTintColor="#6366f1"
+            minimumTrackTintColor="#3b82f6"
             maximumTrackTintColor="#374151"
-            thumbStyle={styles.sliderThumb}
+            thumbTintColor="#ffffff"
           />
         </View>
         
@@ -308,7 +310,7 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '500',
   },
   title: {
@@ -317,7 +319,7 @@ const styles = StyleSheet.create({
     color: '#f9fafb',
   },
   saveButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -368,7 +370,7 @@ const styles = StyleSheet.create({
   sliderValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6366f1',
+    color: 'theme.colors.primary',
   },
   sliderWrapper: {
     marginVertical: 16,
@@ -379,7 +381,7 @@ const styles = StyleSheet.create({
     height: 40,
   },
   sliderThumb: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     width: 24,
     height: 24,
   },

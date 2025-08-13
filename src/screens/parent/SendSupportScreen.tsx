@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
     marginBottom: 12,
   },
@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
   },
   budgetFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     borderRadius: 3,
   },
   budgetText: {
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   typeCardActive: {
-    borderColor: '#6366f1',
+    borderColor: 'theme.colors.primary',
     backgroundColor: '#1e1b4b',
   },
   typeEmoji: {
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   amountOptionActive: {
-    borderColor: '#6366f1',
+    borderColor: 'theme.colors.primary',
     backgroundColor: '#1e1b4b',
   },
   amountOptionDisabled: {
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
     color: '#f9fafb',
   },
   amountTextActive: {
-    color: '#6366f1',
+    color: 'theme.colors.primary',
   },
   amountTextDisabled: {
     color: '#6b7280',
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     minHeight: 100,
   },
   sendButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   providerOptionActive: {
-    borderColor: '#6366f1',
+    borderColor: 'theme.colors.primary',
     backgroundColor: '#1e1b4b',
   },
   providerEmoji: {

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { theme } from '../../styles/theme';
+import { commonStyles } from '../../styles/components';
 import {
   View,
   Text,
@@ -210,7 +212,7 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '500',
   },
   title: {
@@ -252,7 +254,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#6366f1',
+    color: 'theme.colors.primary',
   },
   statLabel: {
     fontSize: 12,
@@ -281,7 +283,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterButtonActive: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
   },
   filterButtonText: {
     fontSize: 14,
@@ -370,7 +372,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   addEntryButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

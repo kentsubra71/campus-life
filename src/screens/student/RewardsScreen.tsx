@@ -133,7 +133,7 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
 
   const getCategoryColor = (category: string) => {
     const colors = {
-      sleep: '#6366f1',
+      sleep: 'theme.colors.primary',
       meals: '#10b981',
       exercise: '#f59e0b',
       wellness: '#8b5cf6',
@@ -167,7 +167,7 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
         <View style={styles.messageHeader}>
           <View style={[
             styles.messageIcon,
-            { backgroundColor: !message.read ? '#6366f1' : '#374151' }
+            { backgroundColor: !message.read ? 'theme.colors.primary' : '#374151' }
           ]}>
             <Text style={styles.messageIconText}>
               {getMessageIcon(message.type)}
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     marginBottom: 4,
   },
   statLabel: {
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   },
   levelProgressFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     borderRadius: 2,
   },
   levelProgressText: {
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     borderRadius: 4,
   },
   progressText: {
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   unreadMessage: {
-    borderColor: '#6366f1',
+    borderColor: 'theme.colors.primary',
   },
   messageHeader: {
     flexDirection: 'row',
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     marginLeft: 8,
   },
   emptyState: {

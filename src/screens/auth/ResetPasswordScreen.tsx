@@ -113,7 +113,7 @@ export const ResetPasswordScreen: React.FC<AuthScreenProps<'ResetPassword'>> = (
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
+          <ActivityIndicator size="large" color="theme.colors.primary" />
           <Text style={styles.loadingText}>Verifying reset link...</Text>
         </View>
       </SafeAreaView>
@@ -293,12 +293,12 @@ const styles = StyleSheet.create({
     color: '#10b981',
   },
   resetButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: '#6366f1',
+    shadowColor: 'theme.colors.primary',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

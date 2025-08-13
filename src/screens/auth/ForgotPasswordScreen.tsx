@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { theme } from '../../styles/theme';
+import { commonStyles } from '../../styles/components';
 import {
   View,
   Text,
@@ -116,7 +118,7 @@ export const ForgotPasswordScreen: React.FC<AuthScreenProps<'ForgotPassword'>> =
             <TextInput
               style={styles.input}
               placeholder="Email"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="theme.colors.textSecondary"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -155,7 +157,7 @@ export const ForgotPasswordScreen: React.FC<AuthScreenProps<'ForgotPassword'>> =
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: 'theme.colors.background',
   },
   keyboardContainer: {
     flex: 1,
@@ -172,13 +174,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
     textAlign: 'center',
     marginBottom: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 20,
@@ -187,23 +189,23 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderRadius: 12,
     fontSize: 16,
-    color: '#f9fafb',
+    color: 'theme.colors.textPrimary',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
     marginBottom: 24,
   },
   resetButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: '#6366f1',
+    shadowColor: 'theme.colors.primary',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -224,17 +226,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   backButtonText: {
-    color: '#9ca3af',
+    color: 'theme.colors.textSecondary',
     fontSize: 16,
     fontWeight: '500',
   },
   instructionsContainer: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'theme.colors.backgroundSecondary',
     borderRadius: 12,
     padding: 24,
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: 'theme.colors.border',
   },
   instructionText: {
     color: '#d1d5db',
@@ -248,7 +250,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   resendText: {
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontSize: 14,
     fontWeight: '500',
   },

@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { AuthScreenProps } from '../../types/navigation';
+import { theme } from '../../styles/theme';
+import { commonStyles } from '../../styles/components';
 
 interface LoginScreenProps extends AuthScreenProps<'Login'> {
   onNavigateToRegister?: () => void;
@@ -60,7 +62,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
             <TextInput
               style={styles.input}
               placeholder="Email"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={theme.colors.textSecondary}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -71,7 +73,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
             <TextInput
               style={styles.input}
               placeholder="Password"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={theme.colors.textSecondary}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -117,8 +119,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#111827',
+    ...commonStyles.container,
   },
   keyboardContainer: {
     flex: 1,
@@ -126,22 +127,19 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
+    ...theme.layout.screenPadding,
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: theme.spacing.huge + theme.spacing.sm,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#f9fafb',
+    ...theme.typography.titleLarge,
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: theme.spacing.md,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
+    ...theme.typography.subtitleMedium,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -149,58 +147,41 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: '#1f2937',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 12,
-    fontSize: 16,
-    color: '#f9fafb',
-    borderWidth: 1,
-    borderColor: '#374151',
-    marginBottom: 20,
+    ...commonStyles.input,
+    marginBottom: theme.spacing.xl,
   },
   loginButton: {
-    backgroundColor: '#6366f1',
-    marginTop: 12,
-    marginBottom: 32,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: '#6366f1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    ...commonStyles.button,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.xxxl,
+    shadowColor: theme.colors.primary,
   },
   buttonDisabled: {
-    backgroundColor: '#4b5563',
+    backgroundColor: theme.colors.textSecondary,
     shadowOpacity: 0,
     elevation: 0,
   },
   buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    ...commonStyles.buttonText,
   },
   linkButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
+    ...commonStyles.linkButton,
   },
   linkText: {
-    color: '#9ca3af',
-    fontSize: 16,
+    ...theme.typography.bodyMedium,
+    color: theme.colors.textSecondary,
   },
   linkTextBold: {
     fontWeight: '600',
-    color: '#6366f1',
+    color: theme.colors.primary,
   },
   forgotPasswordButton: {
     alignItems: 'center',
-    paddingVertical: 8,
-    marginBottom: 16,
+    paddingVertical: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
   },
   forgotPasswordText: {
-    color: '#6366f1',
+    color: theme.colors.primary,
     fontSize: 14,
     fontWeight: '500',
   },

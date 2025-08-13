@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#6366f1',
+    backgroundColor: 'theme.colors.primary',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   },
   editLink: {
     fontSize: 14,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
   },
   editContainer: {
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   },
   inviteCodeHint: {
     fontSize: 10,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontStyle: 'italic',
   },
   membersSection: {

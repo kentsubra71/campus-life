@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
     marginBottom: 16,
   },
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   },
   loginLinkText: {
     fontSize: 16,
-    color: '#6366f1',
+    color: 'theme.colors.primary',
     fontWeight: '600',
   },
 });

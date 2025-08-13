@@ -228,8 +228,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         <View style={styles.activityHeader}>
           <View style={styles.activityInfo}>
             <Text style={styles.activityType}>
-              {item.type === 'payment' ? '💰' : '💬'} 
-              {item.type === 'payment' ? ' Payment' : ' Message'}
+              {item.type === 'payment' ? 'Payment' : 'Message'}
               {item.student_name && ` to ${item.student_name.split(' ')[0]}`}
             </Text>
             <Text style={styles.activityTime}>{formatTime(item.timestamp)}</Text>
@@ -256,7 +255,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
               {item.message_content}
             </Text>
             <Text style={styles.messageType}>
-              {item.message_type === 'voice' ? '🎙️ Voice Message' : '📝 Text Message'}
+              {item.message_type === 'voice' ? 'Voice Message' : 'Text Message'}
             </Text>
           </View>
         )}
@@ -267,6 +266,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>← Back</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Activity History</Text>
         <Text style={styles.subtitle}>Payments and messages sent</Text>
       </View>
@@ -287,7 +289,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           </View>
         ) : activities.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>📱</Text>
             <Text style={styles.emptyTitle}>No Activity Yet</Text>
             <Text style={styles.emptyText}>
               Your payments and messages will appear here
@@ -310,8 +311,17 @@ const styles = StyleSheet.create({
   header: {
     ...commonStyles.headerWithSubtitle,
   },
+  backButton: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
   title: {
-    ...commonStyles.title,
+    fontSize: 28,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+    letterSpacing: -0.5,
     marginBottom: theme.spacing.sm,
   },
   subtitle: {
@@ -351,7 +361,9 @@ const styles = StyleSheet.create({
     ...commonStyles.listItemContent,
   },
   activityType: {
-    ...theme.typography.bodyLarge,
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
     marginBottom: theme.spacing.xs,
   },
   activityTime: {

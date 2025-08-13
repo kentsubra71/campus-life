@@ -94,7 +94,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.backgroundAuth,
+    backgroundColor: theme.colors.background,
   },
   scrollView: {
     flex: 1,

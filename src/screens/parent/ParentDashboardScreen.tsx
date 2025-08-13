@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { theme } from '../../styles/theme';
+import { commonStyles } from '../../styles/components';
 import { 
   ScrollView, 
   RefreshControl, 
@@ -13,6 +15,12 @@ import * as Clipboard from 'expo-clipboard';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
+// New component imports
+import { HeroCard } from '../../components/cards/HeroCard';
+import { StatsCard } from '../../components/cards/StatsCard';
+import { ActionCard } from '../../components/cards/ActionCard';
+import { ListCard } from '../../components/cards/ListCard';
+import { BudgetProgressBar } from '../../components/BudgetProgressBar';
 
 interface ParentDashboardScreenProps {
   navigation: any;
@@ -37,6 +45,25 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   const [refreshing, setRefreshing] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [selectedStudentIndex, setSelectedStudentIndex] = useState(0);
+
+  // Helper functions
+  const getTimeOfDay = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Morning';
+    if (hour < 17) return 'Afternoon';
+    return 'Evening';
+  };
+
+  const getMoodGradient = (moodText: string) => {
+    switch (moodText.toLowerCase()) {
+      case 'amazing':
+      case 'great': return '#10b981';
+      case 'okay': return '#f59e0b';
+      case 'struggling':
+      case 'difficult': return '#ef4444';
+      default: return theme.colors.primary;
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -167,8 +194,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
       </View>
     );
   }
@@ -191,7 +220,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
           {/* Waiting Card */}
           <View style={styles.waitingCard}>
-            <Text style={styles.waitingEmoji}>👨‍👩‍👧‍👦</Text>
+            <View style={styles.waitingIndicator} />
             <Text style={styles.waitingTitle}>Waiting for your student to join</Text>
             <Text style={styles.waitingText}>
               Share your family invite code with your college student so they can join your CampusLife family account.
@@ -232,11 +261,26 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>Once your student joins, you'll be able to:</Text>
             <View style={styles.previewList}>
-              <Text style={styles.previewItem}>💙 Send messages of love and support</Text>
-              <Text style={styles.previewItem}>📊 See their wellness trends (when they choose to share)</Text>
-              <Text style={styles.previewItem}>🚨 Respond when they request help</Text>
-              <Text style={styles.previewItem}>🎉 Celebrate their achievements together</Text>
-              <Text style={styles.previewItem}>✨ Send occasional care boosts and surprises</Text>
+              <View style={styles.previewItemContainer}>
+                <View style={[styles.previewDot, { backgroundColor: theme.colors.primary }]} />
+                <Text style={styles.previewItem}>Send messages of love and support</Text>
+              </View>
+              <View style={styles.previewItemContainer}>
+                <View style={[styles.previewDot, { backgroundColor: theme.colors.success }]} />
+                <Text style={styles.previewItem}>See their wellness trends (when they choose to share)</Text>
+              </View>
+              <View style={styles.previewItemContainer}>
+                <View style={[styles.previewDot, { backgroundColor: theme.colors.warning }]} />
+                <Text style={styles.previewItem}>Respond when they request help</Text>
+              </View>
+              <View style={styles.previewItemContainer}>
+                <View style={[styles.previewDot, { backgroundColor: theme.colors.success }]} />
+                <Text style={styles.previewItem}>Celebrate their achievements together</Text>
+              </View>
+              <View style={styles.previewItemContainer}>
+                <View style={[styles.previewDot, { backgroundColor: theme.colors.primary }]} />
+                <Text style={styles.previewItem}>Send occasional care boosts and surprises</Text>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -245,12 +289,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   }
 
   // Show full dashboard once students have joined
-  const wellnessStatus = getWellnessStatus();
-  const moodInfo = getMoodLevel();
   
   // Get the selected student's information
-  const currentStudent = familyMembers.students[selectedStudentIndex];
-  const studentName = currentStudent?.name || (familyMembers.students[0]?.name) || 'Loading...';
+  const currentStudent = familyMembers.students[selectedStudentIndex] || familyMembers.students[0];
+  const studentName = currentStudent?.name || 'Loading...';
   const hasMultipleStudents = familyMembers.students.length > 1;
   
   // Debug logging
@@ -260,6 +302,12 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     students: familyMembers.students.map(s => ({ id: s.id, name: s.name }))
   });
 
+  // Additional variables for components
+  const selectedStudent = familyMembers.students[selectedStudentIndex] || familyMembers.students[0];
+  const moodInfo = getMoodLevel();
+  const wellnessStatus = getWellnessStatus(); 
+  const wellnessScore = todayEntry?.wellnessScore; // No placeholder - use real data only
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -267,8 +315,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Modern Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>Hi there!</Text>
           <Text style={styles.title}>
@@ -277,113 +326,233 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           <Text style={styles.pullHint}>Pull down to refresh and verify payments</Text>
         </View>
 
-        {/* Student Tabs - Only show if multiple students */}
+        {/* Student Selector - Full Width Segments */}
         {hasMultipleStudents && familyMembers.students.length > 1 && (
-          <View style={styles.studentTabs}>
-            {familyMembers.students.map((student, index) => (
-              <TouchableOpacity
-                key={student.id}
-                style={[
-                  styles.tab,
-                  selectedStudentIndex === index && styles.activeTab
-                ]}
-                onPress={() => setSelectedStudentIndex(index)}
-              >
-                <Text style={[
-                  styles.tabText,
-                  selectedStudentIndex === index && styles.activeTabText
-                ]}>
-                  {student.name.split(' ')[0]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Current Status */}
-        <View style={styles.statusSection}>
-          <View style={styles.statusContainer}>
-            <Text style={styles.currentMood}>
-              {moodInfo.emoji} {studentName.split(' ')[0]} is feeling {moodInfo.text.toLowerCase()} today
-            </Text>
-            <Text style={styles.suggestion}>{wellnessStatus.suggestion}</Text>
-          </View>
-        </View>
-
-        {/* Support Requests - Priority Alert */}
-        {supportRequests.filter(req => !req.acknowledged).length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.urgentTitle}>🚨 Support Needed</Text>
-            {supportRequests
-              .filter(req => !req.acknowledged)
-              .slice(0, 2)
-              .map((request) => (
-                <TouchableOpacity 
-                  key={request.id} 
-                  style={styles.urgentCard}
-                  onPress={() => acknowledgeSupport(request.id)}
+          <View style={styles.tabContainer}>
+            <View style={styles.segmentedControl}>
+              {familyMembers.students.map((student, index) => (
+                <TouchableOpacity
+                  key={student.id}
+                  style={[
+                    styles.segment,
+                    { flex: 1 / familyMembers.students.length },
+                    selectedStudentIndex === index && styles.activeSegment
+                  ]}
+                  onPress={() => setSelectedStudentIndex(index)}
                 >
-                  <View style={styles.urgentHeader}>
-                    <Text style={styles.urgentMessage}>{request.message}</Text>
-                    <Text style={styles.urgentTime}>
-                      {new Date(request.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </Text>
-                  </View>
-                  <Text style={styles.urgentAction}>Tap to acknowledge → Send support now</Text>
+                  <Text style={[
+                    styles.segmentText,
+                    selectedStudentIndex === index && styles.activeSegmentText
+                  ]}>
+                    {student.name.split(' ')[0]}
+                  </Text>
                 </TouchableOpacity>
-              ))
-            }
+              ))}
+            </View>
           </View>
         )}
 
-        {/* Quick Actions */}
-        <View style={styles.actionsSection}>
-          <Text style={styles.sectionHeader}>Send Support</Text>
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => sendSupportMessage('message')}
-            >
-              <Text style={styles.actionEmoji}>💌</Text>
-              <Text style={styles.actionLabel}>Send Message</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => sendSupportMessage('boost')}
-            >
-              <Text style={styles.actionEmoji}>✨</Text>
-              <Text style={styles.actionLabel}>$5 Boost</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => navigation.navigate('PayPalTest')}
-            >
-              <Text style={styles.actionEmoji}>🔧</Text>
-              <Text style={styles.actionLabel}>PayPal Test</Text>
-            </TouchableOpacity>
+        {/* Current Status - Clean */}
+        <View style={styles.statusSection}>
+          <View style={styles.statusHeader}>
+            <Text style={styles.statusTitle}>
+              {studentName.split(' ')[0]} is {moodInfo.text.toLowerCase()}
+            </Text>
+            <View style={[styles.statusBadge, { backgroundColor: getMoodGradient(moodInfo.text) }]}>
+              <Text style={styles.statusBadgeText}>{wellnessStatus.status}</Text>
+            </View>
           </View>
+          <Text style={styles.statusSubtitle}>{wellnessStatus.suggestion}</Text>
+          <TouchableOpacity 
+            style={styles.statusAction}
+            onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id })}
+          >
+            <Text style={styles.statusActionText}>View detailed wellness →</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Monthly Summary */}
-        <View style={styles.summarySection}>
-          <Text style={styles.sectionHeader}>This Month</Text>
-          <View style={styles.summaryContainer}>
-            <Text style={styles.summaryText}>
-              You've sent {supportMessages.length} messages and ${monthlyEarned} in care boosts
-            </Text>
-            <View style={styles.budgetContainer}>
+        {/* Urgent Support Requests */}
+        {supportRequests.filter(req => !req.acknowledged).length > 0 && (
+          <View style={styles.urgentSection}>
+            <HeroCard
+              title="🚨 Support Needed"
+              subtitle={`${supportRequests.filter(req => !req.acknowledged).length} unread requests`}
+              backgroundColor="#ef4444"
+              textColor="#ffffff"
+              onPress={() => acknowledgeSupport(supportRequests.filter(req => !req.acknowledged)[0]?.id)}
+              actionText="Acknowledge & respond"
+            >
+              <View style={styles.urgentMessages}>
+                {supportRequests
+                  .filter(req => !req.acknowledged)
+                  .slice(0, 2)
+                  .map((request) => (
+                    <Text key={request.id} style={styles.urgentMessageText}>
+                      "{request.message}"
+                    </Text>
+                  ))
+                }
+              </View>
+            </HeroCard>
+          </View>
+        )}
+
+        {/* Key Metrics - Mixed Layout */}
+        <View style={styles.metricsSection}>
+          {wellnessScore && (
+            <View style={styles.metricItem}>
+              <View style={styles.metricHeader}>
+                <Text style={styles.metricLabel}>Today's Wellness</Text>
+                <Text style={styles.metricValue}>{wellnessScore}/10</Text>
+              </View>
+              <Text style={[styles.metricTag, { 
+                color: wellnessScore > 7 ? theme.colors.success : wellnessScore < 5 ? theme.colors.error : theme.colors.warning 
+              }]}>
+                {wellnessScore > 7 ? 'Great day!' : wellnessScore < 5 ? 'Needs support' : 'Doing okay'}
+              </Text>
+            </View>
+          )}
+          
+          {/* Budget Progress - Inline Style */}
+          <View style={styles.budgetItem}>
+            <View style={styles.budgetHeader}>
+              <Text style={styles.metricLabel}>Monthly Budget</Text>
+              <Text style={styles.budgetRemaining}>${Math.max(0, 50 - (monthlyEarned || 0))} left</Text>
+            </View>
+            <View style={styles.budgetBarContainer}>
               <View style={styles.budgetBar}>
                 <View 
-                  style={[styles.budgetFill, { width: `${(monthlyEarned / 50) * 100}%` }]} 
+                  style={[styles.budgetFill, { 
+                    width: `${Math.min(100, ((monthlyEarned || 0) / 50) * 100)}%` 
+                  }]} 
                 />
               </View>
-              <Text style={styles.budgetText}>${50 - monthlyEarned} remaining in monthly budget</Text>
+              <Text style={styles.budgetText}>
+                ${monthlyEarned || 0} of $50 used
+              </Text>
             </View>
           </View>
         </View>
 
+        {/* Actions - Mixed Layout */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          
+          {/* Primary Action - Prominent */}
+          <TouchableOpacity 
+            style={styles.primaryAction}
+            onPress={() => sendSupportMessage('message')}
+          >
+            <View style={styles.primaryActionContent}>
+              <View style={styles.primaryActionIcon}>
+                <View style={styles.primaryActionIndicator} />
+              </View>
+              <View style={styles.primaryActionText}>
+                <Text style={styles.primaryActionTitle}>Send Support</Text>
+                <Text style={styles.primaryActionSubtitle}>Message or money to help your kid</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+          
+          {/* Secondary Actions - Clean List */}
+          <View style={styles.secondaryActions}>
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => sendSupportMessage('boost')}
+            >
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>$5 Boost</Text>
+                <Text style={styles.actionSubtitle}>Quick money</Text>
+              </View>
+              <View style={styles.actionBadge}>
+                <Text style={styles.actionBadgeText}>Send</Text>
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id })}
+            >
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Check Wellness</Text>
+                <Text style={styles.actionSubtitle}>Full details</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => navigation.navigate('PayPalTest')}
+            >
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>PayPal Test</Text>
+                <Text style={styles.actionSubtitle}>Development testing</Text>
+              </View>
+              <View style={styles.devBadge}>
+                <Text style={styles.devBadgeText}>DEV</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Recent Activity - Clean List */}
+        <View style={styles.recentSection}>
+          <Text style={styles.sectionTitle}>Recent Activity</Text>
+          
+          {wellnessScore && (
+            <TouchableOpacity 
+              style={styles.activityItem}
+              onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id })}
+            >
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Wellness Check</Text>
+                <Text style={styles.activitySubtitle}>{wellnessScore}/10 score today</Text>
+              </View>
+              <Text style={[styles.activityScore, {
+                color: wellnessScore > 7 ? theme.colors.success : wellnessScore < 5 ? theme.colors.warning : theme.colors.primary
+              }]}>
+                {wellnessScore}/10
+              </Text>
+            </TouchableOpacity>
+          )}
+          
+          {(supportMessages.length > 0 || monthlyEarned > 0) && (
+            <TouchableOpacity 
+              style={styles.activityItem}
+              onPress={() => navigation.navigate('Activity')}
+            >
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Monthly Summary</Text>
+                <Text style={styles.activitySubtitle}>{supportMessages.length} messages • ${monthlyEarned || 0} sent</Text>
+              </View>
+              <Text style={styles.activityAction}>View All</Text>
+            </TouchableOpacity>
+          )}
+          
+          {familyMembers.students.length > 1 && (
+            <TouchableOpacity 
+              style={styles.activityItem}
+              onPress={() => setSelectedStudentIndex((prev) => (prev + 1) % familyMembers.students.length)}
+            >
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Switch Student View</Text>
+                <Text style={styles.activitySubtitle}>{familyMembers.students.length} children in family</Text>
+              </View>
+              <Text style={styles.activityAction}>Switch</Text>
+            </TouchableOpacity>
+          )}
+          
+          {/* If no real activity, show helpful message */}
+          {!wellnessScore && supportMessages.length === 0 && monthlyEarned === 0 && (
+            <View style={styles.activityItem}>
+              <View style={[styles.activityIndicator, { backgroundColor: theme.colors.backgroundTertiary }]} />
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>No activity yet</Text>
+                <Text style={styles.activitySubtitle}>Your family is just getting started!</Text>
+              </View>
+            </View>
+          )}
+        </View>
         {/* Wellness */}
         <View style={styles.wellnessSection}>
           <Text style={styles.sectionHeader}>Wellness Check-in</Text>
@@ -406,7 +575,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             <Text style={styles.tapHint}>→</Text>
           </TouchableOpacity>
         </View>
-
       </ScrollView>
     </View>
   );
@@ -415,412 +583,539 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0a0a0a',
-  },
-  loadingText: {
-    color: '#ffffff',
-    fontSize: 16,
-  },
   header: {
-    padding: 24,
+    paddingHorizontal: 24,
     paddingTop: 60,
+    paddingBottom: 20,
   },
   greeting: {
     fontSize: 16,
-    color: '#a855f7',
-    fontWeight: '400',
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
     marginBottom: 4,
   },
   title: {
-    fontSize: 30,
+    fontSize: 32,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+    letterSpacing: -1,
+  },
+
+  // Segmented Control System
+  tabContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 20,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    overflow: 'hidden',
+  },
+  segment: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: theme.colors.border,
+  },
+  activeSegment: {
+    backgroundColor: theme.colors.secondary,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+  },
+  activeSegmentText: {
+    color: theme.colors.primaryDark,
     fontWeight: '600',
-    color: '#ffffff',
   },
-  pullHint: {
-    fontSize: 11,
-    color: '#9ca3af',
+  
+  // Stats Section
+  statsSection: {
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  
+  // Actions Section
+  actionsSection: {
+    paddingHorizontal: 24,
     marginTop: 4,
-    fontStyle: 'italic',
-    opacity: 0.7,
   },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 12,
+  },
+  mediumActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  testSection: {
+    marginTop: 12,
+  },
+  
+  // Recent Activity
+  recentSection: {
+    paddingHorizontal: 24,
+    marginTop: 24,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  activityScore: {
+    fontSize: 16,
+    fontWeight: '700',
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 1,
+  },
+  activitySubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  activityAction: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  
+  // Urgent Section
+  urgentSection: {
+    paddingHorizontal: 24,
+  },
+  urgentMessages: {
+    marginTop: 12,
+    gap: 8,
+  },
+  urgentMessageText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.9)',
+    fontStyle: 'italic',
+  },
+  
+  // Bottom spacing
+  bottomSpacing: {
+    height: 100,
+  },
+  
+  // Status Section - No Card
   statusSection: {
     paddingHorizontal: 24,
     paddingVertical: 20,
-  },
-  statusContainer: {
-    borderWidth: 1,
-    borderColor: '#2d2d44',
-    borderRadius: 16,
-    padding: 20,
-    backgroundColor: '#1a1a2e',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  currentMood: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#ffffff',
     marginBottom: 8,
   },
-  suggestion: {
-    fontSize: 15,
-    color: '#888888',
-  },
-  studentTabs: {
+  statusHeader: {
     flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    gap: 12,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#2a2a2a',
-    alignItems: 'center',
-  },
-  activeTab: {
-    backgroundColor: '#a855f7',
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#888888',
-  },
-  activeTabText: {
-    color: '#ffffff',
-  },
-  actionsSection: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionCard: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#2d2d44',
-    borderRadius: 16,
-    padding: 18,
-    backgroundColor: '#1a1a2e',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  actionEmoji: {
-    fontSize: 24,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
-  actionLabel: {
-    fontSize: 13,
-    color: '#ffffff',
-    fontWeight: '500',
-    textAlign: 'center',
+  statusTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    flex: 1,
+    marginRight: 12,
   },
-  sectionHeader: {
-    fontSize: 16,
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusBadgeText: {
+    fontSize: 11,
     fontWeight: '600',
-    color: '#a855f7',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statusSubtitle: {
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  statusAction: {
+    alignSelf: 'flex-start',
+  },
+  statusActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  
+  // Metrics Section - Mixed Layout
+  metricsSection: {
+    paddingHorizontal: 24,
+    gap: 16,
     marginBottom: 8,
   },
-  summarySection: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+  metricItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  summaryContainer: {
-    borderWidth: 1,
-    borderColor: '#1e3a8a',
-    borderRadius: 16,
-    padding: 20,
-    backgroundColor: '#16213e',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+  metricHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  summaryText: {
+  metricLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+  },
+  metricValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  metricTag: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  
+  // Budget Item - Inline Style
+  budgetItem: {
+    paddingVertical: 12,
+  },
+  budgetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  budgetRemaining: {
     fontSize: 16,
-    color: '#ffffff',
-    marginBottom: 12,
+    fontWeight: '700',
+    color: theme.colors.success,
   },
-  budgetContainer: {
-    marginTop: 8,
+  budgetBarContainer: {
+    gap: 6,
   },
   budgetBar: {
-    height: 4,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 2,
-    marginBottom: 8,
+    height: 6,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 3,
   },
   budgetFill: {
     height: '100%',
-    backgroundColor: '#a855f7',
-    borderRadius: 2,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 3,
   },
   budgetText: {
-    fontSize: 13,
-    color: '#888888',
+    fontSize: 12,
+    color: theme.colors.textTertiary,
   },
-  wellnessSection: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-  },
-  wellnessContainer: {
-    borderWidth: 1,
-    borderColor: '#166534',
+  
+  // Primary Action - Prominent
+  primaryAction: {
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 16,
     padding: 20,
-    backgroundColor: '#0f2621',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  wellnessText: {
-    fontSize: 16,
-    color: '#ffffff',
-    flex: 1,
-  },
-  tapHint: {
-    fontSize: 18,
-    color: '#a855f7',
-    fontWeight: '600',
-  },
-  urgentTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#dc2626',
     marginBottom: 16,
-    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  urgentCard: {
-    backgroundColor: '#991b1b',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#dc2626',
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  urgentHeader: {
+  primaryActionContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  urgentMessage: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
+  primaryActionIcon: {
+    marginRight: 16,
+  },
+  primaryActionIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: theme.colors.primary,
+  },
+  primaryActionText: {
     flex: 1,
   },
-  urgentTime: {
-    fontSize: 14,
-    color: '#fca5a5',
+  primaryActionTitle: {
+    fontSize: 17,
     fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 2,
   },
-  urgentAction: {
+  primaryActionSubtitle: {
     fontSize: 14,
-    color: '#fca5a5',
-    fontStyle: 'italic',
-    textAlign: 'center',
+    color: theme.colors.textSecondary,
+  },
+  
+  // Secondary Actions - List Style
+  secondaryActions: {
+    gap: 1,
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  actionSquare: {
+    width: 8,
+    height: 8,
+    marginRight: 12,
+  },
+  actionTriangle: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 4,
+    borderRightWidth: 4,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    marginRight: 12,
+    marginLeft: 4,
+  },
+  actionLine: {
+    width: 16,
+    height: 2,
+    marginRight: 12,
+    marginLeft: -4,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 1,
+  },
+  actionSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  actionBadge: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  actionBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+  },
+  actionArrow: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
+  },
+  devBadge: {
+    backgroundColor: theme.colors.textSecondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  devBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+  },
+  
+  // Missing styles for loading and waiting states
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+  },
+  subtitle: {
+    fontSize: 18,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 8,
   },
   waitingCard: {
-    backgroundColor: '#ffffff',
-    margin: 20,
-    padding: 32,
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 24,
+    marginBottom: 20,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  waitingEmoji: {
-    fontSize: 64,
+  waitingIndicator: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
     marginBottom: 16,
   },
   waitingTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
     textAlign: 'center',
     marginBottom: 12,
-    fontFamily: 'System',
   },
   waitingText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
-    fontFamily: 'System',
+    lineHeight: 22,
   },
   inviteCard: {
-    backgroundColor: '#3b82f6',
-    margin: 20,
-    padding: 24,
+    backgroundColor: theme.colors.primary,
     borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 24,
+    marginBottom: 20,
     alignItems: 'center',
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   inviteLabel: {
-    fontSize: 14,
-    color: '#dbeafe',
-    marginBottom: 12,
+    fontSize: 16,
     fontWeight: '600',
-    fontFamily: 'System',
+    color: '#ffffff',
+    marginBottom: 12,
   },
   inviteCodeLarge: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: 4,
+    letterSpacing: 2,
     marginBottom: 12,
-    textAlign: 'center',
-    fontFamily: 'System',
   },
   inviteHint: {
-    fontSize: 12,
-    color: '#93c5fd',
-    fontStyle: 'italic',
-    fontFamily: 'System',
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
   },
   instructionsCard: {
-    backgroundColor: '#ffffff',
-    margin: 20,
-    padding: 24,
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    padding: 20,
+    marginHorizontal: 24,
+    marginBottom: 20,
   },
   instructionsTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
-    fontFamily: 'System',
   },
   instructionsList: {
     gap: 12,
   },
   instructionItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 12,
   },
   instructionNumber: {
-    fontSize: 16,
-    fontWeight: '700',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
     color: '#ffffff',
-    backgroundColor: '#3b82f6',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    fontSize: 14,
+    fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 28,
   },
   instructionText: {
     flex: 1,
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-    fontFamily: 'System',
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
   },
   previewCard: {
-    backgroundColor: '#10b981',
-    margin: 20,
-    padding: 24,
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 16,
-    marginBottom: 40,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    padding: 20,
+    marginHorizontal: 24,
+    marginBottom: 20,
   },
   previewTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#ffffff',
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
-    fontFamily: 'System',
   },
   previewList: {
-    gap: 8,
-  },
-  previewItem: {
-    fontSize: 14,
-    color: '#d1fae5',
-    lineHeight: 20,
-    fontFamily: 'System',
-  },
-  // Compact student selector styles
-  compactStudentSelector: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 16,
     gap: 12,
   },
-  compactTab: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  previewItemContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  previewDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 12,
+  },
+  previewItem: {
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    lineHeight: 20,
     flex: 1,
   },
-  compactTabActive: {
-    backgroundColor: '#6366f1',
+  
+  // Missing action card styles for the old duplicate component (removed)
+  actionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 8,
+    flex: 1,
   },
-  compactTabText: {
-    fontSize: 13,
+  actionEmoji: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  actionLabel: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#d1d5db',
+    color: theme.colors.textPrimary,
     textAlign: 'center',
-  },
-  compactTabTextActive: {
-    color: '#ffffff',
-  },
-  multipleStudentNote: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontStyle: 'italic',
-    marginTop: 4,
   },
 });

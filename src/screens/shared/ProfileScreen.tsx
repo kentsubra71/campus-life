@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '../../stores/authStore';
+import { theme } from '../../styles/theme';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -68,7 +69,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     if (family?.inviteCode) {
       await Clipboard.setStringAsync(family.inviteCode);
       Alert.alert(
-        'Invite Code Copied! 📋',
+        'Invite Code Copied',
         `Share this code with family members:\n\n${family.inviteCode}\n\nThis code has been copied to your clipboard. They can use this to join your family account.`,
         [{ text: 'OK' }]
       );
@@ -79,9 +80,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     return role === 'parent' ? '#1e40af' : '#059669';
   };
 
-  const getRoleEmoji = (role: string) => {
-    return role === 'parent' ? '👨‍👩‍👧‍👦' : '🎓';
-  };
 
   if (!user || !family) {
     return (
@@ -95,6 +93,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>← Back</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Profile</Text>
         <Text style={styles.subtitle}>Manage your account and family</Text>
       </View>
@@ -150,9 +151,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Role:</Text>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleEmoji}>{getRoleEmoji(user.role)}</Text>
-              <Text style={[styles.roleText, { color: getRoleColor(user.role) }]}>
+            <View style={[styles.roleBadge, { backgroundColor: getRoleColor(user.role) }]}>
+              <Text style={styles.roleText}>
                 {user.role === 'parent' ? 'Parent' : 'Student'}
               </Text>
             </View>
@@ -172,9 +172,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         
         {user.role === 'parent' && (
           <TouchableOpacity style={styles.inviteCodeContainer} onPress={copyInviteCode}>
-            <Text style={styles.inviteCodeLabel}>Family Invite Code:</Text>
+            <Text style={styles.inviteCodeLabel}>Family Invite Code</Text>
             <Text style={styles.inviteCode}>{family.inviteCode}</Text>
-            <Text style={styles.inviteCodeHint}>Tap to share with family members</Text>
+            <Text style={styles.inviteCodeHint}>Tap to copy and share</Text>
           </TouchableOpacity>
         )}
 
@@ -183,7 +183,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           
           {familyMembers.parents.length > 0 && (
             <View style={styles.memberGroup}>
-              <Text style={styles.memberGroupTitle}>👨‍👩‍👧‍👦 Parents</Text>
+              <Text style={styles.memberGroupTitle}>Parents</Text>
               {familyMembers.parents.map((parent) => (
                 <View key={parent.id} style={styles.memberItem}>
                   <Text style={styles.memberName}>
@@ -198,7 +198,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
           {familyMembers.students.length > 0 && (
             <View style={styles.memberGroup}>
-              <Text style={styles.memberGroupTitle}>🎓 Students</Text>
+              <Text style={styles.memberGroupTitle}>Students</Text>
               {familyMembers.students.map((student) => (
                 <View key={student.id} style={styles.memberItem}>
                   <Text style={styles.memberName}>
@@ -226,7 +226,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   content: {
     padding: 24,
@@ -236,33 +236,39 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   errorText: {
-    color: '#dc2626',
+    color: theme.colors.error,
     fontSize: 16,
   },
   header: {
     marginBottom: 32,
   },
+  backButton: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
-    letterSpacing: -1,
+    color: theme.colors.textPrimary,
+    letterSpacing: -0.5,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
   },
   profileCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 16,
     padding: 24,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
   },
   profileHeader: {
     flexDirection: 'row',
@@ -273,7 +279,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#6366f1',
+    backgroundColor: theme.colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -289,32 +295,32 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   editLink: {
     fontSize: 14,
-    color: '#6366f1',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   editContainer: {
     gap: 12,
   },
   editInput: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     borderWidth: 1,
-    borderColor: '#4b5563',
+    borderColor: theme.colors.border,
   },
   editButtons: {
     flexDirection: 'row',
     gap: 8,
   },
   saveButton: {
-    backgroundColor: '#059669',
+    backgroundColor: theme.colors.success,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
@@ -325,13 +331,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   cancelButton: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
   },
   cancelButtonText: {
-    color: '#d1d5db',
+    color: theme.colors.textSecondary,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -345,64 +351,66 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   detailValue: {
     fontSize: 14,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     fontWeight: '600',
   },
   roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  roleEmoji: {
-    fontSize: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   roleText: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
   },
   familyCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 16,
     padding: 24,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
   },
   familyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 20,
     textAlign: 'center',
   },
   inviteCodeContainer: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   inviteCodeLabel: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginBottom: 4,
+    fontWeight: '600',
   },
   inviteCode: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     letterSpacing: 3,
     marginBottom: 4,
   },
   inviteCodeHint: {
     fontSize: 10,
-    color: '#6366f1',
-    fontStyle: 'italic',
+    color: theme.colors.primary,
+    fontWeight: '500',
   },
   membersSection: {
     gap: 16,
@@ -410,7 +418,7 @@ const styles = StyleSheet.create({
   membersTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   memberGroup: {
     gap: 8,
@@ -418,29 +426,32 @@ const styles = StyleSheet.create({
   memberGroupTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#d1d5db',
+    color: theme.colors.textSecondary,
+    marginBottom: 4,
   },
   memberItem: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     padding: 12,
     borderRadius: 8,
     marginLeft: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   memberName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   memberEmail: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginTop: 2,
   },
   actionsSection: {
     marginTop: 32,
   },
   signOutButton: {
-    backgroundColor: '#dc2626',
+    backgroundColor: theme.colors.error,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',

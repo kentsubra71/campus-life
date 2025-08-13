@@ -8,6 +8,7 @@ import {
   getMessagesForUser,
   getMessagesSentByUser 
 } from '../lib/firebase';
+import { cache, CACHE_CONFIGS } from '../utils/universalCache';
 
 interface SupportMessage {
   id: string;
@@ -52,8 +53,10 @@ interface ConnectionState {
   mood: 'great' | 'good' | 'okay' | 'struggling' | null;
   lastMoodCheck: Date | null;
   lastSupportRequest: Date | null;
+  lastMessagesFetch: Date | null;
+  lastRewardsFetch: Date | null;
   fetchActiveRewards: () => Promise<void>;
-  fetchSupportMessages: () => Promise<void>;
+  fetchSupportMessages: (forceRefresh?: boolean) => Promise<void>;
   fetchMonthlyPayments: (studentId?: string) => Promise<void>;
   claimReward: (id: string) => Promise<void>;
   addExperience: (amount: number) => void;
@@ -76,6 +79,8 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
   mood: null,
   lastMoodCheck: null,
   lastSupportRequest: null,
+  lastMessagesFetch: null,
+  lastRewardsFetch: null,
   
   fetchActiveRewards: async () => {
     const user = getCurrentUser();
@@ -98,12 +103,26 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     }
   },
   
-  fetchSupportMessages: async () => {
+  fetchSupportMessages: async (forceRefresh = false) => {
     const user = getCurrentUser();
     if (!user) return;
 
     try {
-      console.log('🔍 Fetching messages for user:', user.uid);
+      // Use caching for message threads (shorter cache for real-time feel)
+      const messagesData = forceRefresh ? 
+        null : 
+        await cache.get(CACHE_CONFIGS.MESSAGE_THREADS, user.uid);
+
+      if (messagesData && !forceRefresh) {
+        console.log('📦 Using cached support messages');
+        set({ 
+          supportMessages: messagesData.supportMessages,
+          lastMessagesFetch: new Date(messagesData.lastFetch)
+        });
+        return;
+      }
+
+      console.log('🔍 Fetching fresh messages for user:', user.uid, forceRefresh ? '(forced)' : '');
       
       // Get user profile to determine if parent or student
       const { getUserProfile } = await import('../lib/firebase');
@@ -125,20 +144,36 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       // Convert Firebase messages to our SupportMessage format
       const supportMessages = firebaseMessages.map(msg => ({
         id: msg.id,
-        type: msg.message_type,
+        type: msg.message_type || 'message',
         content: msg.content,
         from: msg.from_user_id,
         to: msg.to_user_id,
         familyId: msg.family_id,
         timestamp: msg.created_at.toDate(),
-        read: msg.read
+        read: msg.read || false
       }));
       
-      console.log('📧 Converted messages:', supportMessages);
-      set({ supportMessages });
+      // Sort by timestamp (newest first)
+      supportMessages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      
+      // Cache the results
+      const cacheData = {
+        supportMessages,
+        lastFetch: new Date().toISOString()
+      };
+      await cache.set(CACHE_CONFIGS.MESSAGE_THREADS, cacheData, user.uid);
+      
+      console.log('📧 Converted, sorted, and cached messages:', supportMessages.length);
+      set({ 
+        supportMessages,
+        lastMessagesFetch: new Date()
+      });
     } catch (error: any) {
       console.error('Error fetching support messages:', error);
-      set({ supportMessages: [] });
+      // Don't clear existing messages on error unless forced
+      if (forceRefresh) {
+        set({ supportMessages: [] });
+      }
     }
   },
 

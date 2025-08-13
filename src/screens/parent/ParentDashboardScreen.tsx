@@ -40,7 +40,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     addExperience,
     acknowledgeSupport
   } = useRewardsStore();
-  const { family, getFamilyMembers } = useAuthStore();
+  const { user, family, getFamilyMembers } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
@@ -82,6 +82,20 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
   const loadData = async () => {
     try {
+      // Auto-verify any pending PayPal payments first
+      if (user) {
+        try {
+          console.log('🔄 Auto-verifying pending PayPal payments...');
+          const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+          const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+          if (verifiedCount > 0) {
+            console.log(`✅ Auto-verified ${verifiedCount} PayPal payments on dashboard refresh`);
+          }
+        } catch (verifyError) {
+          console.error('⚠️ Auto-verify failed on dashboard:', verifyError);
+        }
+      }
+
       console.log('🔄 Loading family members...');
       const members = await getFamilyMembers();
       console.log('👨‍👩‍👧‍👦 Family members loaded:', {
@@ -305,8 +319,11 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       >
         {/* Modern Header */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>Good {getTimeOfDay()}</Text>
-          <Text style={styles.title}>Family Dashboard</Text>
+          <Text style={styles.greeting}>Hi there!</Text>
+          <Text style={styles.title}>
+            {hasMultipleStudents ? 'Your Kids' : studentName.split(' ')[0]}
+          </Text>
+          <Text style={styles.pullHint}>Pull down to refresh and verify payments</Text>
         </View>
 
         {/* Student Selector - Full Width Segments */}
@@ -536,9 +553,28 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </View>
           )}
         </View>
-
-        {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
+        {/* Wellness */}
+        <View style={styles.wellnessSection}>
+          <Text style={styles.sectionHeader}>Wellness Check-in</Text>
+          <TouchableOpacity 
+            style={styles.wellnessContainer}
+            onPress={() => navigation.navigate('ChildWellness', { 
+              selectedStudentId: currentStudent?.id,
+              selectedStudentName: studentName 
+            })}
+          >
+            {stats.totalEntries === 0 ? (
+              <Text style={styles.wellnessText}>
+                {studentName.split(' ')[0]} hasn't started tracking wellness yet
+              </Text>
+            ) : (
+              <Text style={styles.wellnessText}>
+                {studentName.split(' ')[0]} has a {stats.currentStreak} day streak with a {stats.averageScore}/10 average
+              </Text>
+            )}
+            <Text style={styles.tapHint}>→</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -569,7 +605,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     letterSpacing: -1,
   },
-  
+
   // Segmented Control System
   tabContainer: {
     paddingHorizontal: 24,

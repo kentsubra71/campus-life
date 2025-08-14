@@ -153,39 +153,51 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       
-      // Import Firebase functions - use same approach as ActivityHistoryScreen
-      const { collection, query, where, getDocs, orderBy } = await import('firebase/firestore');
+      // Import Firebase functions
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
       
-      // Query all payments (same as ActivityHistoryScreen)
+      // For students, use their own ID. For parents, use the provided studentId
+      const targetStudentId = studentId || user.uid;
+      
+      // Query payments for the specific student
       const paymentsQuery = query(
         collection(db, 'payments'),
-        where('parent_id', '==', user.uid),
-        orderBy('created_at', 'desc')
+        where('student_id', '==', targetStudentId)
       );
       
       const querySnapshot = await getDocs(paymentsQuery);
       
       let monthlyTotal = 0;
+      let totalEarned = 0;
+      
       querySnapshot.forEach((doc) => {
         const payment = doc.data();
         const paymentDate = payment.created_at.toDate();
         
-        // Filter for current month, confirmed/completed status, and optionally by student
-        const isCurrentMonth = paymentDate >= startOfMonth;
+        // Filter for confirmed/completed status
         const isConfirmed = payment.status === 'confirmed_by_parent' || payment.status === 'confirmed' || payment.status === 'completed';
-        const isForStudent = !studentId || payment.student_id === studentId;
         
-        if (isCurrentMonth && isConfirmed && isForStudent) {
-          monthlyTotal += payment.intent_cents / 100; // Convert cents to dollars
+        if (isConfirmed) {
+          const amount = payment.intent_cents / 100; // Convert cents to dollars
+          totalEarned += amount;
+          
+          // Check if it's in current month
+          const isCurrentMonth = paymentDate >= startOfMonth;
+          if (isCurrentMonth) {
+            monthlyTotal += amount;
+          }
         }
       });
       
-      console.log('💰 Monthly confirmed/completed payments total:', monthlyTotal, 'for student:', studentId || 'all');
-      set({ monthlyEarned: monthlyTotal });
+      console.log('💰 Monthly payments:', monthlyTotal, 'Total earned:', totalEarned, 'for student:', targetStudentId);
+      set({ 
+        monthlyEarned: monthlyTotal,
+        totalEarned: totalEarned 
+      });
     } catch (error: any) {
       console.error('Error fetching monthly payments:', error);
-      // Don't reset monthlyEarned on error, keep existing value
+      // Don't reset values on error, keep existing values
     }
   },
   

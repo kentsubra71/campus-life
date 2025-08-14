@@ -63,8 +63,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         message: 'Success',
         description: 'Wellness entry updated successfully!',
         type: 'success',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
+        backgroundColor: theme.colors.backgroundSecondary,
+        color: theme.colors.textPrimary,
       });
     } else {
       addEntry({
@@ -75,8 +75,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         message: 'Success', 
         description: 'Wellness entry saved successfully!',
         type: 'success',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
+        backgroundColor: theme.colors.backgroundSecondary,
+        color: theme.colors.textPrimary,
       });
     }
     
@@ -93,7 +93,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     step: number = 1
   ) => {
     return (
-      <View style={styles.sliderContainer}>
+      <View style={styles.sliderItem}>
         <View style={styles.sliderHeader}>
           <Text style={styles.sliderLabel}>{label}</Text>
           <Text style={styles.sliderValue}>{value} {unit}</Text>
@@ -107,9 +107,9 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={value}
             onValueChange={onValueChange}
             step={step}
-            minimumTrackTintColor="#3b82f6"
-            maximumTrackTintColor="#374151"
-            thumbTintColor="#ffffff"
+            minimumTrackTintColor={theme.colors.primary}
+            maximumTrackTintColor={theme.colors.border}
+            thumbTintColor={theme.colors.primary}
           />
         </View>
         
@@ -135,9 +135,9 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     };
     
     return (
-      <View style={styles.sliderContainer}>
+      <View style={styles.sliderItem}>
         <View style={styles.sliderHeader}>
-          <Text style={styles.sliderLabel}>How are you feeling today?</Text>
+          <Text style={styles.sliderLabel}>Overall Mood</Text>
           <Text style={styles.sliderValue}>{formData.mood}/10</Text>
         </View>
         
@@ -149,9 +149,9 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={formData.mood}
             onValueChange={handleMoodChange}
             step={1}
-            minimumTrackTintColor="#3b82f6"
-            maximumTrackTintColor="#374151"
-            thumbTintColor="#ffffff"
+            minimumTrackTintColor={theme.colors.primary}
+            maximumTrackTintColor={theme.colors.border}
+            thumbTintColor={theme.colors.primary}
           />
         </View>
         
@@ -167,223 +167,307 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     );
   };
 
+  const getWellnessScore = () => {
+    return Math.round(
+      (formData.mood * 0.25 +
+       Math.min(formData.sleep / 8, 1) * 10 * 0.20 +
+       Math.min(formData.exercise / 60, 1) * 10 * 0.15 +
+       formData.nutrition * 0.15 +
+       Math.min(formData.water / 8, 1) * 10 * 0.10 +
+       formData.social * 0.10 +
+       formData.academic * 0.05) * 10
+    ) / 10;
+  };
+
+  const getScoreTag = () => {
+    const score = getWellnessScore();
+    if (score >= 8) return { text: 'Great', color: theme.colors.success };
+    if (score >= 6) return { text: 'Good', color: theme.colors.warning };
+    return { text: 'Needs Care', color: theme.colors.error };
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Daily Wellness Log</Text>
+        <Text style={styles.headerTitle}>Daily Wellness Log</Text>
         <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.dateContainer}>
-          <Text style={styles.dateText}>
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
-          </Text>
-        </View>
+      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Date Header */}
+          <View style={styles.dateSection}>
+            <Text style={styles.dateText}>
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </Text>
+            {isEditing && (
+              <View style={styles.editingTag}>
+                <Text style={styles.editingTagText}>Editing</Text>
+              </View>
+            )}
+          </View>
 
-        {/* Mood */}
-        {renderMoodSlider()}
+          {/* Wellness Score Preview */}
+          <View style={styles.scoreSection}>
+            <View style={styles.scoreHeader}>
+              <Text style={styles.sectionTitle}>Today's Wellness Score</Text>
+              <View style={[styles.scoreTag, { backgroundColor: getScoreTag().color }]}>
+                <Text style={styles.scoreTagText}>{getScoreTag().text}</Text>
+              </View>
+            </View>
+            <Text style={styles.scoreValue}>{getWellnessScore()}/10</Text>
+          </View>
 
-        {/* Sleep */}
-        {renderSlider(
-          'Hours of Sleep',
-          formData.sleep,
-          0,
-          12,
-          'hours',
-          (value) => setFormData({ ...formData, sleep: value }),
-          0.5
-        )}
+          {/* Wellness Metrics */}
+          <View style={styles.metricsSection}>
+            <Text style={styles.sectionTitle}>How are you feeling?</Text>
+            {renderMoodSlider()}
+          </View>
 
-        {/* Exercise */}
-        {renderSlider(
-          'Exercise Minutes',
-          formData.exercise,
-          0,
-          120,
-          'min',
-          (value) => setFormData({ ...formData, exercise: value }),
-          5
-        )}
+          <View style={styles.metricsSection}>
+            <Text style={styles.sectionTitle}>Physical Health</Text>
+            {renderSlider(
+              'Hours of Sleep',
+              formData.sleep,
+              0,
+              12,
+              'hours',
+              (value) => setFormData({ ...formData, sleep: value }),
+              0.5
+            )}
+            {renderSlider(
+              'Exercise Minutes',
+              formData.exercise,
+              0,
+              120,
+              'min',
+              (value) => setFormData({ ...formData, exercise: value }),
+              5
+            )}
+            {renderSlider(
+              'Water Intake',
+              formData.water,
+              0,
+              12,
+              'glasses',
+              (value) => setFormData({ ...formData, water: value })
+            )}
+          </View>
 
-        {/* Nutrition */}
-        {renderSlider(
-          'Nutrition Quality',
-          formData.nutrition,
-          1,
-          10,
-          '/10',
-          (value) => setFormData({ ...formData, nutrition: value })
-        )}
+          <View style={styles.metricsSection}>
+            <Text style={styles.sectionTitle}>Daily Life</Text>
+            {renderSlider(
+              'Nutrition Quality',
+              formData.nutrition,
+              1,
+              10,
+              '/10',
+              (value) => setFormData({ ...formData, nutrition: value })
+            )}
+            {renderSlider(
+              'Social Connection',
+              formData.social,
+              1,
+              10,
+              '/10',
+              (value) => setFormData({ ...formData, social: value })
+            )}
+            {renderSlider(
+              'Academic Progress',
+              formData.academic,
+              1,
+              10,
+              '/10',
+              (value) => setFormData({ ...formData, academic: value })
+            )}
+          </View>
 
-        {/* Water */}
-        {renderSlider(
-          'Water Intake',
-          formData.water,
-          0,
-          12,
-          'glasses',
-          (value) => setFormData({ ...formData, water: value })
-        )}
-
-        {/* Social */}
-        {renderSlider(
-          'Social Connection',
-          formData.social,
-          1,
-          10,
-          '/10',
-          (value) => setFormData({ ...formData, social: value })
-        )}
-
-        {/* Academic */}
-        {renderSlider(
-          'Academic Progress',
-          formData.academic,
-          1,
-          10,
-          '/10',
-          (value) => setFormData({ ...formData, academic: value })
-        )}
-
-        {/* Notes */}
-        <View style={styles.notesContainer}>
-          <Text style={styles.notesLabel}>Additional Notes (Optional)</Text>
-          <TextInput
-            style={styles.notesInput}
-            value={formData.notes}
-            onChangeText={(text) => setFormData({ ...formData, notes: text })}
-            placeholder="How was your day? Any highlights or challenges?"
-            placeholderTextColor="#9ca3af"
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
-
-        <View style={styles.previewContainer}>
-          <Text style={styles.previewTitle}>Today's Wellness Score</Text>
-          <Text style={styles.previewScore}>
-            {Math.round(
-              (formData.mood * 0.25 +
-               Math.min(formData.sleep / 8, 1) * 10 * 0.20 +
-               Math.min(formData.exercise / 60, 1) * 10 * 0.15 +
-               formData.nutrition * 0.15 +
-               Math.min(formData.water / 8, 1) * 10 * 0.10 +
-               formData.social * 0.10 +
-               formData.academic * 0.05) * 10
-            ) / 10}/10
-          </Text>
+          {/* Notes */}
+          <View style={styles.notesSection}>
+            <Text style={styles.sectionTitle}>Additional Notes</Text>
+            <Text style={styles.notesSubtitle}>How was your day? Any highlights or challenges?</Text>
+            <TextInput
+              style={styles.notesInput}
+              value={formData.notes}
+              onChangeText={(text) => setFormData({ ...formData, notes: text })}
+              placeholder="Optional notes about your day..."
+              placeholderTextColor={theme.colors.textTertiary}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingVertical: 15,
-    backgroundColor: '#1f2937',
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    paddingTop: 60,
+    backgroundColor: theme.colors.background,
   },
   backButton: {
     padding: 8,
   },
   backButtonText: {
     fontSize: 16,
-    color: 'theme.colors.primary',
-    fontWeight: '500',
-  },
-  title: {
-    fontSize: 18,
+    color: theme.colors.primary,
     fontWeight: '600',
-    color: '#f9fafb',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
   },
   saveButton: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
   },
   saveButtonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
   },
-  content: {
+  scrollContainer: {
     flex: 1,
-    padding: 20,
   },
-  dateContainer: {
+  content: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+
+  // Date Section
+  dateSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   dateText: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
-  sliderContainer: {
-    marginBottom: 30,
-    backgroundColor: '#1f2937',
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  editingTag: {
+    backgroundColor: theme.colors.warning,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  editingTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // Score Section
+  scoreSection: {
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  scoreHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  scoreTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  scoreTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  scoreValue: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: theme.colors.textPrimary,
+  },
+
+  // Sections
+  metricsSection: {
+    marginBottom: 24,
+  },
+  notesSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 16,
+  },
+  notesSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+  },
+
+  // Slider Items - Clean layout without cards
+  sliderItem: {
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   sliderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
   sliderLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     flex: 1,
   },
   sliderValue: {
     fontSize: 16,
-    fontWeight: '600',
-    color: 'theme.colors.primary',
+    fontWeight: '700',
+    color: theme.colors.primary,
   },
   sliderWrapper: {
-    marginVertical: 16,
+    marginVertical: 12,
     marginHorizontal: 8,
   },
   slider: {
     width: '100%',
     height: 40,
-  },
-  sliderThumb: {
-    backgroundColor: 'theme.colors.primary',
-    width: 24,
-    height: 24,
   },
   sliderLabels: {
     flexDirection: 'row',
@@ -392,68 +476,28 @@ const styles = StyleSheet.create({
   },
   sliderLabelText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textTertiary,
     fontWeight: '500',
   },
   moodDescription: {
-    marginTop: 10,
-    fontSize: 14,
-    color: '#9ca3af',
+    marginTop: 8,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
+    fontStyle: 'italic',
   },
-  notesContainer: {
-    marginBottom: 30,
-    backgroundColor: '#1f2937',
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  notesLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#f9fafb',
-    marginBottom: 10,
-  },
+
+  // Notes Input
   notesInput: {
+    backgroundColor: theme.colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: '#4b5563',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
+    fontSize: 15,
     minHeight: 100,
-    backgroundColor: '#374151',
-    color: '#f9fafb',
-  },
-  previewContainer: {
-    alignItems: 'center',
-    backgroundColor: '#1f2937',
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 30,
-  },
-  previewTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#f9fafb',
-    marginBottom: 10,
-  },
-  previewScore: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#10b981',
+    color: theme.colors.textPrimary,
+    textAlignVertical: 'top',
   },
 });
 

@@ -9,12 +9,11 @@ import {
   Switch,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { showMessage } from 'react-native-flash-message';
-// Removed supabase import as it's not used in this version
+import { theme } from '../../styles/theme';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -52,27 +51,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const fetchProfile = async () => {
     if (!user) return;
     
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
-      if (data) {
-        setProfile({
-          fullName: data.full_name || '',
-          email: user.email || '',
-          phone: data.phone || '',
-          emergencyContact: data.emergency_contact || '',
-          school: data.school || '',
-          major: data.major || '',
-          graduationYear: data.graduation_year || '',
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    }
+    // Set default profile data from user
+    setProfile({
+      fullName: user.name || '',
+      email: user.email || '',
+      phone: '',
+      emergencyContact: '',
+      school: '',
+      major: '',
+      graduationYear: '',
+    });
   };
 
   const saveProfile = async () => {
@@ -80,88 +68,55 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          full_name: profile.fullName,
-          phone: profile.phone,
-          emergency_contact: profile.emergencyContact,
-          school: profile.school,
-          major: profile.major,
-          graduation_year: profile.graduationYear,
-          updated_at: new Date().toISOString(),
-        });
+      // Simulate saving - in a real app this would call your API
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      if (error) {
-        showMessage({
-          message: 'Error',
-          description: 'Failed to update profile',
-          type: 'danger',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
-        });
-      } else {
-        showMessage({
-          message: 'Success',
-          description: 'Profile updated successfully',
-          type: 'success',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
-        });
-        setIsEditing(false);
-      }
+      showMessage({
+        message: 'Success',
+        description: 'Profile updated successfully',
+        type: 'success',
+        backgroundColor: theme.colors.backgroundSecondary,
+        color: theme.colors.textPrimary,
+      });
+      setIsEditing(false);
     } catch (error) {
       showMessage({
         message: 'Error',
         description: 'Failed to update profile',
         type: 'danger',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
+        backgroundColor: theme.colors.backgroundSecondary,
+        color: theme.colors.textPrimary,
       });
     } finally {
       setLoading(false);
     }
   };
 
+  const { signOut } = useAuthStore();
+  
   const handleSignOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        showMessage({
-          message: 'Error',
-          description: 'Failed to sign out',
-          type: 'danger',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
-        });
-      } else {
-        setUser(null);
-      }
+      await signOut();
     } catch (error) {
       showMessage({
         message: 'Error',
         description: 'Failed to sign out',
         type: 'danger',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
+        backgroundColor: theme.colors.backgroundSecondary,
+        color: theme.colors.textPrimary,
       });
     }
   };
 
   const confirmSignOut = () => {
-    showMessage({
-      message: 'Sign Out',
-      description: 'Are you sure you want to sign out?',
-      type: 'info',
-      backgroundColor: '#1f2937',
-      color: '#f9fafb',
-      duration: 4000,
-    });
-    // For now, just sign out directly since we can't customize the action buttons
-    setTimeout(() => {
-      handleSignOut();
-    }, 2000);
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: handleSignOut }
+      ]
+    );
   };
 
   const renderProfileField = (
@@ -170,22 +125,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     key: keyof typeof profile,
     multiline = false
   ) => (
-    <View style={styles.fieldContainer}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      {isEditing ? (
-        <TextInput
-          style={[styles.fieldInput, multiline && styles.multilineInput]}
-          value={value}
-          onChangeText={(text) => setProfile({ ...profile, [key]: text })}
-          placeholder={`Enter ${label.toLowerCase()}`}
-          placeholderTextColor="#9ca3af"
-          multiline={multiline}
-          numberOfLines={multiline ? 3 : 1}
-          textAlignVertical={multiline ? 'top' : 'center'}
-        />
-      ) : (
-        <Text style={styles.fieldValue}>{value || 'Not set'}</Text>
-      )}
+    <View style={styles.fieldItem}>
+      <View style={styles.fieldHeader}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        {isEditing ? (
+          <TextInput
+            style={[styles.fieldInput, multiline && styles.multilineInput]}
+            value={value}
+            onChangeText={(text) => setProfile({ ...profile, [key]: text })}
+            placeholder={`Enter ${label.toLowerCase()}`}
+            placeholderTextColor={theme.colors.textTertiary}
+            multiline={multiline}
+            numberOfLines={multiline ? 3 : 1}
+            textAlignVertical={multiline ? 'top' : 'center'}
+          />
+        ) : (
+          <Text style={styles.fieldValue}>{value || 'Not set'}</Text>
+        )}
+      </View>
     </View>
   );
 
@@ -194,17 +151,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     description: string,
     key: keyof typeof preferences
   ) => (
-    <View style={styles.preferenceContainer}>
-      <View style={styles.preferenceText}>
+    <View style={styles.preferenceItem}>
+      <View style={styles.preferenceContent}>
         <Text style={styles.preferenceLabel}>{label}</Text>
         <Text style={styles.preferenceDescription}>{description}</Text>
       </View>
-      <Switch
-        value={preferences[key]}
-        onValueChange={(value) => setPreferences({ ...preferences, [key]: value })}
-        trackColor={{ false: '#374151', true: 'theme.colors.primary' }}
-        thumbColor={preferences[key] ? '#f9fafb' : '#9ca3af'}
-      />
+      <View style={styles.preferenceControl}>
+        <Switch
+          value={preferences[key]}
+          onValueChange={(value) => setPreferences({ ...preferences, [key]: value })}
+          trackColor={{ false: theme.colors.borderSecondary, true: theme.colors.primary }}
+          thumbColor={preferences[key] ? '#ffffff' : theme.colors.textTertiary}
+        />
+      </View>
     </View>
   );
 
@@ -221,45 +180,68 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     return `${Math.floor(diffDays / 365)} years`;
   };
 
+  const getEditStatusTag = () => {
+    if (loading) return { backgroundColor: theme.colors.warning, text: 'Saving', textColor: '#ffffff' };
+    if (isEditing) return { backgroundColor: theme.colors.success, text: 'Save', textColor: '#ffffff' };
+    return { backgroundColor: theme.colors.secondary, text: 'Edit', textColor: theme.colors.primaryDark };
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        {/* Modern Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Profile & Settings</Text>
-          <Text style={styles.subtitle}>Manage your account and preferences</Text>
+          <Text style={styles.greeting}>Profile</Text>
+          <Text style={styles.title}>
+            {profile.fullName?.split(' ')[0] || 'Student'}
+          </Text>
+          <Text style={styles.pullHint}>Manage your account and preferences</Text>
         </View>
 
-        {/* Profile Overview Card */}
-        <View style={styles.overviewCard}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {profile.fullName ? profile.fullName.charAt(0).toUpperCase() : 'U'}
-              </Text>
+        {/* Profile Overview Section - Clean layout without heavy card */}
+        <View style={styles.profileSection}>
+          <View style={styles.profileHeader}>
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {profile.fullName ? profile.fullName.charAt(0).toUpperCase() : 'U'}
+                </Text>
+              </View>
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>
+                  {profile.fullName || 'User'}
+                </Text>
+                <Text style={styles.profileEmail}>{profile.email}</Text>
+                <View style={styles.levelTag}>
+                  <Text style={styles.levelTagText}>Level {level}</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.overviewInfo}>
-              <Text style={styles.overviewName}>
-                {profile.fullName || 'User'}
-              </Text>
-              <Text style={styles.overviewEmail}>{profile.email}</Text>
-              <Text style={styles.overviewStatus}>
-                {userType?.charAt(0).toUpperCase() + userType?.slice(1)} • Level {level}
-              </Text>
+          </View>
+        </View>
+
+        {/* Stats Section */}
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>Your Stats</Text>
+          
+          <View style={styles.statItem}>
+            <View style={styles.statHeader}>
+              <Text style={styles.statLabel}>Log Entries</Text>
+              <Text style={styles.statValue}>{stats.totalEntries}</Text>
             </View>
           </View>
           
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.totalEntries}</Text>
-              <Text style={styles.statLabel}>Log Entries</Text>
+          <View style={styles.statItem}>
+            <View style={styles.statHeader}>
+              <Text style={styles.statLabel}>Current Streak</Text>
+              <Text style={styles.statValue}>{stats.currentStreak} days</Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.currentStreak}</Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>${totalEarned}</Text>
+          </View>
+          
+          <View style={styles.statItem}>
+            <View style={styles.statHeader}>
               <Text style={styles.statLabel}>Total Earned</Text>
+              <Text style={styles.statValue}>${totalEarned}</Text>
             </View>
           </View>
         </View>
@@ -271,329 +253,403 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             <TouchableOpacity
               onPress={() => isEditing ? saveProfile() : setIsEditing(true)}
               disabled={loading}
-              style={styles.editButton}
+              style={[styles.editTag, { backgroundColor: getEditStatusTag().backgroundColor }]}
             >
-              <Text style={styles.editButtonText}>
-                {loading ? 'Saving...' : isEditing ? 'Save' : 'Edit'}
+              <Text style={[styles.editTagText, { color: getEditStatusTag().textColor }]}>
+                {getEditStatusTag().text}
               </Text>
             </TouchableOpacity>
           </View>
           
-          <View style={styles.fieldsContainer}>
-            {renderProfileField('Full Name', profile.fullName, 'fullName')}
-            {renderProfileField('Email', profile.email, 'email')}
-            {renderProfileField('Phone', profile.phone, 'phone')}
-            {renderProfileField('Emergency Contact', profile.emergencyContact, 'emergencyContact')}
-          </View>
+          {renderProfileField('Full Name', profile.fullName, 'fullName')}
+          {renderProfileField('Email', profile.email, 'email')}
+          {renderProfileField('Phone', profile.phone, 'phone')}
+          {renderProfileField('Emergency Contact', profile.emergencyContact, 'emergencyContact')}
         </View>
 
         {/* Academic Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Academic Information</Text>
-          <View style={styles.fieldsContainer}>
-            {renderProfileField('School', profile.school, 'school')}
-            {renderProfileField('Major', profile.major, 'major')}
-            {renderProfileField('Graduation Year', profile.graduationYear, 'graduationYear')}
-          </View>
+          {renderProfileField('School', profile.school, 'school')}
+          {renderProfileField('Major', profile.major, 'major')}
+          {renderProfileField('Graduation Year', profile.graduationYear, 'graduationYear')}
         </View>
 
         {/* Account Details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Details</Text>
-          <View style={styles.accountDetail}>
-            <Text style={styles.accountLabel}>Member Since</Text>
-            <Text style={styles.accountValue}>{getMembershipDuration()}</Text>
+          
+          <View style={styles.detailItem}>
+            <View style={styles.detailHeader}>
+              <Text style={styles.detailLabel}>Member Since</Text>
+              <Text style={styles.detailValue}>{getMembershipDuration()}</Text>
+            </View>
           </View>
-          <View style={styles.accountDetail}>
-            <Text style={styles.accountLabel}>Account Type</Text>
-            <Text style={styles.accountValue}>
-              {userType?.charAt(0).toUpperCase() + userType?.slice(1)}
-            </Text>
+          
+          <View style={styles.detailItem}>
+            <View style={styles.detailHeader}>
+              <Text style={styles.detailLabel}>Account Type</Text>
+              <View style={styles.typeTag}>
+                <Text style={styles.typeTagText}>Student</Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.accountDetail}>
-            <Text style={styles.accountLabel}>Current Level</Text>
-            <Text style={styles.accountValue}>Level {level}</Text>
+          
+          <View style={styles.detailItem}>
+            <View style={styles.detailHeader}>
+              <Text style={styles.detailLabel}>Current Level</Text>
+              <Text style={styles.detailValue}>Level {level}</Text>
+            </View>
           </View>
         </View>
 
         {/* Preferences */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
-          <View style={styles.preferencesContainer}>
-            {renderPreferenceSwitch(
-              'Push Notifications',
-              'Receive wellness reminders and updates',
-              'notifications'
-            )}
-            {renderPreferenceSwitch(
-              'Weekly Reports',
-              'Get weekly wellness summary reports',
-              'weeklyReports'
-            )}
-            {renderPreferenceSwitch(
-              'Parent Updates',
-              'Share progress updates with parents',
-              'parentUpdates'
-            )}
-            {renderPreferenceSwitch(
-              'Data Sharing',
-              'Share anonymized data for research',
-              'dataSharing'
-            )}
-          </View>
+          {renderPreferenceSwitch(
+            'Push Notifications',
+            'Receive wellness reminders and updates',
+            'notifications'
+          )}
+          {renderPreferenceSwitch(
+            'Weekly Reports',
+            'Get weekly wellness summary reports',
+            'weeklyReports'
+          )}
+          {renderPreferenceSwitch(
+            'Parent Updates',
+            'Share progress updates with parents',
+            'parentUpdates'
+          )}
+          {renderPreferenceSwitch(
+            'Data Sharing',
+            'Share anonymized data for research',
+            'dataSharing'
+          )}
         </View>
 
         {/* Actions */}
         <View style={styles.actionsSection}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>Export My Data</Text>
+          <Text style={styles.sectionTitle}>More</Text>
+          
+          <TouchableOpacity style={styles.actionItem}>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Export My Data</Text>
+              <Text style={styles.actionSubtitle}>Download your wellness data</Text>
+            </View>
+            <Text style={styles.actionArrow}>›</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>Privacy Policy</Text>
+          <TouchableOpacity style={styles.actionItem}>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Privacy Policy</Text>
+              <Text style={styles.actionSubtitle}>Review our privacy practices</Text>
+            </View>
+            <Text style={styles.actionArrow}>›</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>Terms of Service</Text>
+          <TouchableOpacity style={styles.actionItem}>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Terms of Service</Text>
+              <Text style={styles.actionSubtitle}>Read the terms and conditions</Text>
+            </View>
+            <Text style={styles.actionArrow}>›</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.actionButton, styles.signOutButton]}
+            style={[styles.actionItem, styles.signOutAction]}
             onPress={confirmSignOut}
           >
-            <Text style={[styles.actionButtonText, styles.signOutText]}>Sign Out</Text>
+            <View style={styles.actionContent}>
+              <Text style={[styles.actionTitle, styles.signOutText]}>Sign Out</Text>
+              <Text style={styles.actionSubtitle}>Log out of your account</Text>
+            </View>
+            <Text style={[styles.actionArrow, styles.signOutText]}>›</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
-  content: {
+  scrollContainer: {
     flex: 1,
-    padding: 20,
   },
+
+  // Modern Header (like parent dashboard)
   header: {
-    marginBottom: 30,
-    paddingTop: 10,
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  greeting: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#f9fafb',
+    fontSize: 32,
+    fontWeight: '900',
+    color: theme.colors.textPrimary,
+    letterSpacing: -1,
+    marginTop: 4,
+  },
+  pullHint: {
+    fontSize: 14,
+    color: theme.colors.textTertiary,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+
+  // Profile Section - Clean layout without heavy card
+  profileSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
-    lineHeight: 22,
-  },
-  overviewCard: {
-    backgroundColor: '#1f2937',
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#374151',
-    marginBottom: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+  profileHeader: {
+    marginBottom: 8,
   },
   avatarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'theme.colors.primary',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
   },
   avatarText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: 'white',
-  },
-  overviewInfo: {
-    flex: 1,
-  },
-  overviewName: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 4,
+    color: '#ffffff',
   },
-  overviewEmail: {
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 2,
+  },
+  profileEmail: {
     fontSize: 14,
-    color: '#9ca3af',
-    marginBottom: 4,
+    color: theme.colors.textSecondary,
+    marginBottom: 8,
   },
-  overviewStatus: {
-    fontSize: 12,
-    color: 'theme.colors.primary',
+  levelTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.secondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  levelTagText: {
+    fontSize: 11,
     fontWeight: '600',
+    color: theme.colors.primaryDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+
+  // Stats Section
+  statsSection: {
+    paddingHorizontal: 24,
+    marginBottom: 8,
   },
   statItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  statHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
   },
   statValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'theme.colors.primary',
-    marginBottom: 4,
+    color: theme.colors.textPrimary,
   },
-  statLabel: {
-    fontSize: 12,
-    color: '#9ca3af',
-    fontWeight: '500',
-  },
+
+  // Section Styling
   section: {
-    marginBottom: 30,
+    paddingHorizontal: 24,
+    marginBottom: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
+    marginBottom: 12,
   },
-  editButton: {
-    backgroundColor: 'theme.colors.primary',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  editTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 8,
   },
-  editButtonText: {
-    color: 'white',
-    fontSize: 14,
+  editTagText: {
+    fontSize: 11,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  fieldsContainer: {
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-    padding: 20,
+
+  // Field Items - Clean list style
+  fieldItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  fieldContainer: {
-    marginBottom: 20,
+  fieldHeader: {
+    gap: 8,
   },
   fieldLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#f9fafb',
-    marginBottom: 8,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
   },
   fieldValue: {
-    fontSize: 16,
-    color: '#9ca3af',
-    paddingVertical: 8,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+    fontWeight: '600',
   },
   fieldInput: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: '#4b5563',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#f9fafb',
+    paddingVertical: 10,
+    fontSize: 15,
+    color: theme.colors.textPrimary,
   },
   multilineInput: {
     minHeight: 80,
     textAlignVertical: 'top',
   },
-  accountDetail: {
+
+  // Detail Items
+  detailItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  detailHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#374151',
-    marginBottom: 8,
   },
-  accountLabel: {
+  detailLabel: {
     fontSize: 14,
-    color: '#9ca3af',
     fontWeight: '500',
+    color: theme.colors.textSecondary,
   },
-  accountValue: {
-    fontSize: 14,
-    color: '#f9fafb',
+  detailValue: {
+    fontSize: 15,
     fontWeight: '600',
+    color: theme.colors.textPrimary,
   },
-  preferencesContainer: {
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-    padding: 20,
+  typeTag: {
+    backgroundColor: theme.colors.secondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  preferenceContainer: {
+  typeTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.primaryDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // Preference Items
+  preferenceItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  preferenceText: {
+  preferenceContent: {
     flex: 1,
     marginRight: 16,
   },
   preferenceLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#f9fafb',
-    marginBottom: 4,
+    color: theme.colors.textPrimary,
+    marginBottom: 2,
   },
   preferenceDescription: {
-    fontSize: 14,
-    color: '#9ca3af',
+    fontSize: 13,
+    color: theme.colors.textSecondary,
     lineHeight: 18,
   },
-  actionsSection: {
-    marginBottom: 40,
-  },
-  actionButton: {
-    backgroundColor: '#1f2937',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-    marginBottom: 8,
+  preferenceControl: {
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#f9fafb',
+
+  // Actions Section
+  actionsSection: {
+    paddingHorizontal: 24,
+    marginBottom: 40,
   },
-  signOutButton: {
-    borderColor: '#ef4444',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 1,
+  },
+  actionSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  actionArrow: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
+  },
+  signOutAction: {
+    // Keep it clean, no special background
   },
   signOutText: {
-    color: '#ef4444',
+    color: theme.colors.error,
   },
 }); 

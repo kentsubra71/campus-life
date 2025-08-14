@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuthStore } from '../stores/authStore';
+import { theme } from '../styles/theme';
 
 interface Payment {
   id: string;
@@ -127,9 +128,10 @@ export const ReceivedPayments: React.FC = () => {
   if (payments.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>💰 Money Received</Text>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyEmoji}>💸</Text>
+        <View style={styles.header}>
+          <Text style={styles.sectionTitle}>Money Received</Text>
+        </View>
+        <View style={styles.emptySection}>
           <Text style={styles.emptyTitle}>No payments yet</Text>
           <Text style={styles.emptyText}>
             When your parents send you money, it will appear here
@@ -142,37 +144,43 @@ export const ReceivedPayments: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>💰 Money Received</Text>
-        <Text style={styles.totalAmount}>
-          ${(totalReceived / 100).toFixed(2)} total
-        </Text>
+        <Text style={styles.sectionTitle}>Money Received</Text>
+        <View style={styles.totalBadge}>
+          <Text style={styles.totalBadgeText}>
+            ${(totalReceived / 100).toFixed(2)} total
+          </Text>
+        </View>
       </View>
 
       <ScrollView style={styles.paymentsList} showsVerticalScrollIndicator={false}>
         {payments.map((payment) => (
-          <View key={payment.id} style={styles.paymentCard}>
-            <View style={styles.paymentHeader}>
-              <View style={styles.paymentInfo}>
-                <Text style={styles.amount}>
-                  +${(payment.intent_cents / 100).toFixed(2)}
-                </Text>
-                <Text style={styles.fromText}>
-                  from {payment.parent_name?.split(' ')[0] || 'Parent'}
-                </Text>
+          <View key={payment.id} style={styles.paymentItem}>
+            <View style={styles.paymentContent}>
+              <View style={styles.paymentHeader}>
+                <View style={styles.paymentInfo}>
+                  <Text style={styles.amount}>
+                    +${(payment.intent_cents / 100).toFixed(2)}
+                  </Text>
+                  <Text style={styles.fromText}>
+                    from {payment.parent_name?.split(' ')[0] || 'Parent'}
+                  </Text>
+                </View>
+                <View style={styles.paymentMeta}>
+                  <Text style={styles.time}>{formatTime(payment)}</Text>
+                  <View style={styles.providerTag}>
+                    <Text style={styles.providerText}>
+                      {payment.provider?.charAt(0).toUpperCase()}{payment.provider?.slice(1)}
+                    </Text>
+                  </View>
+                </View>
               </View>
-              <View style={styles.paymentMeta}>
-                <Text style={styles.time}>{formatTime(payment)}</Text>
-                <Text style={styles.provider}>
-                  {payment.provider?.charAt(0).toUpperCase()}{payment.provider?.slice(1)}
-                </Text>
-              </View>
+              
+              {payment.note && (
+                <View style={styles.noteSection}>
+                  <Text style={styles.note}>\"{payment.note}\"</Text>
+                </View>
+              )}
             </View>
-            
-            {payment.note && (
-              <View style={styles.noteContainer}>
-                <Text style={styles.note}>"{payment.note}"</Text>
-              </View>
-            )}
           </View>
         ))}
       </ScrollView>
@@ -182,67 +190,76 @@ export const ReceivedPayments: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    margin: 16,
-    padding: 16,
+    paddingHorizontal: 24,
+    marginBottom: 8,
   },
   loadingText: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     padding: 20,
   },
+  
+  // Header Section
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#f9fafb',
-  },
-  totalAmount: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#10b981',
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyEmoji: {
-    fontSize: 48,
     marginBottom: 12,
   },
-  emptyTitle: {
-    fontSize: 18,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  totalBadge: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  totalBadgeText: {
+    fontSize: 11,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  
+  // Empty State
+  emptySection: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
+  
+  // Payments List
   paymentsList: {
     maxHeight: 300,
   },
-  paymentCard: {
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#10b981',
+  paymentItem: {
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  paymentContent: {
+    flex: 1,
   },
   paymentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: 4,
   },
   paymentInfo: {
     flex: 1,
@@ -250,38 +267,48 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#10b981',
+    color: theme.colors.success,
     marginBottom: 2,
   },
   fromText: {
     fontSize: 14,
-    color: '#d1d5db',
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
   },
   paymentMeta: {
     alignItems: 'flex-end',
+    gap: 4,
   },
   time: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textTertiary,
     marginBottom: 2,
   },
-  provider: {
-    fontSize: 11,
-    color: '#6b7280',
-    backgroundColor: '#4b5563',
+  providerTag: {
+    backgroundColor: theme.colors.secondary,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  noteContainer: {
+  providerText: {
+    fontSize: 11,
+    color: theme.colors.primaryDark,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  
+  // Note Section
+  noteSection: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#4b5563',
+    borderTopColor: theme.colors.border,
   },
   note: {
     fontSize: 13,
-    color: '#d1d5db',
+    color: theme.colors.textSecondary,
     fontStyle: 'italic',
+    lineHeight: 18,
   },
 });

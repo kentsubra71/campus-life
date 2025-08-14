@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { showMessage } from 'react-native-flash-message';
+import { theme } from '../../styles/theme';
 
 interface LogWellnessScreenProps {
   navigation: any;
@@ -23,21 +24,18 @@ export const LogWellnessScreen: React.FC<LogWellnessScreenProps> = ({ navigation
       title: 'Log Today\'s Wellness',
       subtitle: todayEntry ? 'Update your daily entry' : 'Start your wellness tracking',
       action: () => navigation.navigate('WellnessLog'),
-      icon: 'today',
       status: todayEntry ? 'completed' : 'pending'
     },
     {
       title: 'View History',
       subtitle: 'See your wellness journey over time',
       action: () => navigation.navigate('WellnessHistory'),
-      icon: 'history',
       status: 'available'
     },
     {
       title: 'Weekly Summary',
       subtitle: 'Review your week\'s progress',
       action: () => showWeeklySummary(),
-      icon: 'weekly',
       status: 'available'
     },
   ];
@@ -47,270 +45,293 @@ export const LogWellnessScreen: React.FC<LogWellnessScreenProps> = ({ navigation
       message: 'Weekly Summary',
       description: `Current streak: ${currentStreak} days • Average score: ${stats.averageScore}/10`,
       type: 'info',
-      backgroundColor: '#1f2937',
-      color: '#f9fafb',
+      backgroundColor: theme.colors.backgroundSecondary,
+      color: theme.colors.textPrimary,
       duration: 3000,
     });
   };
 
-  const renderQuickAction = (action: any, index: number) => (
-    <TouchableOpacity 
-      key={index}
-      style={[
-        styles.actionCard,
-        action.status === 'completed' && styles.completedCard
-      ]}
-      onPress={action.action}
-      activeOpacity={0.8}
-    >
-      <View style={styles.actionHeader}>
-        <View style={[
-          styles.actionIcon,
-          action.status === 'completed' && styles.completedIcon,
-          action.status === 'pending' && styles.pendingIcon
-        ]}>
-          <Text style={[
-            styles.actionIconText,
-            action.status === 'completed' && styles.completedIconText
-          ]}>
-            {action.icon === 'today' ? 'T' : 
-             action.icon === 'history' ? 'H' : 'W'}
-          </Text>
-        </View>
+  const getStatusTag = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return { backgroundColor: theme.colors.success, text: 'Done', textColor: '#ffffff' };
+      case 'pending':
+        return { backgroundColor: theme.colors.warning, text: 'Todo', textColor: '#ffffff' };
+      default:
+        return { backgroundColor: theme.colors.secondary, text: 'Available', textColor: theme.colors.primaryDark };
+    }
+  };
+
+  const renderQuickAction = (action: any, index: number) => {
+    const tagStyle = getStatusTag(action.status);
+    
+    return (
+      <TouchableOpacity 
+        key={index}
+        style={styles.actionItem}
+        onPress={action.action}
+        activeOpacity={0.8}
+      >
         <View style={styles.actionContent}>
-          <Text style={styles.actionTitle}>{action.title}</Text>
+          <View style={styles.actionHeader}>
+            <Text style={styles.actionTitle}>{action.title}</Text>
+            <View style={[styles.statusTag, { backgroundColor: tagStyle.backgroundColor }]}>
+              <Text style={[styles.statusTagText, { color: tagStyle.textColor }]}>
+                {tagStyle.text}
+              </Text>
+            </View>
+          </View>
           <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
         </View>
-        <View style={styles.statusIndicator}>
-          {action.status === 'completed' && (
-            <Text style={styles.statusText}>✓</Text>
-          )}
-          {action.status === 'pending' && (
-            <Text style={styles.statusTextPending}>!</Text>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+        <Text style={styles.actionArrow}>›</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const getStreakMessage = () => {
+    if (currentStreak === 0) return 'Start your wellness journey today!';
+    if (currentStreak === 1) return 'Great start! Keep it going.';
+    if (currentStreak < 7) return 'Building a healthy habit!';
+    if (currentStreak < 30) return 'Excellent consistency!';
+    return 'Amazing dedication!';
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        {/* Modern Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Wellness Tracking</Text>
-          <Text style={styles.subtitle}>Track and monitor your daily wellness journey</Text>
+          <Text style={styles.greeting}>Wellness</Text>
+          <Text style={styles.title}>Track Your Journey</Text>
+          <Text style={styles.pullHint}>Monitor your daily wellness progress</Text>
         </View>
 
-        <View style={styles.streakCard}>
-          <Text style={styles.streakNumber}>{currentStreak}</Text>
-          <Text style={styles.streakLabel}>Day Streak</Text>
-          <Text style={styles.streakMessage}>
-            {currentStreak === 0 ? 'Start your wellness journey today!' :
-             currentStreak === 1 ? 'Great start! Keep it going.' :
-             currentStreak < 7 ? 'Building a healthy habit!' :
-             currentStreak < 30 ? 'Excellent consistency!' :
-             'Amazing dedication!'}
-          </Text>
+        {/* Streak Section - Clean layout without heavy card */}
+        <View style={styles.streakSection}>
+          <View style={styles.streakHeader}>
+            <Text style={styles.streakTitle}>Current Streak</Text>
+            <View style={styles.streakBadge}>
+              <Text style={styles.streakBadgeText}>{currentStreak} days</Text>
+            </View>
+          </View>
+          <Text style={styles.streakMessage}>{getStreakMessage()}</Text>
         </View>
 
+        {/* Quick Actions */}
         <View style={styles.actionsSection}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           {quickActions.map(renderQuickAction)}
         </View>
 
+        {/* Progress Metrics */}
         <View style={styles.statsSection}>
           <Text style={styles.sectionTitle}>Your Progress</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.totalEntries}</Text>
+          
+          <View style={styles.statItem}>
+            <View style={styles.statHeader}>
               <Text style={styles.statLabel}>Total Entries</Text>
+              <Text style={styles.statValue}>{stats.totalEntries}</Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.averageScore}</Text>
+            <View style={styles.statTag}>
+              <Text style={styles.statTagText}>
+                {stats.totalEntries === 0 ? 'No entries yet' : 'entries logged'}
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.statItem}>
+            <View style={styles.statHeader}>
               <Text style={styles.statLabel}>Average Score</Text>
+              <Text style={styles.statValue}>
+                {stats.totalEntries === 0 ? '--' : stats.averageScore.toFixed(1)}
+              </Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.weeklyAverage}</Text>
+            <View style={styles.statTag}>
+              <Text style={styles.statTagText}>
+                {stats.totalEntries === 0 ? 'Start logging' : 'out of 10'}
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.statItem}>
+            <View style={styles.statHeader}>
               <Text style={styles.statLabel}>This Week</Text>
+              <Text style={styles.statValue}>
+                {stats.weeklyAverage === 0 ? '--' : stats.weeklyAverage.toFixed(1)}
+              </Text>
+            </View>
+            <View style={styles.statTag}>
+              <Text style={styles.statTagText}>
+                {stats.weeklyAverage === 0 ? 'No entries' : 'average score'}
+              </Text>
             </View>
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
-  content: {
+  scrollContainer: {
     flex: 1,
-    padding: 20,
   },
+
+  // Modern Header (like parent dashboard)
   header: {
-    marginBottom: 30,
-    paddingTop: 10,
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 20,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#f9fafb',
-    marginBottom: 8,
-  },
-  subtitle: {
+  greeting: {
     fontSize: 16,
-    color: '#9ca3af',
-    lineHeight: 22,
-  },
-  streakCard: {
-    backgroundColor: '#1f2937',
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#374151',
-    alignItems: 'center',
-    marginBottom: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  streakNumber: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: 'theme.colors.primary',
-    marginBottom: 8,
-  },
-  streakLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#9ca3af',
-    marginBottom: 12,
-  },
-  streakMessage: {
-    fontSize: 14,
-    color: '#f9fafb',
-    textAlign: 'center',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
+  title: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: theme.colors.textPrimary,
+    letterSpacing: -1,
+    marginTop: 4,
+  },
+  pullHint: {
+    fontSize: 14,
+    color: theme.colors.textTertiary,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+
+  // Streak Section (no card, clean layout like parent)
+  streakSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    marginBottom: 8,
+  },
+  streakHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  streakTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  streakBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  streakBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  streakMessage: {
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    lineHeight: 20,
+  },
+
+  // Actions Section
   actionsSection: {
-    marginBottom: 30,
+    paddingHorizontal: 24,
+    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 16,
-  },
-  actionCard: {
-    backgroundColor: '#1f2937',
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
+    color: theme.colors.textPrimary,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  completedCard: {
-    borderColor: '#10b981',
-    backgroundColor: '#1f2937',
-  },
-  actionHeader: {
+
+  // Action Items - Clean list style (like parent dashboard)
+  actionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#374151',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  completedIcon: {
-    backgroundColor: '#10b981',
-  },
-  pendingIcon: {
-    backgroundColor: '#f59e0b',
-  },
-  actionIconText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#9ca3af',
-  },
-  completedIconText: {
-    color: 'white',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   actionContent: {
     flex: 1,
   },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 4,
-  },
-  actionSubtitle: {
-    fontSize: 14,
-    color: '#9ca3af',
-    fontWeight: '500',
-  },
-  statusIndicator: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusText: {
-    fontSize: 16,
-    color: '#10b981',
-    fontWeight: '700',
-  },
-  statusTextPending: {
-    fontSize: 16,
-    color: '#f59e0b',
-    fontWeight: '700',
-  },
-  statsSection: {
-    marginBottom: 20,
-  },
-  statsGrid: {
+  actionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    flex: 1,
+    marginRight: 12,
+  },
+  statusTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  actionSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  actionArrow: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
+  },
+
+  // Stats Section - Clean layout with border separators
+  statsSection: {
+    paddingHorizontal: 24,
+    marginBottom: 20,
   },
   statItem: {
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'theme.colors.primary',
+  statHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#9ca3af',
+    fontSize: 14,
     fontWeight: '500',
-    textAlign: 'center',
+    color: theme.colors.textSecondary,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  statTag: {
+    alignSelf: 'flex-start',
+  },
+  statTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: theme.colors.textTertiary,
   },
 }); 

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { AuthScreenProps } from '../../types/navigation';
+import { theme } from '../../styles/theme';
 
 interface StudentRegisterScreenProps extends AuthScreenProps<'StudentRegister'> {}
 
@@ -74,7 +75,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
 
     if (result.success) {
       Alert.alert(
-        'Welcome to the Family! 🎉',
+        'Welcome to the Family!',
         'You\'ve successfully joined your family\'s CampusLife account. You can now track your wellness and stay connected with your family.',
         [
           { 
@@ -114,7 +115,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           <TextInput
             style={[styles.input, styles.inviteInput, errors.inviteCode ? styles.inputError : null]}
             placeholder="Enter your family's invite code"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.inviteCode}
             onChangeText={(text) => setFormData({...formData, inviteCode: text.toUpperCase()})}
             autoCapitalize="characters"
@@ -129,7 +130,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           <TextInput
             style={[styles.input, errors.name ? styles.inputError : null]}
             placeholder="Enter your full name"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.name}
             onChangeText={(text) => setFormData({...formData, name: text})}
             autoCapitalize="words"
@@ -142,7 +143,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           <TextInput
             style={[styles.input, errors.email ? styles.inputError : null]}
             placeholder="your@email.com"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.email}
             onChangeText={(text) => setFormData({...formData, email: text})}
             keyboardType="email-address"
@@ -156,7 +157,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           <TextInput
             style={[styles.input, errors.password ? styles.inputError : null]}
             placeholder="Create a secure password"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.password}
             onChangeText={(text) => setFormData({...formData, password: text})}
             secureTextEntry
@@ -169,7 +170,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           <TextInput
             style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
             placeholder="Confirm your password"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.confirmPassword}
             onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
             secureTextEntry
@@ -181,11 +182,26 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
       <View style={styles.benefitsCard}>
         <Text style={styles.benefitsTitle}>What you'll get:</Text>
         <View style={styles.benefitsList}>
-          <Text style={styles.benefit}>🎯 Track your wellness journey</Text>
-          <Text style={styles.benefit}>💙 Receive family support & encouragement</Text>
-          <Text style={styles.benefit}>🆘 Request help when you need it</Text>
-          <Text style={styles.benefit}>🎉 Share your achievements</Text>
-          <Text style={styles.benefit}>✨ Occasional care boosts & surprises</Text>
+          <View style={styles.benefitItem}>
+            <View style={styles.benefitBullet} />
+            <Text style={styles.benefit}>Track your wellness journey</Text>
+          </View>
+          <View style={styles.benefitItem}>
+            <View style={styles.benefitBullet} />
+            <Text style={styles.benefit}>Receive family support & encouragement</Text>
+          </View>
+          <View style={styles.benefitItem}>
+            <View style={styles.benefitBullet} />
+            <Text style={styles.benefit}>Request help when you need it</Text>
+          </View>
+          <View style={styles.benefitItem}>
+            <View style={styles.benefitBullet} />
+            <Text style={styles.benefit}>Share your achievements</Text>
+          </View>
+          <View style={styles.benefitItem}>
+            <View style={styles.benefitBullet} />
+            <Text style={styles.benefit}>Occasional care boosts & surprises</Text>
+          </View>
         </View>
       </View>
 
@@ -214,7 +230,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   content: {
     padding: 24,
@@ -225,26 +241,27 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
     marginBottom: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
   },
   inviteCard: {
-    backgroundColor: '#059669',
+    backgroundColor: theme.colors.success,
     padding: 20,
     borderRadius: 12,
     marginBottom: 24,
+    ...theme.shadows.small,
   },
   inviteTitle: {
     fontSize: 16,
@@ -254,8 +271,9 @@ const styles = StyleSheet.create({
   },
   inviteText: {
     fontSize: 14,
-    color: '#d1fae5',
+    color: '#ffffff',
     lineHeight: 20,
+    opacity: 0.9,
   },
   form: {
     gap: 20,
@@ -267,16 +285,17 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   input: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 16,
     fontSize: 16,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
+    ...theme.shadows.small,
   },
   inviteInput: {
     fontSize: 18,
@@ -285,54 +304,64 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   inputError: {
-    borderColor: '#dc2626',
+    borderColor: theme.colors.error,
   },
   errorText: {
     fontSize: 12,
-    color: '#dc2626',
+    color: theme.colors.error,
     marginTop: 4,
   },
   helpText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   benefitsCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 20,
     borderRadius: 12,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
+    ...theme.shadows.small,
   },
   benefitsTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
   benefitsList: {
-    gap: 8,
+    gap: 12,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  benefitBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
   },
   benefit: {
     fontSize: 14,
-    color: '#d1d5db',
+    color: theme.colors.textSecondary,
     lineHeight: 20,
+    flex: 1,
   },
   registerButton: {
-    backgroundColor: '#059669',
+    backgroundColor: theme.colors.success,
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    ...theme.shadows.medium,
   },
   registerButtonDisabled: {
-    backgroundColor: '#4b5563',
+    backgroundColor: theme.colors.textSecondary,
+    opacity: 0.6,
   },
   registerButtonText: {
     fontSize: 18,
@@ -345,7 +374,7 @@ const styles = StyleSheet.create({
   },
   loginLinkText: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
 });

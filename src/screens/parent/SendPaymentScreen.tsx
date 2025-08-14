@@ -84,22 +84,22 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
       id: 'venmo' as const,
       name: 'Venmo',
       emoji: '💙',
-      description: 'Opens app; confirm after.',
-      available: true
+      description: 'Coming Soon',
+      available: false
     },
     {
       id: 'cashapp' as const,
       name: 'Cash App',
       emoji: '💚',
-      description: 'Opens app; confirm after.',
-      available: true
+      description: 'Coming Soon',
+      available: false
     },
     {
       id: 'zelle' as const,
       name: 'Zelle',
       emoji: '⚡',
-      description: 'Opens your bank/Zelle; manual confirm.',
-      available: true
+      description: 'Coming Soon',
+      available: false
     }
   ];
 

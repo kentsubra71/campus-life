@@ -13,7 +13,6 @@ import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { StudentDashboardScreenProps } from '../../types/navigation';
 import { handleAsyncError, AppError } from '../../utils/errorHandling';
-import { Alert } from 'react-native';
 import { ReceivedPayments } from '../../components/ReceivedPayments';
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';

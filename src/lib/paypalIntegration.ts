@@ -129,7 +129,10 @@ export const checkPayPalOrderStatus = async (orderId: string): Promise<{ success
     });
     
     if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}` };
+      const errorMessage = response.status === 404 
+        ? `Order not found (may be expired or invalid)`
+        : `HTTP ${response.status}`;
+      return { success: false, error: errorMessage };
     }
     
     const order = await response.json();
@@ -196,7 +199,11 @@ export const autoVerifyPendingPayPalPayments = async (userId: string): Promise<n
       } else {
         console.log(`⏳ Payment ${paymentDoc.id} still pending on PayPal: ${statusResult.status || 'Unknown'}`);
         if (!statusResult.success) {
-          console.error(`❌ Error checking PayPal status:`, statusResult.error);
+          if (statusResult.error?.includes('Order not found')) {
+            console.log(`ℹ️  PayPal order may be expired or invalid: ${statusResult.error}`);
+          } else {
+            console.error(`❌ Error checking PayPal status:`, statusResult.error);
+          }
         }
       }
     }

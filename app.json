@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.campuslife.app",
+      "bundleIdentifier": "com.vero.campuslife",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "venmo",
@@ -30,19 +30,29 @@
         "backgroundColor": "#111827"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.campuslife.app",
+      "package": "com.vero.campuslife",
+      "versionCode": 1,
       "intentFilters": [
         {
           "action": "VIEW",
           "data": {
             "scheme": "campuslife"
           },
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "8c66d3a1-b6ce-49e3-a654-83c1de4f9193"
+      }
+    },
+    "owner": "ronaldli08"
   }
 }

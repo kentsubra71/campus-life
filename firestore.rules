@@ -65,15 +65,34 @@ service cloud.firestore {
         request.auth.uid == request.resource.data.user_id;
     }
     
-    // Payments - only parents can create, family members can read their own
+    // Payments - strict validation and access control
     match /payments/{paymentId} {
       allow read: if request.auth != null && 
         (resource.data.parent_id == request.auth.uid || 
          resource.data.student_id == request.auth.uid);
       allow create: if request.auth != null && 
-        request.resource.data.parent_id == request.auth.uid;
+        request.resource.data.parent_id == request.auth.uid &&
+        validatePaymentData(request.resource.data);
       allow update: if request.auth != null && 
-        resource.data.parent_id == request.auth.uid;
+        resource.data.parent_id == request.auth.uid &&
+        validatePaymentUpdate(resource.data, request.resource.data);
+      allow delete: if false; // Never allow payment deletion
+      
+      // Validate payment creation data
+      function validatePaymentData(data) {
+        return data.keys().hasAll(['parent_id', 'student_id', 'intent_cents', 'provider', 'status']) &&
+               data.intent_cents is int &&
+               data.intent_cents > 0 &&
+               data.intent_cents <= 10000000 && // Max $100,000
+               data.provider in ['paypal', 'venmo', 'zelle'] &&
+               data.status == 'initiated';
+      }
+      
+      // Validate payment updates (only allow status and verification fields)
+      function validatePaymentUpdate(oldData, newData) {
+        let allowedFields = ['status', 'completed_at', 'updated_at', 'verification_method', 'provider_transaction_id', 'error_message'];
+        return newData.diff(oldData).affectedKeys().hasOnly(allowedFields);
+      }
     }
 
     // Subscriptions - parents can read/write their own

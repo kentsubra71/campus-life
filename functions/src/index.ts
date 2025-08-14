@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import axios from 'axios';
 import { config } from 'dotenv';
+import { Expo } from 'expo-server-sdk';
 
 // Load environment variables
 config();
@@ -9,6 +10,9 @@ config();
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
+
+// Initialize Expo SDK for push notifications
+const expo = new Expo();
 
 // PayPal Configuration - prioritize environment variables over functions.config()
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || functions.config().paypal?.client_id;
@@ -455,3 +459,139 @@ export const testPayPalConnection = functions.https.onCall(async (data, context)
     };
   }
 });
+
+// Send Push Notification
+export const sendPushNotification = functions.https.onCall(async (data, context) => {
+  debugLog('sendPushNotification', 'Function called', { userId: context.auth?.uid, data });
+  
+  // Verify authentication
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const { userId, type, title, body, notificationData } = data;
+
+  // Validate input
+  if (!userId || !type || !title || !body) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required notification data');
+  }
+
+  try {
+    // Get user document to check push token and preferences
+    const userDoc = await db.collection('users').doc(userId).get();
+    
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'User not found');
+    }
+
+    const userData = userDoc.data()!;
+    const pushToken = userData.pushToken;
+    const preferences = userData.notificationPreferences;
+
+    // Check if notifications are enabled for this user
+    if (!preferences?.enabled) {
+      debugLog('sendPushNotification', 'Notifications disabled for user', { userId });
+      return { success: false, reason: 'notifications_disabled' };
+    }
+
+    // Check specific notification type preferences
+    const typeEnabled = checkNotificationTypeEnabled(type, preferences);
+    if (!typeEnabled) {
+      debugLog('sendPushNotification', 'Notification type disabled for user', { userId, type });
+      return { success: false, reason: 'notification_type_disabled' };
+    }
+
+    // Validate push token
+    if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
+      debugLog('sendPushNotification', 'Invalid or missing push token', { userId, pushToken });
+      return { success: false, reason: 'invalid_push_token' };
+    }
+
+    // Create the notification message
+    const message = {
+      to: pushToken,
+      sound: 'default' as const,
+      title,
+      body,
+      data: {
+        type,
+        userId,
+        ...notificationData
+      },
+      priority: (type === 'care_request' || type === 'support_received' ? 'high' : 'default') as 'high' | 'default'
+    };
+
+    debugLog('sendPushNotification', 'Sending notification', { message });
+
+    // Send the notification
+    const chunks = expo.chunkPushNotifications([message]);
+    const tickets = [];
+
+    for (const chunk of chunks) {
+      try {
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        tickets.push(...ticketChunk);
+      } catch (error) {
+        debugLog('sendPushNotification', 'Error sending notification chunk', error);
+      }
+    }
+
+    // Check for errors in tickets
+    const hasErrors = tickets.some(ticket => ticket.status === 'error');
+    
+    if (hasErrors) {
+      debugLog('sendPushNotification', 'Some notifications failed', { tickets });
+    } else {
+      debugLog('sendPushNotification', 'All notifications sent successfully', { ticketCount: tickets.length });
+    }
+
+    // Store notification in history
+    await db.collection('notification_history').add({
+      userId,
+      type,
+      title,
+      body,
+      data: notificationData,
+      pushToken,
+      tickets,
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      success: !hasErrors
+    });
+
+    return {
+      success: !hasErrors,
+      tickets,
+      ticketCount: tickets.length
+    };
+
+  } catch (error: any) {
+    debugLog('sendPushNotification', 'Error sending notification', error);
+    
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    
+    throw new functions.https.HttpsError('internal', `Failed to send notification: ${error.message}`);
+  }
+});
+
+// Helper function to check notification type preferences
+function checkNotificationTypeEnabled(type: string, preferences: any): boolean {
+  if (!preferences) return true;
+  
+  switch (type) {
+    case 'support_received':
+      return preferences.supportMessages !== false;
+    case 'payment_received':
+    case 'payment_status':
+      return preferences.paymentUpdates !== false;
+    case 'wellness_reminder':
+      return preferences.wellnessReminders !== false;
+    case 'care_request':
+      return preferences.careRequests !== false;
+    case 'weekly_report':
+      return preferences.weeklyReports !== false;
+    default:
+      return true;
+  }
+}

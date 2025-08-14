@@ -5,6 +5,7 @@ import {
   WellnessEntry as FirebaseWellnessEntry,
   getCurrentUser 
 } from '../lib/firebase';
+import { cache, CACHE_CONFIGS } from '../utils/universalCache';
 
 export interface WellnessEntry {
   id: string;
@@ -119,6 +120,45 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       // Calculate and update stats after setting entries
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
+      
+      // Send wellness log notification to parents
+      try {
+        const { getCurrentUser, getUserProfile, getFamilyMembers } = await import('../lib/firebase');
+        const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+        
+        const user = getCurrentUser();
+        if (!user) return;
+        
+        const userProfile = await getUserProfile(user.uid);
+        if (!userProfile || !userProfile.family_id || userProfile.user_type !== 'student') return;
+        
+        // Get family members to notify parents
+        const { parents } = await getFamilyMembers(userProfile.family_id);
+        const studentName = userProfile.full_name;
+        
+        // Only send notification for significant wellness changes (good or concerning)
+        const shouldNotify = wellnessScore >= 8 || wellnessScore <= 4;
+        
+        if (shouldNotify) {
+          for (const parent of parents) {
+            if (parent.pushToken) {
+              const notification = {
+                ...NotificationTemplates.weeklyReport(studentName, wellnessScore),
+                userId: parent.id,
+                title: wellnessScore >= 8 ? 
+                  `✨ ${studentName} had a great day!` : 
+                  `💙 ${studentName} may need support`,
+                body: `Wellness score: ${wellnessScore}/10 - Check their latest log`
+              };
+              
+              console.log('📱 Sending wellness notification to parent:', parent.id);
+              await pushNotificationService.sendPushNotification(notification);
+            }
+          }
+        }
+      } catch (notifError) {
+        console.error('📱 Failed to send wellness log notification:', notifError);
+      }
     } catch (error) {
       console.error('Failed to add wellness entry:', error);
     }
@@ -236,41 +276,57 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     if (!user) return;
 
     try {
-      const firebaseEntries = await getWellnessEntries(user.uid);
-      
-      // Convert Firebase entries to local format
-      const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
-        id: entry.id || '',
-        date: entry.created_at.toDate().toISOString().split('T')[0],
-        mood: entry.mood,
-        sleep: entry.sleep_hours,
-        exercise: entry.exercise_minutes,
-        nutrition: 5, // Default value since not in Firebase
-        water: 4, // Default value since not in Firebase
-        social: 5, // Default value since not in Firebase
-        academic: entry.stress_level,
-        notes: entry.notes,
-        wellnessScore: calculateWellnessScore({
-          date: entry.created_at.toDate().toISOString().split('T')[0],
-          mood: entry.mood,
-          sleep: entry.sleep_hours,
-          exercise: entry.exercise_minutes,
-          nutrition: 5,
-          water: 4,
-          social: 5,
-          academic: entry.stress_level,
-          notes: entry.notes,
-        }),
-      }));
+      // Use smart caching for wellness data
+      const wellnessData = await cache.getOrFetch(
+        CACHE_CONFIGS.WELLNESS_DATA,
+        async () => {
+          console.log('🔄 Loading fresh wellness entries...');
+          const firebaseEntries = await getWellnessEntries(user.uid);
+          
+          // Convert Firebase entries to local format
+          const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
+            id: entry.id || '',
+            date: entry.created_at.toDate().toISOString().split('T')[0],
+            mood: entry.mood,
+            sleep: entry.sleep_hours,
+            exercise: entry.exercise_minutes,
+            nutrition: 5, // Default value since not in Firebase
+            water: 4, // Default value since not in Firebase
+            social: 5, // Default value since not in Firebase
+            academic: entry.stress_level,
+            notes: entry.notes,
+            wellnessScore: calculateWellnessScore({
+              date: entry.created_at.toDate().toISOString().split('T')[0],
+              mood: entry.mood,
+              sleep: entry.sleep_hours,
+              exercise: entry.exercise_minutes,
+              nutrition: 5,
+              water: 4,
+              social: 5,
+              academic: entry.stress_level,
+              notes: entry.notes,
+            }),
+          }));
 
-      const today = new Date().toISOString().split('T')[0];
-      const todayEntry = entries.find(entry => entry.date === today) || null;
-      
-      set({ entries, todayEntry });
+          const today = new Date().toISOString().split('T')[0];
+          const todayEntry = entries.find(entry => entry.date === today) || null;
+          
+          return { entries, todayEntry };
+        },
+        user.uid
+      );
+
+      // Set the data from cache or fresh fetch
+      set({ entries: wellnessData.entries, todayEntry: wellnessData.todayEntry });
       
       // Calculate and update stats
       const stats = get().calculateStats();
       set({ stats });
+      
+      console.log('📦 Loaded wellness data', { 
+        entriesCount: wellnessData.entries.length, 
+        hasTodayEntry: !!wellnessData.todayEntry 
+      });
     } catch (error) {
       console.error('Failed to load wellness entries:', error);
     }

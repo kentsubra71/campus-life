@@ -10,12 +10,20 @@ import {
   Linking
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
-import { createPaymentIntent, getCurrentSpendingCaps, SUBSCRIPTION_TIERS } from '../../lib/payments';
+import { createPaymentIntent, getCurrentSpendingCaps, SUBSCRIPTION_TIERS, getPaymentProviders } from '../../lib/payments';
 import { 
   createPayPalP2POrder, 
-  testPayPalConnection, 
-  formatPaymentAmount 
+  testPayPalConnection 
 } from '../../lib/paypalP2P';
+import { 
+  validatePaymentInput,
+  validatePaymentAmount,
+  sanitizePaymentNote,
+  formatPaymentAmount,
+  checkPaymentRateLimit
+} from '../../utils/paymentValidation';
+import { getUserFriendlyError, logError } from '../../utils/userFriendlyErrors';
+import { getTimeoutDuration } from '../../utils/paymentTimeout';
 
 interface SendPaymentScreenProps {
   navigation: any;
@@ -33,12 +41,14 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
   const selectedStudentName = route?.params?.selectedStudentName;
   
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
+  const [providers, setProviders] = useState<any[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<'paypal' | 'venmo' | 'cashapp' | 'zelle' | null>(null);
   const [amount, setAmount] = useState('10.00');
   const [note, setNote] = useState('');
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [spendingInfo, setSpendingInfo] = useState<any>(null);
+  const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -46,10 +56,15 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
 
   const loadData = async () => {
     try {
-      const members = await getFamilyMembers();
-      setFamilyMembers(members);
+      const [members, providersConfig, caps] = await Promise.all([
+        getFamilyMembers(),
+        getPaymentProviders(),
+        getCurrentSpendingCaps()
+      ]);
       
-      const caps = await getCurrentSpendingCaps();
+      setFamilyMembers(members);
+      setProviders(providersConfig);
+      
       console.log('Spending caps result:', caps);
       if (caps.success) {
         setSpendingInfo(caps);
@@ -72,51 +87,45 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
   const targetStudentId = selectedStudentId || familyMembers.students[0]?.id;
   const amountCents = Math.round(parseFloat(amount || '0') * 100);
 
-  const providers = [
-    {
-      id: 'paypal' as const,
-      name: 'PayPal',
-      emoji: '💙',
-      description: 'Best experience. Returns to CampusLife.',
-      available: true
-    },
-    {
-      id: 'venmo' as const,
-      name: 'Venmo',
-      emoji: '💙',
-      description: 'Opens app; confirm after.',
-      available: true
-    },
-    {
-      id: 'cashapp' as const,
-      name: 'Cash App',
-      emoji: '💚',
-      description: 'Opens app; confirm after.',
-      available: true
-    },
-    {
-      id: 'zelle' as const,
-      name: 'Zelle',
-      emoji: '⚡',
-      description: 'Opens your bank/Zelle; manual confirm.',
-      available: true
-    }
-  ];
 
   const handleSendPayment = async () => {
-    if (!selectedProvider) {
-      Alert.alert('Error', 'Please select a payment provider');
+    // Comprehensive input validation
+    const validationResult = validatePaymentInput({
+      amount,
+      provider: selectedProvider,
+      note: sanitizePaymentNote(note),
+      studentId: targetStudentId || ''
+    });
+
+    if (!validationResult.isValid) {
+      Alert.alert('Validation Error', validationResult.errors.join('\n'));
       return;
     }
 
-    if (!targetStudentId) {
-      Alert.alert('Error', 'No student selected');
-      return;
+    // Show warnings if any
+    if (validationResult.warnings.length > 0) {
+      const continuePayment = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          'Payment Warning',
+          validationResult.warnings.join('\n') + '\n\nDo you want to continue?',
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Continue', onPress: () => resolve(true) }
+          ]
+        );
+      });
+      
+      if (!continuePayment) return;
     }
 
-    if (amountCents < 100) {
-      Alert.alert('Error', 'Minimum amount is $1.00');
-      return;
+    // Rate limiting check
+    const { user } = useAuthStore.getState();
+    if (user) {
+      const rateLimitResult = await checkPaymentRateLimit(user.id, amountCents);
+      if (!rateLimitResult.allowed) {
+        Alert.alert('Payment Limit Reached', rateLimitResult.reason || 'Please try again later');
+        return;
+      }
     }
 
     // TESTING BYPASS: Skip limit checks for development
@@ -162,6 +171,11 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
         console.log('🔍 [SendPayment] PayPal P2P result:', result);
 
         if (result.success && result.approvalUrl) {
+          // Store the payment ID for potential cancellation
+          if (result.paymentId) {
+            setCurrentPaymentId(result.paymentId);
+          }
+          
           // Open PayPal for payment
           await Linking.openURL(result.approvalUrl);
           
@@ -182,7 +196,9 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
             ]
           );
         } else {
-          Alert.alert('Error', result.error || 'Failed to create PayPal payment');
+          const friendlyError = getUserFriendlyError(result.error || 'PayPal payment creation failed', 'PayPal payment');
+          Alert.alert('Payment Issue', friendlyError);
+          logError(result.error, 'PayPal payment creation', { targetStudentId, amountCents });
         }
       } else {
         // Use legacy system for other providers
@@ -207,14 +223,48 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
             action: 'return'
           });
         } else {
-          Alert.alert('Error', result.error || 'Failed to create payment');
+          const friendlyError = getUserFriendlyError(result.error || 'Payment creation failed', 'payment creation');
+          Alert.alert('Payment Issue', friendlyError);
+          logError(result.error, 'Payment creation', { provider: selectedProvider, targetStudentId, amountCents });
         }
       }
     } catch (error: any) {
-      console.error('🔍 [SendPayment] Error:', error);
-      Alert.alert('Error', error.message || 'Failed to send payment');
+      logError(error, 'Send payment operation', { provider: selectedProvider, targetStudentId, amountCents });
+      const friendlyError = getUserFriendlyError(error, 'payment processing');
+      Alert.alert('Payment Failed', friendlyError);
     } finally {
       setIsLoading(false);
+      setCurrentPaymentId(null);
+    }
+  };
+
+  const cancelPayment = async () => {
+    if (!currentPaymentId) {
+      // Simple cancel - just reset loading state
+      setIsLoading(false);
+      setCurrentPaymentId(null);
+      Alert.alert('Cancelled', 'Payment has been cancelled.');
+      return;
+    }
+
+    try {
+      // Cancel payment in database by marking as cancelled
+      const { doc, updateDoc, Timestamp } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      await updateDoc(doc(db, 'payments', currentPaymentId), {
+        status: 'cancelled',
+        cancelled_at: Timestamp.now(),
+        cancelled_reason: 'User cancelled during processing'
+      });
+      
+      setIsLoading(false);
+      setCurrentPaymentId(null);
+      Alert.alert('Payment Cancelled', 'The payment has been cancelled successfully.');
+      
+    } catch (error) {
+      console.error('Error cancelling payment:', error);
+      Alert.alert('Cancel Failed', 'Unable to cancel payment. Please contact support if needed.');
     }
   };
 
@@ -262,8 +312,16 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
               style={styles.amountInput}
               value={amount}
               onChangeText={(text) => {
-                setAmount(text);
+                const formattedAmount = formatPaymentAmount(text);
+                const validation = validatePaymentAmount(formattedAmount);
+                
+                setAmount(formattedAmount);
                 setSelectedPreset(null);
+                
+                // Could add visual feedback here for invalid amounts
+                if (!validation.isValid && formattedAmount !== '') {
+                  console.warn('Invalid amount:', validation.error);
+                }
               }}
               keyboardType="numeric"
               placeholder="10.00"
@@ -338,18 +396,31 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
 
         {/* Send Button */}
         <View style={styles.section}>
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!selectedProvider || isLoading) && styles.sendButtonDisabled
-            ]}
-            onPress={handleSendPayment}
-            disabled={!selectedProvider || isLoading}
-          >
-            <Text style={styles.sendButtonText}>
-              {isLoading ? 'Processing...' : `Send $${amount} via ${selectedProvider || 'Provider'}`}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                (!selectedProvider || isLoading) && styles.sendButtonDisabled,
+                isLoading && styles.sendButtonProcessing
+              ]}
+              onPress={handleSendPayment}
+              disabled={!selectedProvider || isLoading}
+            >
+              <Text style={styles.sendButtonText}>
+                {isLoading ? 'Processing...' : `Send $${amount} via ${selectedProvider || 'Provider'}`}
+              </Text>
+            </TouchableOpacity>
+            
+            {/* Cancel Button (only show when processing) */}
+            {isLoading && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={cancelPayment}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Disclaimer */}
@@ -361,6 +432,16 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
             • Family allowance between known parties only{'\n'}
             • You'll confirm after completing the transfer
           </Text>
+          
+          {/* Timeout Warning */}
+          {selectedProvider && (
+            <View style={styles.timeoutInfo}>
+              <Text style={styles.timeoutInfoTitle}>⏰ Auto-Timeout</Text>
+              <Text style={styles.timeoutInfoText}>
+                {selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} payments will automatically cancel after {getTimeoutDuration(selectedProvider)} if not completed.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -555,9 +636,31 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: '#4b5563',
   },
+  sendButtonProcessing: {
+    backgroundColor: '#f59e0b',
+  },
   sendButtonText: {
     fontSize: 18,
     fontWeight: '700',
+    color: '#ffffff',
+  },
+  buttonContainer: {
+    gap: 12,
+  },
+  cancelButton: {
+    backgroundColor: '#dc2626',
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#ffffff',
   },
   disclaimerCard: {
@@ -579,5 +682,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9ca3af',
     lineHeight: 18,
+  },
+  timeoutInfo: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  timeoutInfoTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#f59e0b',
+    marginBottom: 6,
+  },
+  timeoutInfoText: {
+    fontSize: 12,
+    color: '#d97706',
+    lineHeight: 16,
   },
 });

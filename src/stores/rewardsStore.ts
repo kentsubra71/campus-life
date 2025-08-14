@@ -171,9 +171,9 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
         const payment = doc.data();
         const paymentDate = payment.created_at.toDate();
         
-        // Filter for current month, confirmed status, and optionally by student
+        // Filter for current month, confirmed/completed status, and optionally by student
         const isCurrentMonth = paymentDate >= startOfMonth;
-        const isConfirmed = payment.status === 'confirmed_by_parent' || payment.status === 'confirmed';
+        const isConfirmed = payment.status === 'confirmed_by_parent' || payment.status === 'confirmed' || payment.status === 'completed';
         const isForStudent = !studentId || payment.student_id === studentId;
         
         if (isCurrentMonth && isConfirmed && isForStudent) {
@@ -181,7 +181,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
         }
       });
       
-      console.log('💰 Monthly confirmed payments total:', monthlyTotal, 'for student:', studentId || 'all');
+      console.log('💰 Monthly confirmed/completed payments total:', monthlyTotal, 'for student:', studentId || 'all');
       set({ monthlyEarned: monthlyTotal });
     } catch (error: any) {
       console.error('Error fetching monthly payments:', error);

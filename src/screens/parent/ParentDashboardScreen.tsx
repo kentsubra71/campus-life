@@ -553,28 +553,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </View>
           )}
         </View>
-        {/* Wellness */}
-        <View style={styles.wellnessSection}>
-          <Text style={styles.sectionHeader}>Wellness Check-in</Text>
-          <TouchableOpacity 
-            style={styles.wellnessContainer}
-            onPress={() => navigation.navigate('ChildWellness', { 
-              selectedStudentId: currentStudent?.id,
-              selectedStudentName: studentName 
-            })}
-          >
-            {stats.totalEntries === 0 ? (
-              <Text style={styles.wellnessText}>
-                {studentName.split(' ')[0]} hasn't started tracking wellness yet
-              </Text>
-            ) : (
-              <Text style={styles.wellnessText}>
-                {studentName.split(' ')[0]} has a {stats.currentStreak} day streak with a {stats.averageScore}/10 average
-              </Text>
-            )}
-            <Text style={styles.tapHint}>→</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
     </View>
   );

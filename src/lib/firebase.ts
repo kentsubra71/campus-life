@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, User } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, Timestamp, limit } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -16,6 +17,7 @@ const app = initializeApp(firebaseConfig);
 export { app };
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const functions = getFunctions(app);
 
 // Types
 export interface UserProfile {
@@ -32,6 +34,21 @@ export interface UserProfile {
   paypal_id?: string;
   zelle_email?: string;
   zelle_phone?: string;
+  // Push notification fields
+  pushToken?: string;
+  pushTokenUpdatedAt?: Timestamp;
+  deviceInfo?: {
+    platform: string;
+    deviceId: string;
+  };
+  notificationPreferences?: {
+    enabled: boolean;
+    supportMessages: boolean;
+    paymentUpdates: boolean;
+    wellnessReminders: boolean;
+    careRequests: boolean;
+    weeklyReports: boolean;
+  };
   created_at: Timestamp;
   updated_at: Timestamp;
 }
@@ -549,6 +566,33 @@ export const sendMessage = async (messageData: Omit<Message, 'id' | 'created_at'
     
     const docRef = await addDoc(collection(db, 'messages'), message);
     console.log('✅ Message sent successfully:', docRef.id);
+    
+    // Send push notification to recipient
+    try {
+      const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+      
+      // Get sender's profile to get their name
+      const senderProfile = await getUserProfile(messageData.from_user_id);
+      const senderName = senderProfile?.full_name || 'Someone';
+      
+      // Check if recipient has push notifications enabled
+      const recipientProfile = await getUserProfile(messageData.to_user_id);
+      if (recipientProfile?.pushToken) {
+        const notification = {
+          ...NotificationTemplates.supportReceived(senderName, messageData.content),
+          userId: messageData.to_user_id
+        };
+        
+        console.log('📱 Sending support message notification to:', messageData.to_user_id);
+        await pushNotificationService.sendPushNotification(notification);
+      } else {
+        console.log('📱 No push token for recipient:', messageData.to_user_id);
+      }
+    } catch (notifError) {
+      console.error('📱 Failed to send push notification for message:', notifError);
+      // Don't fail the message sending if push notification fails
+    }
+    
     return { success: true, messageId: docRef.id };
   } catch (error: any) {
     console.error('❌ Error sending message:', error);

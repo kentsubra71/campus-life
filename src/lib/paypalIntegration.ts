@@ -306,6 +306,54 @@ export const verifyPayPalPayment = async (
       verification_method: 'paypal_api'
     });
     
+    // Send push notification to student about payment received
+    try {
+      const { getUserProfile } = await import('./firebase');
+      const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+      
+      // Get payment details to find student and amount
+      const { doc: firestoreDoc, getDoc } = await import('firebase/firestore');
+      const paymentDoc = await getDoc(firestoreDoc(db, 'payments', paymentId));
+      
+      if (paymentDoc.exists()) {
+        const paymentData = paymentDoc.data();
+        const studentId = paymentData.student_id;
+        const parentId = paymentData.parent_id;
+        const amount = `$${(paymentData.intent_cents / 100).toFixed(2)}`;
+        
+        // Get parent name for notification
+        const parentProfile = await getUserProfile(parentId);
+        const parentName = parentProfile?.full_name || 'Your parent';
+        
+        // Send notification to student
+        const studentProfile = await getUserProfile(studentId);
+        if (studentProfile?.pushToken) {
+          const notification = {
+            ...NotificationTemplates.paymentReceived(amount, parentName),
+            userId: studentId
+          };
+          
+          console.log('📱 Sending payment received notification to student:', studentId);
+          await pushNotificationService.sendPushNotification(notification);
+        }
+        
+        // Send payment status notification to parent
+        const parentProfile2 = await getUserProfile(parentId);
+        if (parentProfile2?.pushToken) {
+          const statusNotification = {
+            ...NotificationTemplates.paymentStatus('completed', amount),
+            userId: parentId
+          };
+          
+          console.log('📱 Sending payment status notification to parent:', parentId);
+          await pushNotificationService.sendPushNotification(statusNotification);
+        }
+      }
+    } catch (notifError) {
+      console.error('📱 Failed to send payment notification:', notifError);
+      // Don't fail the payment verification if push notification fails
+    }
+    
     return { success: true };
     
   } catch (error: any) {

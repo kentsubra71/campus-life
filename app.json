@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.campuslife.app",
+      "bundleIdentifier": "com.vero.campuslife",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "venmo",
@@ -30,7 +30,8 @@
         "backgroundColor": "#111827"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.campuslife.app",
+      "package": "com.vero.campuslife",
+      "versionCode": 1,
       "intentFilters": [
         {
           "action": "VIEW",

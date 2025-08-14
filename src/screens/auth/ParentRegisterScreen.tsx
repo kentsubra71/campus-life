@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '../../stores/authStore';
+import { theme } from '../../styles/theme';
 
 interface ParentRegisterScreenProps {
   navigation: any;
@@ -74,7 +75,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
       await Clipboard.setStringAsync(result.inviteCode!);
       
       Alert.alert(
-        'Family Created! 🎉',
+        'Family Created!',
         `Welcome to CampusLife! Your family invite code is:\n\n${result.inviteCode}\n\nThis code has been copied to your clipboard. Share it with your college student so they can join your family account.`,
         [
           { 
@@ -107,7 +108,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           <TextInput
             style={[styles.input, errors.name ? styles.inputError : null]}
             placeholder="Enter your full name"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.name}
             onChangeText={(text) => setFormData({...formData, name: text})}
             autoCapitalize="words"
@@ -120,7 +121,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           <TextInput
             style={[styles.input, errors.email ? styles.inputError : null]}
             placeholder="your@email.com"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.email}
             onChangeText={(text) => setFormData({...formData, email: text})}
             keyboardType="email-address"
@@ -134,7 +135,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           <TextInput
             style={[styles.input, errors.familyName ? styles.inputError : null]}
             placeholder="The Johnson Family"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.familyName}
             onChangeText={(text) => setFormData({...formData, familyName: text})}
             autoCapitalize="words"
@@ -148,7 +149,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           <TextInput
             style={[styles.input, errors.password ? styles.inputError : null]}
             placeholder="Create a secure password"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.password}
             onChangeText={(text) => setFormData({...formData, password: text})}
             secureTextEntry
@@ -161,7 +162,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           <TextInput
             style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
             placeholder="Confirm your password"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={theme.colors.textSecondary}
             value={formData.confirmPassword}
             onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
             secureTextEntry
@@ -205,7 +206,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   content: {
     padding: 24,
@@ -216,20 +217,20 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
     marginBottom: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
   },
   form: {
     gap: 20,
@@ -241,35 +242,37 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   input: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 16,
     fontSize: 16,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
+    ...theme.shadows.small,
   },
   inputError: {
-    borderColor: '#dc2626',
+    borderColor: theme.colors.error,
   },
   errorText: {
     fontSize: 12,
-    color: '#dc2626',
+    color: theme.colors.error,
     marginTop: 4,
   },
   helpText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   infoCard: {
-    backgroundColor: '#1e40af',
+    backgroundColor: theme.colors.primary,
     padding: 20,
     borderRadius: 12,
     marginBottom: 24,
+    ...theme.shadows.small,
   },
   infoTitle: {
     fontSize: 16,
@@ -279,23 +282,21 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#dbeafe',
+    color: '#ffffff',
     lineHeight: 20,
+    opacity: 0.9,
   },
   registerButton: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primaryDark,
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    ...theme.shadows.medium,
   },
   registerButtonDisabled: {
-    backgroundColor: '#4b5563',
+    backgroundColor: theme.colors.textSecondary,
+    opacity: 0.6,
   },
   registerButtonText: {
     fontSize: 18,
@@ -308,7 +309,7 @@ const styles = StyleSheet.create({
   },
   loginLinkText: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
 });

@@ -26,65 +26,66 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Modern Header */}
         <View style={styles.header}>
           <Text style={styles.title}>CampusLife</Text>
           <Text style={styles.subtitle}>Connect • Care • Thrive</Text>
         </View>
 
-        {/* Role Selection */}
-        <View style={styles.roleSelection}>
+        {/* Get Started Section */}
+        <View style={styles.getStartedSection}>
           <Text style={styles.sectionTitle}>Get Started</Text>
           
-          {/* Parent Card */}
+          {/* Parent Action */}
           <TouchableOpacity 
-            style={[styles.roleCard, styles.parentCard]}
+            style={styles.actionItem}
             onPress={() => navigation.navigate('ParentRegister')}
           >
-            <View style={styles.cardHeader}>
-              <View style={styles.iconContainer}>
-                <Text style={styles.cardIcon}>👨‍👩‍👧‍👦</Text>
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Parent</Text>
-                <Text style={styles.cardSubtitle}>Create family account</Text>
-              </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Parent</Text>
+              <Text style={styles.actionSubtitle}>Create family account</Text>
             </View>
+            <Text style={styles.actionArrow}>›</Text>
           </TouchableOpacity>
-
-          {/* Student Card */}
+          
+          {/* Student Action */}
           <TouchableOpacity 
-            style={[styles.roleCard, styles.studentCard]}
+            style={styles.actionItem}
             onPress={() => navigation.navigate('StudentRegister')}
           >
-            <View style={styles.cardHeader}>
-              <View style={styles.iconContainer}>
-                <Text style={styles.cardIcon}>🎓</Text>
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Student</Text>
-                <Text style={styles.cardSubtitle}>Join with invite code</Text>
-              </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Student</Text>
+              <Text style={styles.actionSubtitle}>Join with invite code</Text>
             </View>
+            <Text style={styles.actionArrow}>›</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Features */}
-        <View style={styles.features}>
+        {/* Features Section */}
+        <View style={styles.featuresSection}>
           <Text style={styles.featuresTitle}>What makes us different</Text>
-          <View style={styles.featuresList}>
-            <Text style={styles.feature}>🌟 Wellness tracking & support</Text>
-            <Text style={styles.feature}>💬 Meaningful family connection</Text>
-            <Text style={styles.feature}>🎯 Care beyond transactions</Text>
+          <View style={styles.featuresContainer}>
+            <View style={styles.featureItem}>
+              <View style={styles.featureBullet} />
+              <Text style={styles.feature}>Wellness tracking & support</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <View style={styles.featureBullet} />
+              <Text style={styles.feature}>Meaningful family connection</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <View style={styles.featureBullet} />
+              <Text style={styles.feature}>Care beyond transactions</Text>
+            </View>
           </View>
         </View>
 
         {/* Login Link */}
         <TouchableOpacity 
-          style={styles.loginButton}
+          style={styles.loginAction}
           onPress={() => navigation.navigate('Login')}
         >
-          <Text style={styles.loginButtonText}>Already have an account? Sign in</Text>
+          <Text style={styles.loginActionText}>Already have an account? Sign in</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -101,17 +102,23 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    padding: theme.spacing.xxl,
-    paddingTop: theme.spacing.massive,
-    paddingBottom: theme.spacing.xxxl,
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
+  
+  // Modern Header
   header: {
     alignItems: 'center',
-    marginBottom: theme.spacing.huge,
+    paddingVertical: 40,
+    marginBottom: 20,
   },
   title: {
-    ...theme.typography.titleLarge,
-    marginBottom: theme.spacing.sm,
+    fontSize: 32,
+    fontWeight: '900',
+    color: theme.colors.textPrimary,
+    letterSpacing: -1,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
@@ -119,69 +126,89 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 1,
   },
-  roleSelection: {
-    marginBottom: theme.spacing.xxxl,
+  
+  // Get Started Section
+  getStartedSection: {
+    marginBottom: 32,
   },
   sectionTitle: {
-    ...theme.typography.subtitleLarge,
-    marginBottom: theme.spacing.xl,
-    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 16,
   },
-  roleCard: {
-    ...commonStyles.cardElevated,
-    marginBottom: theme.spacing.lg,
-  },
-  parentCard: {
-    ...commonStyles.parentCard,
-  },
-  studentCard: {
-    ...commonStyles.studentCard,
-  },
-  cardHeader: {
+  
+  // Action Items - Both Parent and Student (Equal treatment)
+  actionItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  iconContainer: {
-    ...commonStyles.iconContainer,
-  },
-  cardIcon: {
-    fontSize: 28,
-  },
-  cardContent: {
+  actionContent: {
     flex: 1,
   },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: '800',
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.xs,
+    marginBottom: 1,
   },
-  cardSubtitle: {
-    fontSize: 14,
-    color: theme.colors.textMuted,
-    fontWeight: '500',
+  actionSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
   },
-  features: {
-    ...commonStyles.featureCard,
-    marginBottom: theme.spacing.xxl,
+  actionArrow: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
+  },
+  
+  // Features Section (With subtle outline container)
+  featuresSection: {
+    marginBottom: 24,
   },
   featuresTitle: {
-    ...theme.typography.bodyLarge,
-    marginBottom: theme.spacing.md,
-    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 16,
   },
-  featuresList: {
-    gap: theme.spacing.sm,
+  featuresContainer: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  featureBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
   },
   feature: {
-    ...theme.typography.bodySmall,
-    color: theme.colors.textTertiary,
-    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
   },
-  loginButton: {
-    ...commonStyles.linkButton,
+  
+  // Login Action
+  loginAction: {
+    alignItems: 'center',
+    paddingVertical: 16,
   },
-  loginButtonText: {
-    ...commonStyles.linkButtonText,
+  loginActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
 });

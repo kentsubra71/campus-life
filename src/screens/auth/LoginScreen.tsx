@@ -134,12 +134,17 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.huge + theme.spacing.sm,
   },
   title: {
-    ...theme.typography.titleLarge,
+    fontSize: 32,
+    fontWeight: '900',
+    color: theme.colors.textPrimary,
+    letterSpacing: -1,
     textAlign: 'center',
     marginBottom: theme.spacing.md,
   },
   subtitle: {
-    ...theme.typography.subtitleMedium,
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -168,8 +173,10 @@ const styles = StyleSheet.create({
     ...commonStyles.linkButton,
   },
   linkText: {
-    ...theme.typography.bodyMedium,
+    fontSize: 16,
+    fontWeight: '500',
     color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
   linkTextBold: {
     fontWeight: '600',

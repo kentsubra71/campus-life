@@ -8,6 +8,7 @@ import {
   getMessagesForUser,
   getMessagesSentByUser 
 } from '../lib/firebase';
+import { cache, CACHE_CONFIGS } from '../utils/universalCache';
 
 interface SupportMessage {
   id: string;
@@ -52,8 +53,10 @@ interface ConnectionState {
   mood: 'great' | 'good' | 'okay' | 'struggling' | null;
   lastMoodCheck: Date | null;
   lastSupportRequest: Date | null;
+  lastMessagesFetch: Date | null;
+  lastRewardsFetch: Date | null;
   fetchActiveRewards: () => Promise<void>;
-  fetchSupportMessages: () => Promise<void>;
+  fetchSupportMessages: (forceRefresh?: boolean) => Promise<void>;
   fetchMonthlyPayments: (studentId?: string) => Promise<void>;
   claimReward: (id: string) => Promise<void>;
   addExperience: (amount: number) => void;
@@ -76,6 +79,8 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
   mood: null,
   lastMoodCheck: null,
   lastSupportRequest: null,
+  lastMessagesFetch: null,
+  lastRewardsFetch: null,
   
   fetchActiveRewards: async () => {
     const user = getCurrentUser();
@@ -98,12 +103,26 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     }
   },
   
-  fetchSupportMessages: async () => {
+  fetchSupportMessages: async (forceRefresh = false) => {
     const user = getCurrentUser();
     if (!user) return;
 
     try {
-      console.log('🔍 Fetching messages for user:', user.uid);
+      // Use caching for message threads (shorter cache for real-time feel)
+      const messagesData = forceRefresh ? 
+        null : 
+        await cache.get(CACHE_CONFIGS.MESSAGE_THREADS, user.uid);
+
+      if (messagesData && !forceRefresh) {
+        console.log('📦 Using cached support messages');
+        set({ 
+          supportMessages: messagesData.supportMessages,
+          lastMessagesFetch: new Date(messagesData.lastFetch)
+        });
+        return;
+      }
+
+      console.log('🔍 Fetching fresh messages for user:', user.uid, forceRefresh ? '(forced)' : '');
       
       // Get user profile to determine if parent or student
       const { getUserProfile } = await import('../lib/firebase');
@@ -125,20 +144,36 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       // Convert Firebase messages to our SupportMessage format
       const supportMessages = firebaseMessages.map(msg => ({
         id: msg.id,
-        type: msg.message_type,
+        type: msg.message_type || 'message',
         content: msg.content,
         from: msg.from_user_id,
         to: msg.to_user_id,
         familyId: msg.family_id,
         timestamp: msg.created_at.toDate(),
-        read: msg.read
+        read: msg.read || false
       }));
       
-      console.log('📧 Converted messages:', supportMessages);
-      set({ supportMessages });
+      // Sort by timestamp (newest first)
+      supportMessages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      
+      // Cache the results
+      const cacheData = {
+        supportMessages,
+        lastFetch: new Date().toISOString()
+      };
+      await cache.set(CACHE_CONFIGS.MESSAGE_THREADS, cacheData, user.uid);
+      
+      console.log('📧 Converted, sorted, and cached messages:', supportMessages.length);
+      set({ 
+        supportMessages,
+        lastMessagesFetch: new Date()
+      });
     } catch (error: any) {
       console.error('Error fetching support messages:', error);
-      set({ supportMessages: [] });
+      // Don't clear existing messages on error unless forced
+      if (forceRefresh) {
+        set({ supportMessages: [] });
+      }
     }
   },
 
@@ -259,7 +294,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     set({ supportMessages: updatedMessages });
   },
 
-  requestSupport: () => {
+  requestSupport: async () => {
     const current = get();
     const now = new Date();
     
@@ -269,19 +304,70 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       return;
     }
 
-    const newRequest: SupportRequest = {
-      id: Date.now().toString(),
-      timestamp: now,
-      message: 'I could use some extra support right now 💙',
-      from: 'student-1',
-      familyId: 'family-1',
-      acknowledged: false,
-    };
+    const user = getCurrentUser();
+    if (!user) return;
 
-    set({ 
-      supportRequests: [newRequest, ...current.supportRequests],
-      lastSupportRequest: now
-    });
+    try {
+      // Get user profile for family info
+      const { getUserProfile, getFamilyMembers } = await import('../lib/firebase');
+      const userProfile = await getUserProfile(user.uid);
+      if (!userProfile || !userProfile.family_id) return;
+
+      // Create support request in Firebase
+      const { collection, addDoc, Timestamp } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+
+      const supportRequestData = {
+        from_user_id: user.uid,
+        family_id: userProfile.family_id,
+        message: 'I could use some extra support right now 💙',
+        created_at: Timestamp.now(),
+        acknowledged: false,
+        type: 'care_request'
+      };
+
+      const docRef = await addDoc(collection(db, 'support_requests'), supportRequestData);
+      
+      // Create local request for immediate UI update
+      const newRequest: SupportRequest = {
+        id: docRef.id,
+        timestamp: now,
+        message: 'I could use some extra support right now 💙',
+        from: user.uid,
+        familyId: userProfile.family_id,
+        acknowledged: false,
+      };
+
+      set({ 
+        supportRequests: [newRequest, ...current.supportRequests],
+        lastSupportRequest: now
+      });
+
+      // Send push notifications to all parents in the family
+      try {
+        const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+        const { parents } = await getFamilyMembers(userProfile.family_id);
+        
+        const studentName = userProfile.full_name;
+        
+        for (const parent of parents) {
+          if (parent.pushToken) {
+            const notification = {
+              ...NotificationTemplates.careRequest(studentName, 'I could use some extra support right now 💙'),
+              userId: parent.id
+            };
+            
+            console.log('📱 Sending care request notification to parent:', parent.id);
+            await pushNotificationService.sendPushNotification(notification);
+          }
+        }
+      } catch (notifError) {
+        console.error('📱 Failed to send care request notifications:', notifError);
+      }
+
+    } catch (error) {
+      console.error('Failed to create support request:', error);
+    }
   },
 
   acknowledgeSupport: (id: string) => {

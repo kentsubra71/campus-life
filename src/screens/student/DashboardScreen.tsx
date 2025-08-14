@@ -16,6 +16,9 @@ import { handleAsyncError, AppError } from '../../utils/errorHandling';
 import { ReceivedPayments } from '../../components/ReceivedPayments';
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
+import { useDataSync } from '../../hooks/useRefreshOnFocus';
+import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
+import { pushNotificationService, NotificationTemplates } from '../../services/pushNotificationService';
 
 export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMain'>> = ({ navigation }) => {
   const { stats, todayEntry, getEntryByDate } = useWellnessStore();
@@ -51,32 +54,74 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
   }, []);
 
   const loadData = useCallback(async () => {
+    if (!user) return;
+    
     setLoadingErrors([]);
     
-    const results = await Promise.allSettled([
-      handleAsyncError(() => fetchActiveRewards(), 'Loading rewards'),
-      handleAsyncError(() => fetchSupportMessages(), 'Loading messages')
-    ]);
-    
-    const errors: AppError[] = [];
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && result.value.error) {
-        errors.push(result.value.error);
-      } else if (result.status === 'rejected') {
-        errors.push({
-          code: 'UNKNOWN_ERROR',
-          message: 'Failed to load data',
-          context: index === 0 ? 'rewards' : 'messages'
-        });
-      }
-    });
-    
-    if (errors.length > 0) {
-      setLoadingErrors(errors);
-      console.warn('Some data failed to load:', errors);
+    try {
+      // Smart refresh dashboard data with caching
+      await smartRefresh(
+        CACHE_CONFIGS.DASHBOARD_DATA,
+        async () => {
+          console.log('🔄 Loading student dashboard data...');
+          const results = await Promise.allSettled([
+            handleAsyncError(() => fetchActiveRewards(), 'Loading rewards'),
+            handleAsyncError(() => fetchSupportMessages(), 'Loading messages'),
+            handleAsyncError(() => getEntryByDate(new Date().toISOString().split('T')[0]), 'Loading wellness entry')
+          ]);
+          
+          const errors: AppError[] = [];
+          results.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value.error) {
+              errors.push(result.value.error);
+            } else if (result.status === 'rejected') {
+              const contexts = ['rewards', 'messages', 'wellness'];
+              errors.push({
+                code: 'UNKNOWN_ERROR',
+                message: 'Failed to load data',
+                context: contexts[index]
+              });
+            }
+          });
+          
+          if (errors.length > 0) {
+            setLoadingErrors(errors);
+            console.warn('Some data failed to load:', errors);
+          }
+          
+          // Return data for caching
+          return {
+            activeRewards,
+            supportMessages,
+            totalEarned,
+            level,
+            experience,
+            mood,
+            stats,
+            todayEntry,
+            lastUpdated: new Date().toISOString()
+          };
+        },
+        (cachedDashboard) => {
+          console.log('📦 Using cached student dashboard data');
+          // Data is in stores, just show it's cached
+        },
+        (freshDashboard) => {
+          console.log('✅ Updated with fresh student dashboard data');
+        },
+        user.id
+      );
+      
+    } catch (error) {
+      console.error('Error loading student dashboard:', error);
+      setLoadingErrors([{
+        code: 'LOAD_ERROR',
+        message: 'Failed to load dashboard data',
+        context: 'dashboard'
+      }]);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   }, [fetchActiveRewards, fetchSupportMessages]);
 
   const onRefresh = useCallback(async () => {
@@ -84,6 +129,14 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     await loadData();
     setRefreshing(false);
   }, [loadData]);
+
+  // Auto-sync data when screen comes into focus and periodically
+  // Use longer intervals to reduce load
+  useDataSync(loadData, {
+    refreshOnFocus: true,
+    periodicRefresh: true,
+    intervalMs: 60000 // Refresh every 60 seconds (reduced from 30s)
+  });
 
   const getLevelTitle = useMemo(() => (level: number) => {
     if (level <= 5) return 'Freshman';
@@ -123,6 +176,59 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     if (score >= 4) return 'Okay';
     return 'Struggling';
   }, [todayEntry]);
+
+  const sendDebugNotification = async (type: 'local' | 'firebase') => {
+    try {
+      if (type === 'local') {
+        // Send local notification to self (simulating receiving a notification)
+        await pushNotificationService.sendLocalNotification(
+          '🧪 Local Debug Test',
+          'This is a test notification sent locally to your device. Local notifications work in Expo Go!'
+        );
+        Alert.alert('Debug Success', 'Local test notification sent! Check your notification bar.');
+      } else {
+        // Test Firebase push notification setup
+        if (!user) return;
+        
+        Alert.alert(
+          '🚨 Firebase Push Test',
+          'This tests your Firebase/EAS setup:\n\n1. If you get "no project id" - you need EAS setup\n2. If the call succeeds but no notification shows - that\'s normal in Expo Go\n3. In production/development builds, this will work properly',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Try Anyway', 
+              onPress: async () => {
+                try {
+                  const testNotification = NotificationTemplates.careRequest(
+                    user.name || 'Student',
+                    '🧪 Debug: This is a test care request from the dashboard'
+                  );
+                  
+                  const success = await pushNotificationService.sendPushNotification({
+                    ...testNotification,
+                    userId: user.id
+                  });
+                  
+                  Alert.alert(
+                    'Firebase Test Result', 
+                    success 
+                      ? 'Firebase call succeeded! In a development build, you\'d see the notification.' 
+                      : 'Firebase call failed - check console for details. Common issue: notification preferences not set.'
+                  );
+                } catch (error) {
+                  console.error('Firebase debug error:', error);
+                  Alert.alert('Firebase Error', 'Firebase call failed - check console for details');
+                }
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Debug notification error:', error);
+      Alert.alert('Debug Error', `Failed to send test notification: ${error.message}`);
+    }
+  };
 
   if (isLoading) {
     return (

@@ -7,9 +7,9 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { showMessage } from 'react-native-flash-message';
+import { theme } from '../../styles/theme';
 
 interface RewardsScreenProps {
   navigation: any;
@@ -25,6 +25,7 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
     experience,
     fetchActiveRewards,
     fetchSupportMessages,
+    fetchMonthlyPayments,
     claimReward,
     markMessageRead,
   } = useRewardsStore();
@@ -39,6 +40,7 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
   const loadData = async () => {
     await fetchActiveRewards();
     await fetchSupportMessages();
+    await fetchMonthlyPayments(); // This will fetch both monthly and total earnings
   };
 
   const onRefresh = async () => {
@@ -55,8 +57,8 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
           message: 'Monthly Limit Reached',
           description: 'You\'ve reached your $50 monthly limit. Great job!',
           type: 'info',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
+          backgroundColor: theme.colors.backgroundSecondary,
+          color: theme.colors.textPrimary,
         });
         return;
       }
@@ -67,8 +69,8 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
           message: 'Reward Claimed!',
           description: `You earned $${reward.amount}! Keep up the great work.`,
           type: 'success',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
+          backgroundColor: theme.colors.backgroundSecondary,
+          color: theme.colors.textPrimary,
         });
       }
     }
@@ -77,9 +79,9 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
   const renderProgressBar = (progress: number, maxProgress: number) => {
     const percentage = Math.min((progress / maxProgress) * 100, 100);
     return (
-      <View style={styles.progressBarContainer}>
-        <View style={styles.progressBarBackground}>
-          <View style={[styles.progressBarFill, { width: `${percentage}%` }]} />
+      <View style={styles.progressContainer}>
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${percentage}%` }]} />
         </View>
         <Text style={styles.progressText}>{progress}/{maxProgress}</Text>
       </View>
@@ -88,99 +90,108 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
 
   const renderRewardCard = (reward: any) => {
     const isCompleted = reward.progress >= reward.maxProgress;
-    const isExpanded = expandedReward === reward.id;
-
+    
     return (
       <TouchableOpacity
         key={reward.id}
-        style={[
-          styles.rewardCard,
-          isCompleted && styles.completedRewardCard,
-        ]}
-        onPress={() => setExpandedReward(isExpanded ? null : reward.id)}
+        style={styles.rewardItem}
+        onPress={() => isCompleted ? handleClaimReward(reward.id) : null}
         activeOpacity={0.8}
       >
-        <View style={styles.rewardHeader}>
-          <View style={styles.rewardInfo}>
-            <Text style={styles.rewardTitle}>{reward.title}</Text>
-            <Text style={styles.rewardDescription}>{reward.description}</Text>
-          </View>
-          <View style={styles.rewardValue}>
-            <Text style={styles.rewardAmount}>${reward.amount}</Text>
-            <View style={[
-              styles.categoryBadge,
-              { backgroundColor: getCategoryColor(reward.category) }
-            ]}>
-              <Text style={styles.categoryText}>{reward.category.toUpperCase()}</Text>
+        <View style={styles.rewardContent}>
+          <View style={styles.rewardHeader}>
+            <View style={styles.rewardInfo}>
+              <Text style={styles.rewardTitle}>{reward.title}</Text>
+              <View style={styles.rewardMeta}>
+                <View style={[
+                  styles.categoryTag,
+                  { backgroundColor: getCategoryColor(reward.category) }
+                ]}>
+                  <Text style={styles.categoryTagText}>{getCategoryName(reward.category)}</Text>
+                </View>
+                <Text style={styles.rewardAmount}>${reward.amount}</Text>
+              </View>
             </View>
+            {isCompleted && (
+              <View style={styles.statusTag}>
+                <Text style={styles.statusTagText}>Ready</Text>
+              </View>
+            )}
           </View>
+          
+          <Text style={styles.rewardDescription}>{reward.description}</Text>
+          {renderProgressBar(reward.progress, reward.maxProgress)}
         </View>
-
-        {renderProgressBar(reward.progress, reward.maxProgress)}
-
-        {isCompleted && (
-          <TouchableOpacity
-            style={styles.claimButton}
-            onPress={() => handleClaimReward(reward.id)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.claimButtonText}>Claim Reward</Text>
-          </TouchableOpacity>
-        )}
+        
+        <Text style={styles.rewardArrow}>›</Text>
       </TouchableOpacity>
     );
   };
 
+  const getCategoryName = (category: string) => {
+    switch (category) {
+      case 'sleep': return 'Sleep';
+      case 'meals': return 'Nutrition';
+      case 'exercise': return 'Exercise';
+      case 'wellness': return 'Wellness';
+      case 'streak': return 'Streak';
+      case 'social': return 'Social';
+      case 'stress': return 'Stress';
+      default: return 'Other';
+    }
+  };
+
   const getCategoryColor = (category: string) => {
     const colors = {
-      sleep: 'theme.colors.primary',
-      meals: '#10b981',
-      exercise: '#f59e0b',
+      sleep: theme.colors.primary,
+      meals: theme.colors.success,
+      exercise: theme.colors.warning,
       wellness: '#8b5cf6',
-      streak: '#ef4444',
+      streak: theme.colors.error,
+      social: theme.colors.info,
+      stress: '#f97316',
     };
-    return colors[category as keyof typeof colors] || '#6b7280';
+    return colors[category as keyof typeof colors] || theme.colors.textTertiary;
+  };
+
+  const getMessageTypeTag = (type: string) => {
+    const typeMap = {
+      message: { name: 'Message', color: theme.colors.primary },
+      voice: { name: 'Voice', color: theme.colors.success },
+      care_package: { name: 'Package', color: theme.colors.warning },
+      video_call: { name: 'Call', color: theme.colors.info },
+      boost: { name: 'Boost', color: '#8b5cf6' },
+    };
+    return typeMap[type as keyof typeof typeMap] || { name: 'Message', color: theme.colors.primary };
   };
 
   const renderSupportMessage = (message: any) => {
-    const getMessageIcon = (type: string) => {
-      switch (type) {
-        case 'message': return 'M';
-        case 'voice': return 'V';
-        case 'care_package': return 'P';
-        case 'video_call': return 'C';
-        case 'boost': return 'B';
-        default: return 'M';
-      }
-    };
-
+    const messageType = getMessageTypeTag(message.type);
+    
     return (
       <TouchableOpacity
         key={message.id}
-        style={[
-          styles.messageCard,
-          !message.read && styles.unreadMessage
-        ]}
+        style={styles.messageItem}
         onPress={() => !message.read && markMessageRead(message.id)}
         activeOpacity={0.8}
       >
-        <View style={styles.messageHeader}>
-          <View style={[
-            styles.messageIcon,
-            { backgroundColor: !message.read ? 'theme.colors.primary' : '#374151' }
-          ]}>
-            <Text style={styles.messageIconText}>
-              {getMessageIcon(message.type)}
-            </Text>
-          </View>
-          <View style={styles.messageContent}>
-            <Text style={styles.messageText}>{message.content}</Text>
+        <View style={styles.messageContent}>
+          <View style={styles.messageHeaderRow}>
+            <View style={[
+              styles.messageTypeTag,
+              { backgroundColor: messageType.color }
+            ]}>
+              <Text style={styles.messageTypeText}>{messageType.name}</Text>
+            </View>
             <Text style={styles.messageTime}>
-              {message.timestamp.toLocaleDateString()} at {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {message.timestamp.toLocaleDateString()}
             </Text>
           </View>
-          {!message.read && <View style={styles.unreadDot} />}
+          <Text style={styles.messageText}>{message.content}</Text>
         </View>
+        
+        {!message.read && <View style={styles.unreadIndicator} />}
+        <Text style={styles.messageArrow}>›</Text>
       </TouchableOpacity>
     );
   };
@@ -190,52 +201,74 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
   const unreadCount = supportMessages.filter(msg => !msg.read).length;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView 
-        style={styles.content}
+        style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {/* Modern Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Rewards & Family Support</Text>
-          <Text style={styles.subtitle}>Track your progress and stay connected</Text>
+          <Text style={styles.greeting}>Rewards</Text>
+          <Text style={styles.title}>Care Boosts</Text>
+          <Text style={styles.pullHint}>Track progress and family support</Text>
         </View>
 
         {/* Stats Overview */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>${monthlyEarned}</Text>
-            <Text style={styles.statLabel}>This Month</Text>
-            <Text style={styles.statSubtext}>${50 - monthlyEarned} remaining</Text>
-          </View>
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>Earnings</Text>
           
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>${totalEarned}</Text>
-            <Text style={styles.statLabel}>Total Earned</Text>
-            <Text style={styles.statSubtext}>All time</Text>
-          </View>
-          
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>LVL {level}</Text>
-            <Text style={styles.statLabel}>Current Level</Text>
-            <View style={styles.levelProgressContainer}>
-              <View style={styles.levelProgressBar}>
-                <View style={[styles.levelProgressFill, { width: `${experienceProgress}%` }]} />
-              </View>
-              <Text style={styles.levelProgressText}>{nextLevelExp} XP to next level</Text>
+          <View style={styles.statItem}>
+            <View style={styles.statHeader}>
+              <Text style={styles.statLabel}>This Month</Text>
+              <Text style={styles.statValue}>${monthlyEarned}</Text>
             </View>
+            <View style={styles.statTag}>
+              <Text style={styles.statTagText}>${50 - monthlyEarned} remaining</Text>
+            </View>
+          </View>
+          
+          <View style={styles.statItem}>
+            <View style={styles.statHeader}>
+              <Text style={styles.statLabel}>Total Earned</Text>
+              <Text style={styles.statValue}>${totalEarned}</Text>
+            </View>
+            <View style={styles.statTag}>
+              <Text style={styles.statTagText}>all time</Text>
+            </View>
+          </View>
+          
+          <View style={styles.statItem}>
+            <View style={styles.statHeader}>
+              <Text style={styles.statLabel}>Current Level</Text>
+              <Text style={styles.statValue}>Level {level}</Text>
+            </View>
+            <View style={styles.levelProgressBar}>
+              <View style={[styles.levelProgressFill, { width: `${experienceProgress}%` }]} />
+            </View>
+            <Text style={styles.levelProgressText}>
+              {nextLevelExp} XP to Level {level + 1}
+            </Text>
           </View>
         </View>
 
         {/* Active Rewards */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Active Rewards ({activeRewards.length})</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Active Rewards</Text>
+            {activeRewards.length > 0 && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{activeRewards.length}</Text>
+              </View>
+            )}
+          </View>
+          
           {activeRewards.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No active rewards</Text>
-              <Text style={styles.emptyStateSubtext}>Keep tracking your wellness to unlock rewards!</Text>
+            <View style={styles.emptySection}>
+              <Text style={styles.emptyText}>No active rewards</Text>
+              <Text style={styles.emptySubtext}>Keep tracking your wellness to unlock rewards!</Text>
             </View>
           ) : (
             activeRewards.map(renderRewardCard)
@@ -244,298 +277,307 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
 
         {/* Family Support Messages */}
         <View style={styles.section}>
-          <View style={styles.messagesSectionHeader}>
+          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Family Support</Text>
             {unreadCount > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+              <View style={[styles.countBadge, { backgroundColor: theme.colors.error }]}>
+                <Text style={styles.countBadgeText}>{unreadCount}</Text>
               </View>
             )}
           </View>
           
           {supportMessages.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No messages yet</Text>
-              <Text style={styles.emptyStateSubtext}>Your family support will appear here</Text>
+            <View style={styles.emptySection}>
+              <Text style={styles.emptyText}>No messages yet</Text>
+              <Text style={styles.emptySubtext}>Your family support will appear here</Text>
             </View>
           ) : (
             supportMessages.map(renderSupportMessage)
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
-  content: {
+  scrollContainer: {
     flex: 1,
-    padding: 20,
   },
+
+  // Modern Header (like parent dashboard)
   header: {
-    marginBottom: 30,
-    paddingTop: 10,
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  greeting: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#f9fafb',
+    fontSize: 32,
+    fontWeight: '900',
+    color: theme.colors.textPrimary,
+    letterSpacing: -1,
+    marginTop: 4,
+  },
+  pullHint: {
+    fontSize: 14,
+    color: theme.colors.textTertiary,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+
+  // Stats Section - Clean layout with border separators
+  statsSection: {
+    paddingHorizontal: 24,
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
-    lineHeight: 22,
+  statItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  statsContainer: {
+  statHeader: {
     flexDirection: 'row',
-    marginBottom: 30,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'theme.colors.primary',
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#9ca3af',
+    fontSize: 14,
     fontWeight: '500',
-    marginBottom: 2,
+    color: theme.colors.textSecondary,
   },
-  statSubtext: {
-    fontSize: 10,
-    color: '#6b7280',
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
   },
-  levelProgressContainer: {
-    width: '100%',
-    marginTop: 4,
+  statTag: {
+    alignSelf: 'flex-start',
   },
+  statTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: theme.colors.textTertiary,
+  },
+
+  // Level Progress Bar
   levelProgressBar: {
-    height: 4,
-    backgroundColor: '#374151',
-    borderRadius: 2,
-    marginBottom: 4,
+    height: 6,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 3,
+    marginVertical: 8,
   },
   levelProgressFill: {
     height: '100%',
-    backgroundColor: 'theme.colors.primary',
-    borderRadius: 2,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 3,
   },
   levelProgressText: {
-    fontSize: 8,
-    color: '#9ca3af',
-    textAlign: 'center',
+    fontSize: 12,
+    color: theme.colors.textTertiary,
   },
+
+  // Section Styling
   section: {
-    marginBottom: 30,
+    paddingHorizontal: 24,
+    marginBottom: 8,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 16,
-  },
-  rewardCard: {
-    backgroundColor: '#1f2937',
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
+    color: theme.colors.textPrimary,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  completedRewardCard: {
-    borderColor: '#10b981',
-    backgroundColor: '#1f2937',
+  countBadge: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+
+  // Reward Items - Clean list style
+  rewardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  rewardContent: {
+    flex: 1,
   },
   rewardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   rewardInfo: {
     flex: 1,
     marginRight: 12,
   },
   rewardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#f9fafb',
-    marginBottom: 4,
-  },
-  rewardDescription: {
-    fontSize: 14,
-    color: '#9ca3af',
-    lineHeight: 18,
-  },
-  rewardValue: {
-    alignItems: 'flex-end',
-  },
-  rewardAmount: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#10b981',
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
-  categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: 'white',
-  },
-  progressBarContainer: {
+  rewardMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: 8,
   },
-  progressBarBackground: {
+  categoryTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  categoryTagText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+  },
+  rewardAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.success,
+  },
+  statusTag: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  rewardDescription: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  progressContainer: {
+    gap: 4,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 2,
     flex: 1,
-    height: 8,
-    backgroundColor: '#374151',
-    borderRadius: 4,
-    marginRight: 12,
   },
-  progressBarFill: {
+  progressFill: {
     height: '100%',
-    backgroundColor: 'theme.colors.primary',
-    borderRadius: 4,
+    backgroundColor: theme.colors.success,
+    borderRadius: 2,
   },
   progressText: {
     fontSize: 12,
-    color: '#9ca3af',
-    fontWeight: '600',
-    minWidth: 40,
+    color: theme.colors.textTertiary,
+    alignSelf: 'flex-end',
   },
-  claimButton: {
-    backgroundColor: '#10b981',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+  rewardArrow: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
   },
-  claimButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  messagesSectionHeader: {
+
+  // Message Items
+  messageItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  unreadBadge: {
-    backgroundColor: '#ef4444',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  unreadBadgeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  messageCard: {
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  unreadMessage: {
-    borderColor: 'theme.colors.primary',
-  },
-  messageHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  messageIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  messageIconText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   messageContent: {
     flex: 1,
   },
-  messageText: {
-    fontSize: 14,
-    color: '#f9fafb',
-    fontWeight: '500',
+  messageHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
-    lineHeight: 18,
+  },
+  messageTypeTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  messageTypeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
   },
   messageTime: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textTertiary,
   },
-  unreadDot: {
+  messageText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    lineHeight: 20,
+  },
+  unreadIndicator: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'theme.colors.primary',
-    marginLeft: 8,
+    backgroundColor: theme.colors.primary,
+    marginRight: 8,
   },
-  emptyState: {
+  messageArrow: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
+  },
+
+  // Empty States
+  emptySection: {
+    paddingVertical: 24,
     alignItems: 'center',
-    padding: 32,
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#374151',
   },
-  emptyStateText: {
+  emptyText: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '600',
     marginBottom: 4,
   },
-  emptyStateSubtext: {
+  emptySubtext: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme.colors.textTertiary,
     textAlign: 'center',
   },
 }); 

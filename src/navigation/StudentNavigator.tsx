@@ -28,10 +28,11 @@ export const StudentNavigator = () => {
     <Tab.Navigator
       screenOptions={{
         tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textSecondary,
+        tabBarInactiveTintColor: theme.colors.textTertiary,
         tabBarStyle: {
-          backgroundColor: '#1f2937',
-          borderTopColor: '#374151',
+          backgroundColor: theme.colors.backgroundSecondary,
+          borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
         },
         headerShown: false,
       }}

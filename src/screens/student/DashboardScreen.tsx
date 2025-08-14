@@ -98,54 +98,31 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
       case 'sleep': return 'Sleep';
       case 'meals': return 'Nutrition';
       case 'exercise': return 'Exercise';
+      case 'social': return 'Social';
+      case 'stress': return 'Stress';
       case 'wellness': return 'Wellness';
-      case 'streak': return 'Streak';
-      default: return 'Goal';
+      default: return 'Other';
     }
   }, []);
 
-  const getTypeColor = useMemo(() => (type: string) => {
-    switch (type) {
-      case 'automatic': return '#10b981';
-      case 'manual': return 'theme.colors.primary';
-      case 'challenge': return '#f59e0b';
-      default: return '#6b7280';
-    }
-  }, []);
-
-  const getMessageType = useMemo(() => (type: string) => {
-    switch (type) {
-      case 'message': return 'Message';
-      case 'voice': return 'Voice Note';
-      case 'care_package': return 'Care Package';
-      case 'video_call': return 'Video Call';
-      case 'boost': return 'Boost';
-      default: return 'Note';
-    }
-  }, []);
-
-  const formatTimeAgo = (timestamp: Date) => {
-    const now = new Date();
-    const diff = now.getTime() - timestamp.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(hours / 24);
+  const formatTimeAgo = (timestamp: any) => {
+    const now = new Date().getTime();
+    const time = new Date(timestamp.seconds * 1000).getTime();
+    const diffInHours = (now - time) / (1000 * 60 * 60);
     
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    return 'Just now';
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${Math.floor(diffInHours)}h ago`;
+    return `${Math.floor(diffInHours / 24)}d ago`;
   };
 
   const getMoodLevel = useMemo(() => {
-    // Use today's entry mood if available, otherwise fallback to stored mood
-    const currentMood = todayEntry?.mood || null;
-    
-    if (currentMood === null) return 'Not logged';
-    if (currentMood >= 9) return 'Amazing';
-    if (currentMood >= 7) return 'Great';
-    if (currentMood >= 5) return 'Okay';
-    if (currentMood >= 3) return 'Struggling';
-    return 'Difficult';
-  }, [todayEntry?.mood]);
+    if (!todayEntry) return 'Unknown';
+    const score = todayEntry.wellnessScore;
+    if (score >= 8) return 'Great';
+    if (score >= 6) return 'Good';
+    if (score >= 4) return 'Okay';
+    return 'Struggling';
+  }, [todayEntry]);
 
   if (isLoading) {
     return (
@@ -155,6 +132,10 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     );
   }
 
+  const wellnessScore = todayEntry?.wellnessScore;
+  const unreadCount = supportMessages.filter(m => !m.read).length;
+  const hasRecentSupport = lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000;
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -163,239 +144,225 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
+        {/* Modern Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Good morning, {user?.name || 'Student'}!</Text>
-            <Text style={styles.subtitle}>Stay close when you're far apart</Text>
-          </View>
+          <Text style={styles.greeting}>Hi there!</Text>
+          <Text style={styles.title}>
+            {user?.name?.split(' ')[0] || 'Student'}
+          </Text>
+          <Text style={styles.pullHint}>Pull down to refresh</Text>
         </View>
 
-      {/* Support Messages - Now Priority #1 */}
-      {supportMessages.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Messages from Family</Text>
-            {supportMessages.filter(m => !m.read).length > 0 && (
-              <Text style={styles.newMessagesBadge}>
-                {supportMessages.filter(m => !m.read).length} new
-              </Text>
+        {/* Status Section */}
+        <View style={styles.statusSection}>
+          <View style={styles.statusHeader}>
+            <Text style={styles.statusTitle}>
+              You're feeling {getMoodLevel.toLowerCase()}
+            </Text>
+            {wellnessScore && (
+              <View style={[styles.statusBadge, { 
+                backgroundColor: wellnessScore >= 8 ? theme.colors.success : 
+                                 wellnessScore >= 6 ? theme.colors.warning : theme.colors.error 
+              }]}>
+                <Text style={styles.statusBadgeText}>
+                  {wellnessScore >= 8 ? 'Great' : wellnessScore >= 6 ? 'Good' : 'Needs Care'}
+                </Text>
+              </View>
             )}
           </View>
-          {supportMessages.slice(0, 3).map((message) => (
-            <TouchableOpacity 
-              key={message.id} 
-              style={[styles.messageCard, !message.read && styles.unreadMessage]}
-              onPress={() => markMessageRead(message.id)}
-            >
-              <View style={styles.messageTypeContainer}>
-                <Text style={styles.messageType}>{getMessageType(message.type)}</Text>
-              </View>
-              <View style={styles.messageContent}>
-                <Text style={styles.messageText}>{message.content}</Text>
-                <Text style={styles.messageTime}>{formatTimeAgo(message.timestamp)}</Text>
-              </View>
-              {!message.read && <View style={styles.unreadDot} />}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* Family Connection Card */}
-      <View style={styles.connectionCard}>
-        <Text style={styles.connectionTitle}>Family Love</Text>
-        <View style={styles.connectionStats}>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>{supportMessages.filter(m => !m.read).length}</Text>
-            <Text style={styles.statLabel}>New Messages</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>{supportMessages.length}</Text>
-            <Text style={styles.statLabel}>Care Moments</Text>
-          </View>
+          <Text style={styles.statusSubtitle}>
+            {wellnessScore 
+              ? `Wellness score: ${wellnessScore}/10 today`
+              : 'Tap below to log your wellness today'}
+          </Text>
           <TouchableOpacity 
-            style={styles.stat}
+            style={styles.statusAction}
             onPress={() => navigation.navigate('WellnessLog')}
           >
-            <Text style={styles.statNumber}>{getMoodLevel}</Text>
-            <Text style={styles.statLabel}>How You Feel</Text>
-            <Text style={styles.statHint}>Tap to update</Text>
+            <Text style={styles.statusActionText}>
+              {wellnessScore ? 'Update wellness →' : 'Log wellness →'}
+            </Text>
           </TouchableOpacity>
         </View>
-        
-        {/* I Need Support Button */}
-        <TouchableOpacity 
-          style={[
-            styles.supportButton,
-            lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
-              ? styles.supportButtonSent 
-              : null
-          ]}
-          onPress={() => {
-            requestSupport();
-          }}
-          disabled={lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000}
-        >
-          <Text style={[
-            styles.supportButtonText,
-            lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
-              ? styles.supportButtonTextSent 
-              : null
-          ]}>
-            {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
-              ? 'Support request sent! ✓' 
-              : 'I need support 💙'}
-          </Text>
-          <Text style={styles.supportButtonSubtext}>
-            {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
-              ? 'Your family has been notified and will reach out soon' 
-              : 'Let your family know you could use some help'}
-          </Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Level & Experience */}
-      <View style={styles.levelCard}>
-        <View style={styles.levelHeader}>
-          <Text style={styles.levelTitle}>{getLevelTitle(level)}</Text>
-          <Text style={styles.levelNumber}>Level {level}</Text>
-        </View>
-        <View style={styles.experienceBar}>
-          <View 
-            style={[
-              styles.experienceFill, 
-              { width: `${((experience % 200) / 200) * 100}%` }
-            ]} 
-          />
-        </View>
-        <Text style={styles.experienceText}>{experience % 200} / 200 XP</Text>
-        <Text style={styles.totalEarned}>Family Love: {supportMessages.length + Math.floor(totalEarned/5)} moments</Text>
-      </View>
+        {/* Messages from Family */}
+        {supportMessages.length > 0 && (
+          <View style={styles.messagesSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Messages from Family</Text>
+              {unreadCount > 0 && (
+                <View style={styles.messageBadge}>
+                  <Text style={styles.messageBadgeText}>{unreadCount} new</Text>
+                </View>
+              )}
+            </View>
+            {supportMessages.slice(0, 3).map((message) => (
+              <TouchableOpacity 
+                key={message.id} 
+                style={styles.messageItem}
+                onPress={() => markMessageRead(message.id)}
+              >
+                <View style={styles.messageContent}>
+                  <Text style={styles.messageText}>{message.content}</Text>
+                  <Text style={styles.messageTime}>{formatTimeAgo(message.timestamp)}</Text>
+                </View>
+                {!message.read && <View style={styles.unreadIndicator} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
-      {/* Wellness Score */}
-      <TouchableOpacity 
-        style={styles.scoreCard}
-        onPress={() => navigation.navigate('WellnessLog')}
-      >
-        <Text style={styles.scoreTitle}>Today's Wellness Score</Text>
-        <View style={styles.scoreContainer}>
-          <Text style={styles.scoreValue}>
-            {todayEntry ? Math.round(todayEntry.wellnessScore * 10) / 10 : '--'}
-          </Text>
-          <Text style={styles.scoreMax}>/ 10</Text>
-        </View>
-        <Text style={styles.scoreMessage}>
-          {todayEntry ? 
-            (todayEntry.wellnessScore >= 8 ? 'Excellent progress!' : 
-             todayEntry.wellnessScore >= 6 ? 'Good work!' : 'Keep going!') :
-            'Tap to log your wellness today'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Wellness Actions */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Wellness Tracking</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('WellnessHistory')}>
-            <Text style={styles.viewAllText}>View History</Text>
+        {/* Quick Actions */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          
+          {/* Primary Action - Need Support */}
+          <TouchableOpacity 
+            style={[styles.primaryAction, hasRecentSupport && styles.primaryActionSent]}
+            onPress={() => requestSupport()}
+            disabled={hasRecentSupport}
+          >
+            <View style={styles.primaryActionContent}>
+              <View style={[styles.primaryActionIndicator, hasRecentSupport && styles.primaryActionIndicatorSent]} />
+              <View style={styles.primaryActionText}>
+                <Text style={styles.primaryActionTitle}>
+                  {hasRecentSupport ? 'Support request sent' : 'I need support'}
+                </Text>
+                <Text style={styles.primaryActionSubtitle}>
+                  {hasRecentSupport 
+                    ? 'Your family has been notified'
+                    : 'Let your family know you need help'}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+          
+          {/* Secondary Actions */}
+          <TouchableOpacity 
+            style={styles.actionItem}
+            onPress={() => navigation.navigate('WellnessLog')}
+          >
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Log Wellness</Text>
+              <Text style={styles.actionSubtitle}>Track your daily wellness</Text>
+            </View>
+            <Text style={styles.actionArrow}>›</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionItem}
+            onPress={() => navigation.navigate('WellnessHistory')}
+          >
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Wellness History</Text>
+              <Text style={styles.actionSubtitle}>View your progress</Text>
+            </View>
+            <Text style={styles.actionArrow}>›</Text>
           </TouchableOpacity>
         </View>
-        
-        <TouchableOpacity 
-          style={styles.wellnessActionCard}
-          onPress={() => navigation.navigate('WellnessLog')}
-        >
-          <Text style={styles.wellnessActionTitle}>
-            {todayEntry ? 'Update Today\'s Log' : 'Log Today\'s Wellness'}
-          </Text>
-          <Text style={styles.wellnessActionSubtitle}>
-            {todayEntry ? 'Update your daily wellness entry' : 'Start tracking your daily wellness'}
-          </Text>
-        </TouchableOpacity>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {stats.totalEntries === 0 ? '--' : stats.currentStreak}
-            </Text>
-            <Text style={styles.statLabel}>
-              {stats.totalEntries === 0 ? 'Start Logging' : 'Day Streak'}
-            </Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {stats.totalEntries === 0 ? '--' : stats.averageScore.toFixed(1)}
-            </Text>
-            <Text style={styles.statLabel}>
-              {stats.totalEntries === 0 ? 'To See Score' : 'Avg Score'}
-            </Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.totalEntries}</Text>
-            <Text style={styles.statLabel}>Total Entries</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Care Boosts - De-emphasized, moved to bottom */}
-      {activeRewards.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.rewardsHeader}>
-            <Text style={styles.smallSectionTitle}>Occasional Care Boosts</Text>
-            <View style={styles.rewardsTotalContainer}>
-              <Text style={styles.rewardsSmallTotal}>
-                {activeRewards.length}
+        {/* Progress Metrics */}
+        <View style={styles.progressSection}>
+          <View style={styles.progressContainer}>
+            <Text style={styles.sectionTitle}>Your Progress</Text>
+            
+            {/* Streak Card */}
+            <View style={styles.progressCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>Current Streak</Text>
+                <View style={styles.streakBadge}>
+                  <Text style={styles.streakBadgeText}>
+                    {stats.totalEntries === 0 ? '0' : stats.currentStreak} days
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.cardSubtitle}>
+                {stats.totalEntries === 0 ? 'Start your wellness journey' : 'Keep up the great work!'}
               </Text>
-              <Text style={styles.rewardsTotalLabel}>available</Text>
+            </View>
+            
+            {/* Score & Level Row */}
+            <View style={styles.progressRow}>
+              <View style={styles.progressCard}>
+                <Text style={styles.cardTitle}>Average Score</Text>
+                <Text style={styles.scoreValue}>
+                  {stats.totalEntries === 0 ? '--' : stats.averageScore.toFixed(1)}
+                </Text>
+                <Text style={styles.scoreLabel}>out of 10</Text>
+              </View>
+              
+              <View style={styles.progressCard}>
+                <Text style={styles.cardTitle}>Level</Text>
+                <Text style={styles.levelValue}>{getLevelTitle(level)}</Text>
+                <View style={styles.levelProgressBar}>
+                  <View 
+                    style={[styles.levelProgressFill, { 
+                      width: `${((experience % 200) / 200) * 100}%` 
+                    }]} 
+                  />
+                </View>
+                <Text style={styles.levelProgressText}>
+                  {experience % 200} / 200 XP
+                </Text>
+              </View>
             </View>
           </View>
-          <Text style={styles.rewardsSubtext}>
-            Small surprises from family when you're doing great ✨
-          </Text>
-          
-          {activeRewards.map((reward) => (
-            <TouchableOpacity 
-              key={reward.id} 
-              style={styles.smallRewardCard}
-              onPress={() => claimReward(reward.id)}
-            >
-              <View style={styles.rewardHeader}>
-                <View style={styles.rewardInfo}>
-                  <View style={styles.rewardCategoryContainer}>
-                    <Text style={styles.rewardCategory}>{getCategoryName(reward.category)}</Text>
+        </View>
+
+        {/* Care Boosts */}
+        {activeRewards.length > 0 && (
+          <View style={styles.rewardsSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Care Boosts</Text>
+              <View style={styles.rewardsBadge}>
+                <Text style={styles.rewardsBadgeText}>{activeRewards.length}</Text>
+              </View>
+            </View>
+            <Text style={styles.rewardsSubtext}>
+              Small surprises from family when you're doing great
+            </Text>
+            
+            {activeRewards.map((reward) => (
+              <TouchableOpacity 
+                key={reward.id} 
+                style={styles.rewardItem}
+                onPress={() => claimReward(reward.id)}
+              >
+                <View style={styles.rewardContent}>
+                  <View style={styles.rewardCategoryTag}>
+                    <Text style={styles.rewardCategoryText}>{getCategoryName(reward.category)}</Text>
                   </View>
-                  <View style={styles.rewardText}>
-                    <Text style={styles.smallRewardTitle}>{reward.title}</Text>
-                    <Text style={styles.smallRewardDescription}>{reward.description}</Text>
+                  <Text style={styles.rewardTitle}>{reward.title}</Text>
+                  <Text style={styles.rewardDescription}>{reward.description}</Text>
+                  <View style={styles.rewardProgress}>
+                    <Text style={styles.rewardProgressText}>
+                      Progress: {reward.progress}/{reward.maxProgress}
+                    </Text>
+                    <View style={styles.rewardProgressBar}>
+                      <View 
+                        style={[styles.rewardProgressFill, { 
+                          width: `${(reward.progress / reward.maxProgress) * 100}%` 
+                        }]} 
+                      />
+                    </View>
                   </View>
                 </View>
                 <View style={styles.rewardAmount}>
-                  <Text style={styles.smallAmountText}>${reward.amount}</Text>
-                  <View style={[styles.typeBadge, { backgroundColor: getTypeColor(reward.type) }]}>
-                    <Text style={styles.typeText}>{reward.type}</Text>
+                  <Text style={styles.rewardAmountText}>${reward.amount}</Text>
+                  <View style={styles.rewardTypeBadge}>
+                    <Text style={styles.rewardTypeText}>{reward.type}</Text>
                   </View>
                 </View>
-              </View>
-              <View style={styles.rewardProgress}>
-                <Text style={styles.progressText}>
-                  Progress: {reward.progress}/{reward.maxProgress}
-                </Text>
-                <View style={styles.progressBar}>
-                  <View 
-                    style={[
-                      styles.progressFill, 
-                      { width: `${(reward.progress / reward.maxProgress) * 100}%` }
-                    ]} 
-                  />
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
-      {/* Received Payments */}
-      <ReceivedPayments />
+        {/* Section Divider */}
+        <View style={styles.sectionDivider} />
+        
+        {/* Received Payments */}
+        <ReceivedPayments />
       </ScrollView>
     </View>
   );
@@ -404,7 +371,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'theme.colors.background',
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -413,367 +380,89 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'theme.colors.background',
+    backgroundColor: theme.colors.background,
   },
   loadingText: {
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textSecondary,
     fontSize: 16,
+    fontWeight: '500',
   },
+  
+  // Modern Header (like parent dashboard)
   header: {
-    padding: 24,
+    paddingHorizontal: 24,
     paddingTop: 60,
+    paddingBottom: 20,
+  },
+  greeting: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: 'theme.colors.textPrimary',
-    letterSpacing: -0.5,
+    fontSize: 32,
+    fontWeight: '900',
+    color: theme.colors.textPrimary,
+    letterSpacing: -1,
+    marginTop: 4,
   },
-  subtitle: {
-    fontSize: 16,
-    color: 'theme.colors.textSecondary',
-    marginTop: 6,
-  },
-  connectionCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
-    margin: 20,
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'theme.colors.border',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  connectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'theme.colors.textPrimary',
-    marginBottom: 20,
-  },
-  connectionStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  stat: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: 'theme.colors.textPrimary',
-  },
-  statLabel: {
+  pullHint: {
     fontSize: 12,
-    color: 'theme.colors.textSecondary',
-    marginTop: 6,
+    color: theme.colors.textTertiary,
+    marginTop: 4,
     fontWeight: '500',
   },
-  statHint: {
-    fontSize: 10,
-    color: 'theme.colors.primary',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: 'theme.colors.textPrimary',
-    marginBottom: 16,
-  },
-  messageCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
-    padding: 18,
-    borderRadius: 12,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'theme.colors.border',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  unreadMessage: {
-    borderLeftWidth: 4,
-    borderLeftColor: 'theme.colors.primary',
-  },
-  messageTypeContainer: {
-    backgroundColor: 'theme.colors.primary',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginRight: 12,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  messageType: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: 'white',
-    textTransform: 'uppercase',
-  },
-  messageContent: {
-    flex: 1,
-  },
-  messageText: {
-    fontSize: 14,
-    color: 'theme.colors.textPrimary',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  messageTime: {
-    fontSize: 12,
-    color: 'theme.colors.textSecondary',
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'theme.colors.primary',
-  },
-  levelCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
-    margin: 20,
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'theme.colors.border',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  levelHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  levelTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'theme.colors.textPrimary',
-  },
-  levelNumber: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'theme.colors.textSecondary',
-  },
-  experienceBar: {
-    height: 8,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 4,
+
+  // Status Section (no card, clean layout like parent)
+  statusSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
     marginBottom: 8,
   },
-  experienceFill: {
-    height: '100%',
-    backgroundColor: 'theme.colors.primary',
-    borderRadius: 4,
-  },
-  experienceText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  totalEarned: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#4ade80',
-    textAlign: 'center',
-    marginTop: 8,
-    letterSpacing: 0.5,
-  },
-  scoreCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
-    margin: 20,
-    padding: 24,
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'theme.colors.border',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  scoreTitle: {
-    fontSize: 16,
-    color: 'theme.colors.textSecondary',
-    marginBottom: 12,
-    fontWeight: '500',
-  },
-  scoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
-  },
-  scoreValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#10b981',
-  },
-  scoreMax: {
-    fontSize: 20,
-    color: 'theme.colors.textSecondary',
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  scoreMessage: {
-    fontSize: 16,
-    color: 'theme.colors.primary',
-    marginTop: 12,
-    fontWeight: '600',
-  },
-  card: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'theme.colors.border',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'theme.colors.textSecondary',
-  },
-  cardValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'theme.colors.textPrimary',
-    marginTop: 4,
-  },
-  cardStreak: {
-    fontSize: 12,
-    color: '#f59e0b',
-    marginTop: 4,
-  },
-  rewardsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  rewardsTotalContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  rewardsTotal: {
-    fontSize: 16,
-    color: '#10b981',
-    fontWeight: '700',
-  },
-  rewardsTotalLabel: {
-    fontSize: 12,
-    color: 'theme.colors.textSecondary',
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  rewardCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'theme.colors.border',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  rewardHeader: {
+  statusHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  rewardInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  statusTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
     flex: 1,
+    marginRight: 12,
   },
-  rewardCategoryContainer: {
-    backgroundColor: '#10b981',
+  statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    marginRight: 12,
-    minWidth: 60,
-    alignItems: 'center',
   },
-  rewardCategory: {
-    fontSize: 10,
+  statusBadgeText: {
+    fontSize: 11,
     fontWeight: '600',
-    color: 'white',
+    color: '#ffffff',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  rewardText: {
-    flex: 1,
+  statusSubtitle: {
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+    lineHeight: 20,
   },
-  rewardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'theme.colors.backgroundSecondary',
+  statusAction: {
+    alignSelf: 'flex-start',
   },
-  rewardDescription: {
+  statusActionText: {
     fontSize: 14,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  rewardAmount: {
-    alignItems: 'flex-end',
-  },
-  amountText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#10b981',
-    marginBottom: 4,
-  },
-  typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  typeText: {
-    fontSize: 10,
-    color: 'white',
     fontWeight: '600',
-    textTransform: 'uppercase',
+    color: theme.colors.primary,
   },
-  rewardProgress: {
-    marginTop: 8,
-  },
-  progressText: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 2,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: 'theme.colors.primary',
-    borderRadius: 2,
+
+  // Messages Section
+  messagesSection: {
+    paddingHorizontal: 24,
+    marginBottom: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -781,137 +470,318 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  viewAllText: {
-    fontSize: 14,
-    color: 'theme.colors.primary',
-    fontWeight: '600',
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 12,
   },
-  wellnessActionCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+  messageBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  messageBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  messageItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  messageContent: {
+    flex: 1,
+  },
+  messageText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 1,
+  },
+  messageTime: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  unreadIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.primary,
+  },
+
+  // Actions Section
+  actionsSection: {
+    paddingHorizontal: 24,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  
+  // Primary Action - Need Support (like parent dashboard)
+  primaryAction: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 16,
     padding: 20,
-    borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderColor: theme.colors.border,
+    ...theme.shadows.small,
   },
-  wellnessActionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: 'theme.colors.textPrimary',
-    marginBottom: 6,
+  primaryActionSent: {
+    borderColor: theme.colors.success,
+    opacity: 0.8,
   },
-  wellnessActionSubtitle: {
+  primaryActionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  primaryActionIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: theme.colors.error,
+    marginRight: 16,
+  },
+  primaryActionIndicatorSent: {
+    backgroundColor: theme.colors.success,
+  },
+  primaryActionText: {
+    flex: 1,
+  },
+  primaryActionTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 2,
+  },
+  primaryActionSubtitle: {
     fontSize: 14,
-    color: 'theme.colors.textSecondary',
-    fontWeight: '500',
+    color: theme.colors.textSecondary,
   },
-  statsRow: {
+
+  // Action Items - Clean list style
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 1,
+  },
+  actionSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  actionArrow: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
+  },
+
+  // Progress Section - Better visual hierarchy
+  progressSection: {
+    marginTop: 24,
+    marginBottom: 32,
+  },
+  progressContainer: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 16,
+    marginHorizontal: 16,
+    ...theme.shadows.small,
+  },
+  progressCard: {
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 12,
+    padding: 16,
+    flex: 1,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  statCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
-    padding: 16,
-    borderRadius: 8,
     alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: 'theme.colors.border',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  newMessagesBadge: {
-    fontSize: 12,
-    color: 'theme.colors.primary',
-    fontWeight: '600',
-    backgroundColor: '#1e1b4b',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  smallSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'theme.colors.textSecondary',
     marginBottom: 8,
   },
-  rewardsSmallTotal: {
+  cardTitle: {
     fontSize: 14,
-    color: '#6b7280',
     fontWeight: '600',
+    color: theme.colors.textSecondary,
   },
-  rewardsSubtext: {
+  cardSubtitle: {
     fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 12,
+    color: theme.colors.textTertiary,
     fontStyle: 'italic',
   },
-  smallRewardCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
-    padding: 16,
+  streakBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'theme.colors.border',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  smallRewardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'theme.colors.textPrimary',
-  },
-  smallRewardDescription: {
+  streakBadgeText: {
     fontSize: 12,
-    color: 'theme.colors.textSecondary',
-    marginTop: 2,
-  },
-  smallAmountText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#10b981',
-    marginBottom: 4,
-  },
-  supportButton: {
-    backgroundColor: '#2563eb',
-    marginHorizontal: 20,
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  supportButtonSent: {
-    backgroundColor: '#059669',
-  },
-  supportButtonText: {
-    fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
-    marginBottom: 4,
   },
-  supportButtonTextSent: {
+  scoreValue: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: theme.colors.primary,
+    marginTop: 4,
+  },
+  scoreLabel: {
+    fontSize: 11,
+    color: theme.colors.textTertiary,
+    marginTop: 2,
+  },
+  levelValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginTop: 4,
+  },
+  
+  // Level Progress Bar
+  levelProgressBar: {
+    height: 6,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 3,
+    marginVertical: 8,
+  },
+  levelProgressFill: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 3,
+  },
+  levelProgressText: {
+    fontSize: 10,
+    color: theme.colors.textTertiary,
+    marginTop: 4,
+  },
+
+  // Section Divider
+  sectionDivider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginHorizontal: 24,
+    marginVertical: 24,
+  },
+
+  // Rewards Section
+  rewardsSection: {
+    paddingHorizontal: 24,
+    marginTop: 24,
+  },
+  rewardsBadge: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  rewardsBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
     color: '#ffffff',
   },
-  supportButtonSubtext: {
-    fontSize: 12,
-    color: '#dbeafe',
-    textAlign: 'center',
+  rewardsSubtext: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 16,
   },
-}); 
+  rewardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  rewardContent: {
+    flex: 1,
+  },
+  rewardCategoryTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.secondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  rewardCategoryText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.colors.primaryDark,
+    textTransform: 'uppercase',
+  },
+  rewardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 2,
+  },
+  rewardDescription: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginBottom: 8,
+  },
+  rewardProgress: {
+    gap: 4,
+  },
+  rewardProgressText: {
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+  },
+  rewardProgressBar: {
+    height: 4,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 2,
+  },
+  rewardProgressFill: {
+    height: '100%',
+    backgroundColor: theme.colors.success,
+    borderRadius: 2,
+  },
+  rewardAmount: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  rewardAmountText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  rewardTypeBadge: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  rewardTypeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+  },
+});

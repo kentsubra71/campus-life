@@ -25,8 +25,10 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
     experience,
     fetchActiveRewards,
     fetchSupportMessages,
+    setupRealtimeMessages,
+    cleanupListeners,
     fetchMonthlyPayments,
-    claimReward,
+    requestReward,
     markMessageRead,
   } = useRewardsStore();
 
@@ -35,11 +37,17 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     loadData();
+    setupRealtimeMessages(); // Enable real-time message updates
+    
+    // Cleanup listeners on component unmount
+    return () => {
+      cleanupListeners();
+    };
   }, []);
 
   const loadData = async () => {
     await fetchActiveRewards();
-    await fetchSupportMessages();
+    // No need to fetch messages here as real-time listener handles it
     await fetchMonthlyPayments(); // This will fetch both monthly and total earnings
   };
 
@@ -49,30 +57,59 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const handleClaimReward = async (rewardId: string) => {
-    const reward = activeRewards.find(r => r.id === rewardId);
-    if (reward) {
-      if (monthlyEarned + reward.amount > 50) {
+  const handleRequestReward = async (rewardId: string) => {
+    try {
+      const reward = activeRewards.find(r => r.id === rewardId);
+      if (!reward) {
         showMessage({
-          message: 'Monthly Limit Reached',
-          description: 'You\'ve reached your $50 monthly limit. Great job!',
-          type: 'info',
+          message: 'Error',
+          description: 'Reward not found. Please try refreshing.',
+          type: 'danger',
           backgroundColor: theme.colors.backgroundSecondary,
           color: theme.colors.textPrimary,
         });
         return;
       }
 
-      if (reward.progress >= reward.maxProgress) {
-        await claimReward(rewardId);
+      if (reward.progress < reward.maxProgress) {
         showMessage({
-          message: 'Reward Claimed!',
-          description: `You earned $${reward.amount}! Keep up the great work.`,
+          message: 'Reward Not Ready',
+          description: 'Complete the requirements to request this reward.',
+          type: 'warning',
+          backgroundColor: theme.colors.backgroundSecondary,
+          color: theme.colors.textPrimary,
+        });
+        return;
+      }
+
+      const result = await requestReward(reward);
+      
+      if (result?.success) {
+        showMessage({
+          message: 'Request Sent!',
+          description: `Your parents have been notified about your $${reward.amount} reward!`,
           type: 'success',
           backgroundColor: theme.colors.backgroundSecondary,
           color: theme.colors.textPrimary,
         });
+      } else {
+        showMessage({
+          message: 'Request Failed',
+          description: result?.error || 'Unable to send request. Please try again.',
+          type: 'danger',
+          backgroundColor: theme.colors.backgroundSecondary,
+          color: theme.colors.textPrimary,
+        });
       }
+    } catch (error: any) {
+      console.error('Error requesting reward:', error);
+      showMessage({
+        message: 'Unexpected Error',
+        description: 'Something went wrong. Please try again.',
+        type: 'danger',
+        backgroundColor: theme.colors.backgroundSecondary,
+        color: theme.colors.textPrimary,
+      });
     }
   };
 
@@ -95,7 +132,7 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
       <TouchableOpacity
         key={reward.id}
         style={styles.rewardItem}
-        onPress={() => isCompleted ? handleClaimReward(reward.id) : null}
+        onPress={() => isCompleted ? handleRequestReward(reward.id) : null}
         activeOpacity={0.8}
       >
         <View style={styles.rewardContent}>
@@ -114,7 +151,7 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
             </View>
             {isCompleted && (
               <View style={styles.statusTag}>
-                <Text style={styles.statusTagText}>Ready</Text>
+                <Text style={styles.statusTagText}>Request</Text>
               </View>
             )}
           </View>
@@ -184,7 +221,9 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
               <Text style={styles.messageTypeText}>{messageType.name}</Text>
             </View>
             <Text style={styles.messageTime}>
-              {message.timestamp.toLocaleDateString()}
+              {message.timestamp?.toDate ? message.timestamp.toDate().toLocaleDateString() : 
+               message.timestamp instanceof Date ? message.timestamp.toLocaleDateString() :
+               new Date(message.timestamp).toLocaleDateString()}
             </Text>
           </View>
           <Text style={styles.messageText}>{message.content}</Text>

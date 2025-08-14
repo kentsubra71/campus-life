@@ -1,18 +1,31 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
+// Conditional imports for notifications (only available in dev builds, not Expo Go)
+let Notifications: any = null;
+let Device: any = null;
+
+try {
+  // These will work in development builds
+  Notifications = require('expo-notifications');
+  Device = require('expo-device');
+  console.log('📱 Notifications available - running in development build');
+} catch (error) {
+  console.log('📱 Notifications not available in Expo Go - this is normal for SDK 53+');
+}
+
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { doc, updateDoc, collection, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Configure notification behavior (only if notifications are available)
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+}
 
 export interface PushNotificationToken {
   token: string;
@@ -52,6 +65,12 @@ class PushNotificationService {
   async initialize(userId: string): Promise<string | null> {
     try {
       console.log('🔔 Initializing push notifications...');
+
+      // Check if notifications are available (not in Expo Go with SDK 53+)
+      if (!Notifications || !Device) {
+        console.log('⚠️ Push notifications not available in Expo Go - use development build for notifications');
+        return null;
+      }
 
       // Check if device supports push notifications
       if (!Device.isDevice) {
@@ -162,6 +181,11 @@ class PushNotificationService {
    * Set up listeners for notification interactions
    */
   private setupNotificationListeners(): void {
+    if (!Notifications) {
+      console.log('⚠️ Notifications not available - skipping listener setup');
+      return;
+    }
+
     // Handle notification received while app is running
     Notifications.addNotificationReceivedListener(notification => {
       console.log('🔔 Notification received:', notification);
@@ -207,6 +231,11 @@ class PushNotificationService {
    * Send a local notification (for testing)
    */
   async sendLocalNotification(title: string, body: string, data?: any): Promise<void> {
+    if (!Notifications) {
+      console.log('⚠️ Local notifications not available in Expo Go - use development build');
+      return;
+    }
+
     try {
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -360,6 +389,11 @@ class PushNotificationService {
    * Clear all notifications
    */
   async clearAllNotifications(): Promise<void> {
+    if (!Notifications) {
+      console.log('⚠️ Notification clearing not available in Expo Go - use development build');
+      return;
+    }
+
     try {
       await Notifications.dismissAllNotificationsAsync();
       console.log('🧹 All notifications cleared');
@@ -386,6 +420,11 @@ class PushNotificationService {
    * Schedule daily wellness reminders for students
    */
   async scheduleDailyWellnessReminder(userId: string): Promise<void> {
+    if (!Notifications) {
+      console.log('⚠️ Notification scheduling not available in Expo Go - use development build');
+      return;
+    }
+
     try {
       // Check if user is a student
       const { getUserProfile } = await import('../lib/firebase');
@@ -431,6 +470,11 @@ class PushNotificationService {
    * Cancel all scheduled notifications for a user
    */
   async cancelScheduledNotifications(): Promise<void> {
+    if (!Notifications) {
+      console.log('⚠️ Notification canceling not available in Expo Go - use development build');
+      return;
+    }
+
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
       console.log('🗑️ Cancelled all scheduled notifications');
@@ -474,6 +518,14 @@ export const NotificationTemplates = {
     body: message,
     priority: 'high',
     data: { studentName }
+  }),
+
+  rewardRequest: (studentName: string, rewardTitle: string, amount: number): Omit<NotificationData, 'userId'> => ({
+    type: 'reward_request',
+    title: `🎉 Reward Request from ${studentName}`,
+    body: `${studentName} earned "${rewardTitle}" worth $${amount}`,
+    priority: 'high',
+    data: { studentName, rewardTitle, amount: amount.toString() }
   }),
 
   paymentStatus: (status: string, amount: string): Omit<NotificationData, 'userId'> => ({

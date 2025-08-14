@@ -204,6 +204,28 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
 // Wellness functions
 export const addWellnessEntry = async (entry: Omit<WellnessEntry, 'id' | 'created_at'>) => {
   try {
+    // Validate required fields
+    if (!entry.user_id || typeof entry.user_id !== 'string') {
+      return { id: null, error: 'Valid user ID is required' };
+    }
+    
+    // Validate numeric ranges
+    if (entry.mood < 1 || entry.mood > 10) {
+      return { id: null, error: 'Mood must be between 1 and 10' };
+    }
+    
+    if (entry.stress_level < 1 || entry.stress_level > 10) {
+      return { id: null, error: 'Stress level must be between 1 and 10' };
+    }
+    
+    if (entry.sleep_hours < 0 || entry.sleep_hours > 24) {
+      return { id: null, error: 'Sleep hours must be between 0 and 24' };
+    }
+    
+    if (entry.exercise_minutes < 0 || entry.exercise_minutes > 1440) {
+      return { id: null, error: 'Exercise minutes must be between 0 and 1440' };
+    }
+    
     const wellnessEntry = {
       ...entry,
       created_at: Timestamp.now(),
@@ -211,7 +233,8 @@ export const addWellnessEntry = async (entry: Omit<WellnessEntry, 'id' | 'create
     const docRef = await addDoc(collection(db, 'wellness_entries'), wellnessEntry);
     return { id: docRef.id, error: null };
   } catch (error: any) {
-    return { id: null, error: error.message };
+    console.error('Error adding wellness entry:', error);
+    return { id: null, error: error.message || 'Failed to save wellness entry' };
   }
 };
 
@@ -233,7 +256,6 @@ export const getWellnessEntries = async (userId: string, limitCount: number = 50
   } catch (error: any) {
     // If orderBy fails due to missing index, fallback to client-side sorting
     if (error.code === 'failed-precondition') {
-      console.log('Firestore index missing, using fallback query');
       try {
         const fallbackQuery = query(
           collection(db, 'wellness_entries'),
@@ -257,7 +279,6 @@ export const getWellnessEntries = async (userId: string, limitCount: number = 50
     
     // Handle other specific errors
     if (error.code === 'not-found' || error.code === 'permission-denied') {
-      console.log('Wellness entries collection issue, returning empty array');
       return [];
     }
     
@@ -298,7 +319,6 @@ export const getRewardEntries = async (userId: string, limitCount: number = 100)
   } catch (error: any) {
     // If orderBy fails due to missing index, fallback to client-side sorting
     if (error.code === 'failed-precondition') {
-      console.log('Firestore index missing for rewards, using fallback query');
       try {
         const fallbackQuery = query(
           collection(db, 'rewards'),
@@ -322,7 +342,6 @@ export const getRewardEntries = async (userId: string, limitCount: number = 100)
     
     // Handle other specific errors
     if (error.code === 'not-found' || error.code === 'permission-denied') {
-      console.log('Rewards collection issue, returning empty array');
       return [];
     }
     
@@ -346,7 +365,6 @@ export const initializeCollections = async () => {
   try {
     const user = getCurrentUser();
     if (!user) {
-      console.log('User not authenticated, skipping collection initialization');
       return;
     }
     
@@ -359,7 +377,6 @@ export const initializeCollections = async () => {
         reason: 'Collection initialization',
         created_at: Timestamp.now()
       });
-      console.log('Rewards collection initialized');
     } catch (error) {
       // Collection might already exist, ignore error
     }
@@ -375,12 +392,10 @@ export const initializeCollections = async () => {
         notes: 'Collection initialization',
         created_at: Timestamp.now()
       });
-      console.log('Wellness entries collection initialized');
     } catch (error) {
       // Collection might already exist, ignore error
     }
     
-    console.log('Collections initialization complete');
   } catch (error) {
     console.error('Error initializing collections:', error);
   }
@@ -559,8 +574,36 @@ export interface Payment {
 // Message functions
 export const sendMessage = async (messageData: Omit<Message, 'id' | 'created_at'>): Promise<{ success: boolean; error?: string; messageId?: string }> => {
   try {
+    // Validate required fields
+    if (!messageData.from_user_id || typeof messageData.from_user_id !== 'string') {
+      return { success: false, error: 'Valid sender ID is required' };
+    }
+    
+    if (!messageData.to_user_id || typeof messageData.to_user_id !== 'string') {
+      return { success: false, error: 'Valid recipient ID is required' };
+    }
+    
+    if (!messageData.content || typeof messageData.content !== 'string' || messageData.content.trim().length === 0) {
+      return { success: false, error: 'Message content is required' };
+    }
+    
+    if (messageData.content.length > 1000) {
+      return { success: false, error: 'Message content must be less than 1000 characters' };
+    }
+    
+    if (!messageData.family_id || typeof messageData.family_id !== 'string') {
+      return { success: false, error: 'Valid family ID is required' };
+    }
+    
+    // Validate message type
+    const validMessageTypes = ['message', 'voice', 'boost'];
+    if (!validMessageTypes.includes(messageData.message_type)) {
+      return { success: false, error: 'Invalid message type' };
+    }
+    
     const message = {
       ...messageData,
+      content: messageData.content.trim(),
       created_at: Timestamp.now(),
     };
     
@@ -699,5 +742,110 @@ export const markMessageAsRead = async (messageId: string): Promise<{ success: b
   } catch (error: any) {
     console.error('Error marking message as read:', error);
     return { success: false, error: error.message };
+  }
+};
+
+// Wellness helper functions for reward generation
+export const getRecentWellnessEntries = async (userId: string, days: number = 7): Promise<any[]> => {
+  try {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const q = query(
+      collection(db, 'wellness_entries'),
+      where('user_id', '==', userId),
+      where('created_at', '>=', Timestamp.fromDate(startDate)),
+      orderBy('created_at', 'desc'),
+      limit(days)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching recent wellness entries:', error);
+    return [];
+  }
+};
+
+export const getWellnessStats = async (userId: string): Promise<{
+  totalEntries: number;
+  currentStreak: number;
+  averageScore: number;
+  lastEntry?: any;
+}> => {
+  try {
+    const q = query(
+      collection(db, 'wellness_entries'),
+      where('user_id', '==', userId),
+      orderBy('created_at', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const entries = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    if (entries.length === 0) {
+      return {
+        totalEntries: 0,
+        currentStreak: 0,
+        averageScore: 0
+      };
+    }
+    
+    // Calculate average score (from mood, stress, etc.)
+    const totalScore = entries.reduce((sum, entry) => {
+      const avgScore = ((entry.mood || 5) + (10 - (entry.stress_level || 5))) / 2;
+      return sum + avgScore;
+    }, 0);
+    const averageScore = totalScore / entries.length;
+    
+    // Calculate current streak - consecutive days with entries
+    let currentStreak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset to start of day for comparison
+    
+    const sortedEntries = entries.sort((a, b) => 
+      b.created_at.toDate().getTime() - a.created_at.toDate().getTime()
+    );
+    
+    // Start from today and work backwards
+    let checkDate = new Date(today);
+    let entryIndex = 0;
+    
+    while (entryIndex < sortedEntries.length) {
+      const entryDate = new Date(sortedEntries[entryIndex].created_at.toDate());
+      entryDate.setHours(0, 0, 0, 0); // Reset to start of day
+      
+      if (entryDate.getTime() === checkDate.getTime()) {
+        currentStreak++;
+        entryIndex++;
+        checkDate.setDate(checkDate.getDate() - 1); // Move to previous day
+      } else if (entryDate.getTime() < checkDate.getTime()) {
+        // Gap found - break the streak
+        break;
+      } else {
+        // Entry is from future date (shouldn't happen), skip it
+        entryIndex++;
+      }
+    }
+    
+    return {
+      totalEntries: entries.length,
+      currentStreak,
+      averageScore: Math.round(averageScore * 10) / 10,
+      lastEntry: entries[0]
+    };
+  } catch (error) {
+    console.error('Error calculating wellness stats:', error);
+    return {
+      totalEntries: 0,
+      currentStreak: 0,
+      averageScore: 0
+    };
   }
 };

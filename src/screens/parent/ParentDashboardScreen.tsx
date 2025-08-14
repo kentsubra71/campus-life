@@ -33,12 +33,14 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   const { 
     supportMessages, 
     supportRequests,
+    rewardRequests,
     totalEarned,
     monthlyEarned,
     level, 
     mood,
     fetchSupportMessages,
     fetchMonthlyPayments,
+    fetchRewardRequests,
     addExperience,
     acknowledgeSupport
   } = useRewardsStore();
@@ -47,6 +49,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   const [refreshing, setRefreshing] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [selectedStudentIndex, setSelectedStudentIndex] = useState(0);
+  const [studentEarnings, setStudentEarnings] = useState<{ [studentId: string]: { monthly: number; total: number } }>({});
 
   // Helper functions
   const getTimeOfDay = () => {
@@ -77,9 +80,10 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       if (familyMembers.students.length > 0) {
         const selectedStudent = familyMembers.students[selectedStudentIndex] || familyMembers.students[0];
         fetchSupportMessages();
+        fetchRewardRequests();
         fetchMonthlyPayments(selectedStudent?.id);
       }
-    }, [fetchSupportMessages, fetchMonthlyPayments, familyMembers.students.length, selectedStudentIndex])
+    }, [fetchSupportMessages, fetchRewardRequests, fetchMonthlyPayments, familyMembers.students.length, selectedStudentIndex])
   );
 
   const loadData = async (forceRefresh = false) => {
@@ -127,7 +131,14 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             console.log('🔄 Loading dashboard data...');
             await Promise.all([
               fetchSupportMessages(),
-              fetchMonthlyPayments(selectedStudent?.id),
+              fetchRewardRequests(),
+              (async () => {
+                const earnings = await fetchStudentEarnings(selectedStudent?.id);
+                setStudentEarnings(prev => ({
+                  ...prev,
+                  [selectedStudent?.id]: earnings
+                }));
+              })(),
               getEntryByDate(new Date().toISOString().split('T')[0])
             ]);
             
@@ -179,9 +190,45 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   useEffect(() => {
     if (familyMembers.students.length > 0 && selectedStudentIndex < familyMembers.students.length) {
       const selectedStudent = familyMembers.students[selectedStudentIndex];
+  
+  const fetchStudentEarnings = async (studentId: string) => {
+    if (!studentId) return { monthly: 0, total: 0 };
+    
+    try {
+      const { getUserTotalPoints, getRewardEntries } = await import('../lib/firebase');
+      
+      const totalPoints = await getUserTotalPoints(studentId);
+      
+      // Get current month rewards as "monthly earnings"
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      const rewardEntries = await getRewardEntries(studentId, 100);
+      let monthlyTotal = 0;
+      
+      rewardEntries.forEach((reward) => {
+        const rewardDate = reward.created_at.toDate();
+        if (rewardDate >= startOfMonth) {
+          monthlyTotal += reward.points;
+        }
+      });
+      
+      return { monthly: monthlyTotal, total: totalPoints };
+    } catch (error) {
+      console.error('Error fetching student earnings:', error);
+      return { monthly: 0, total: 0 };
+    }
+  };
       // Reload data for the selected student
       getEntryByDate(new Date().toISOString().split('T')[0]);
-      fetchMonthlyPayments(selectedStudent?.id);
+      if (selectedStudent?.id) {
+        fetchStudentEarnings(selectedStudent.id).then(earnings => {
+          setStudentEarnings(prev => ({
+            ...prev,
+            [selectedStudent.id]: earnings
+          }));
+        });
+      }
     }
   }, [selectedStudentIndex, fetchMonthlyPayments]);
 
@@ -294,6 +341,67 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     } catch (error) {
       console.error('Debug notification error:', error);
       Alert.alert('Debug Error', `Failed to send test notification: ${error.message}`);
+    }
+  };
+
+  const handleRewardRequest = async (requestId: string, action: 'approve' | 'deny') => {
+    try {
+      // Get the reward request details
+      const request = rewardRequests.find(r => r.id === requestId);
+      if (!request) return;
+
+      if (action === 'approve') {
+        // Create payment (for now just update status - in production this would integrate with payment providers)
+        const { doc, updateDoc, Timestamp } = await import('firebase/firestore');
+        const { db } = await import('../../lib/firebase');
+        
+        await updateDoc(doc(db, 'reward_requests', requestId), {
+          status: 'approved',
+          respondedAt: Timestamp.now()
+        });
+
+        // Send notification to student
+        try {
+          const studentProfile = familyMembers.students.find(s => s.id === request.studentId);
+          if (studentProfile?.pushToken) {
+            const { pushNotificationService, NotificationTemplates } = await import('../../services/pushNotificationService');
+            const notification = {
+              ...NotificationTemplates.paymentReceived(`$${request.amount}`, user?.name || 'Parent'),
+              userId: request.studentId
+            };
+            await pushNotificationService.sendPushNotification(notification);
+          }
+        } catch (notifError) {
+          console.error('Failed to send approval notification:', notifError);
+        }
+
+        Alert.alert(
+          'Request Approved! ✅',
+          `$${request.amount} reward approved for ${request.studentName}.\n\nIn production, this would trigger an actual payment via your selected payment method.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        // Deny the request
+        const { doc, updateDoc, Timestamp } = await import('firebase/firestore');
+        const { db } = await import('../../lib/firebase');
+        
+        await updateDoc(doc(db, 'reward_requests', requestId), {
+          status: 'denied',
+          respondedAt: Timestamp.now()
+        });
+
+        Alert.alert(
+          'Request Denied',
+          `Reward request from ${request.studentName} has been declined.`,
+          [{ text: 'OK' }]
+        );
+      }
+
+      // Refresh data to show updated status
+      loadData();
+    } catch (error) {
+      console.error('Error handling reward request:', error);
+      Alert.alert('Error', 'Failed to process reward request. Please try again.');
     }
   };
 
@@ -502,6 +610,57 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           </View>
         )}
 
+        {/* Pending Reward Requests */}
+        {rewardRequests.filter(req => req.status === 'pending').length > 0 && (
+          <View style={styles.rewardRequestsSection}>
+            <Text style={styles.sectionTitle}>🎉 Reward Requests</Text>
+            <Text style={styles.rewardRequestsSubtitle}>
+              {rewardRequests.filter(req => req.status === 'pending').length} pending request{rewardRequests.filter(req => req.status === 'pending').length === 1 ? '' : 's'}
+            </Text>
+            
+            {rewardRequests
+              .filter(req => req.status === 'pending')
+              .slice(0, 3)
+              .map((request) => (
+                <View key={request.id} style={styles.rewardRequestCard}>
+                  <View style={styles.rewardRequestHeader}>
+                    <View style={styles.rewardRequestInfo}>
+                      <Text style={styles.rewardRequestTitle}>{request.rewardTitle}</Text>
+                      <Text style={styles.rewardRequestDescription}>{request.rewardDescription}</Text>
+                      <View style={styles.rewardRequestMeta}>
+                        <View style={styles.rewardRequestCategory}>
+                          <Text style={styles.rewardRequestCategoryText}>{request.category}</Text>
+                        </View>
+                        <Text style={styles.rewardRequestTime}>
+                          {request.requestedAt.toLocaleDateString()}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.rewardRequestAmount}>
+                      <Text style={styles.rewardRequestAmountText}>${request.amount}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.rewardRequestActions}>
+                    <TouchableOpacity 
+                      style={styles.rewardRequestDenyButton}
+                      onPress={() => handleRewardRequest(request.id, 'deny')}
+                    >
+                      <Text style={styles.rewardRequestDenyText}>Decline</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.rewardRequestApproveButton}
+                      onPress={() => handleRewardRequest(request.id, 'approve')}
+                    >
+                      <Text style={styles.rewardRequestApproveText}>Send ${request.amount}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            }
+          </View>
+        )}
+
         {/* Key Metrics - Mixed Layout */}
         <View style={styles.metricsSection}>
           {wellnessScore && (
@@ -522,18 +681,18 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           <View style={styles.budgetItem}>
             <View style={styles.budgetHeader}>
               <Text style={styles.metricLabel}>Monthly Budget</Text>
-              <Text style={styles.budgetRemaining}>${Math.max(0, 50 - (monthlyEarned || 0))} left</Text>
+              <Text style={styles.budgetRemaining}>${Math.max(0, 50 - (studentEarnings[selectedStudent?.id]?.monthly || 0))} left</Text>
             </View>
             <View style={styles.budgetBarContainer}>
               <View style={styles.budgetBar}>
                 <View 
                   style={[styles.budgetFill, { 
-                    width: `${Math.min(100, ((monthlyEarned || 0) / 50) * 100)}%` 
+                    width: `${Math.min(100, ((studentEarnings[selectedStudent?.id]?.monthly || 0) / 50) * 100)}%` 
                   }]} 
                 />
               </View>
               <Text style={styles.budgetText}>
-                ${monthlyEarned || 0} of $50 used
+                ${studentEarnings[selectedStudent?.id]?.monthly || 0} of $50 used
               </Text>
             </View>
           </View>
@@ -621,14 +780,14 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </TouchableOpacity>
           )}
           
-          {(supportMessages.length > 0 || monthlyEarned > 0) && (
+          {(supportMessages.length > 0 || (studentEarnings[selectedStudent?.id]?.monthly || 0) > 0) && (
             <TouchableOpacity 
               style={styles.activityItem}
               onPress={() => navigation.navigate('Activity')}
             >
               <View style={styles.activityContent}>
                 <Text style={styles.activityTitle}>Monthly Summary</Text>
-                <Text style={styles.activitySubtitle}>{supportMessages.length} messages • ${monthlyEarned || 0} sent</Text>
+                <Text style={styles.activitySubtitle}>{supportMessages.length} messages • ${studentEarnings[selectedStudent?.id]?.monthly || 0} sent</Text>
               </View>
               <Text style={styles.activityAction}>View All</Text>
             </TouchableOpacity>
@@ -648,7 +807,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           )}
           
           {/* If no real activity, show helpful message */}
-          {!wellnessScore && supportMessages.length === 0 && monthlyEarned === 0 && (
+          {!wellnessScore && supportMessages.length === 0 && (studentEarnings[selectedStudent?.id]?.monthly || 0) === 0 && (
             <View style={styles.activityItem}>
               <View style={[styles.activityIndicator, { backgroundColor: theme.colors.backgroundTertiary }]} />
               <View style={styles.activityContent}>
@@ -1327,5 +1486,108 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textTertiary,
     marginTop: 4,
+  },
+  
+  // Reward Requests Section
+  rewardRequestsSection: {
+    paddingHorizontal: 24,
+    marginBottom: 8,
+  },
+  rewardRequestsSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 16,
+    marginTop: -8,
+  },
+  rewardRequestCard: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  rewardRequestHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  rewardRequestInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  rewardRequestTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  rewardRequestDescription: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  rewardRequestMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rewardRequestCategory: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  rewardRequestCategoryText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  rewardRequestTime: {
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+  },
+  rewardRequestAmount: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rewardRequestAmountText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.success,
+  },
+  rewardRequestActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  rewardRequestDenyButton: {
+    flex: 1,
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  rewardRequestDenyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+  },
+  rewardRequestApproveButton: {
+    flex: 1,
+    backgroundColor: theme.colors.success,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  rewardRequestApproveText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
   },
 });

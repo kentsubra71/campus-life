@@ -32,6 +32,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     lastSupportRequest,
     fetchActiveRewards, 
     fetchSupportMessages,
+    setupRealtimeMessages,
+    cleanupListeners,
     claimReward,
     updateMood,
     markMessageRead,
@@ -44,13 +46,17 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
 
   useEffect(() => {
     loadData();
+    setupRealtimeMessages(); // Enable real-time message updates
     
     // Fallback timeout to ensure loading doesn't get stuck
     const timeout = setTimeout(() => {
       setIsLoading(false);
     }, 3000);
     
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      cleanupListeners(); // Cleanup real-time listeners
+    };
   }, []);
 
   const loadData = useCallback(async () => {
@@ -66,7 +72,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           console.log('🔄 Loading student dashboard data...');
           const results = await Promise.allSettled([
             handleAsyncError(() => fetchActiveRewards(), 'Loading rewards'),
-            handleAsyncError(() => fetchSupportMessages(), 'Loading messages'),
+            // Note: We don't call fetchSupportMessages here because we use real-time listeners
             handleAsyncError(() => getEntryByDate(new Date().toISOString().split('T')[0]), 'Loading wellness entry')
           ]);
           
@@ -75,7 +81,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
             if (result.status === 'fulfilled' && result.value.error) {
               errors.push(result.value.error);
             } else if (result.status === 'rejected') {
-              const contexts = ['rewards', 'messages', 'wellness'];
+              const contexts = ['rewards', 'wellness'];
               errors.push({
                 code: 'UNKNOWN_ERROR',
                 message: 'Failed to load data',

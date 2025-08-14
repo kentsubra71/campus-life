@@ -1,14 +1,16 @@
 import 'whatwg-fetch'; // Add fetch polyfill for better compatibility
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, lazy, Suspense } from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createStackNavigator } from '@react-navigation/stack';
-import { StudentNavigator } from './src/navigation/StudentNavigator';
-import { ParentNavigator } from './src/navigation/ParentNavigator';
 import { useAuthStore } from './src/stores/authStore';
 import { View, Text, ActivityIndicator, StyleSheet, StatusBar, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
 import { theme } from './src/styles/theme';
+
+// Lazy load heavy navigation components
+const StudentNavigator = lazy(() => import('./src/navigation/StudentNavigator').then(m => ({ default: m.StudentNavigator })));
+const ParentNavigator = lazy(() => import('./src/navigation/ParentNavigator').then(m => ({ default: m.ParentNavigator })));
 
 // Auth screens
 import { RoleSelectionScreen } from './src/screens/auth/RoleSelectionScreen';
@@ -195,9 +197,23 @@ export default function App() {
         {!isAuthenticated ? (
           <AuthStack />
         ) : user?.role === 'student' ? (
-          <StudentNavigator />
+          <Suspense fallback={
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Loading Student Dashboard...</Text>
+            </View>
+          }>
+            <StudentNavigator />
+          </Suspense>
         ) : user?.role === 'parent' ? (
-          <ParentNavigator />
+          <Suspense fallback={
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Loading Parent Dashboard...</Text>
+            </View>
+          }>
+            <ParentNavigator />
+          </Suspense>
         ) : (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Loading user profile...</Text>

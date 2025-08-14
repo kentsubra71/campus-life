@@ -14,12 +14,66 @@ import {
   runTransaction,
   Timestamp 
 } from 'firebase/firestore';
+import { cache, CACHE_CONFIGS } from '../utils/universalCache';
 
 // Subscription tiers configuration
 export const SUBSCRIPTION_TIERS = {
   basic: { cap_cents: 2500, display_name: 'Basic', description: '$25/month send limit' },
   semi: { cap_cents: 5000, display_name: 'Semi Premium', description: '$50/month send limit' },
   premium: { cap_cents: 10000, display_name: 'Premium', description: '$100/month send limit' }
+};
+
+// Payment providers configuration with caching
+export const getPaymentProviders = async (): Promise<{
+  id: 'paypal' | 'venmo' | 'cashapp' | 'zelle';
+  name: string;
+  emoji: string;
+  description: string;
+  available: boolean;
+  manual: boolean;
+}[]> => {
+  return await cache.getOrFetch(
+    CACHE_CONFIGS.PAYMENT_PROVIDERS,
+    async () => {
+      console.log('🔄 Loading payment providers configuration...');
+      
+      // This could come from a config service in the future
+      return [
+        {
+          id: 'paypal' as const,
+          name: 'PayPal',
+          emoji: '💙',
+          description: 'Best experience. Returns to CampusLife.',
+          available: true,
+          manual: false
+        },
+        {
+          id: 'venmo' as const,
+          name: 'Venmo',
+          emoji: '💙',
+          description: 'Opens app; confirm after.',
+          available: true,
+          manual: true
+        },
+        {
+          id: 'cashapp' as const,
+          name: 'Cash App',
+          emoji: '💚',
+          description: 'Opens app; confirm after.',
+          available: true,
+          manual: true
+        },
+        {
+          id: 'zelle' as const,
+          name: 'Zelle',
+          emoji: '⚡',
+          description: 'Opens your bank/Zelle; manual confirm.',
+          available: true,
+          manual: true
+        }
+      ];
+    }
+  );
 };
 
 // Payment provider URL builders
@@ -330,7 +384,7 @@ export const confirmPayment = async (
   }
 };
 
-// Get spending caps for current user
+// Get spending caps for current user with caching
 export const getCurrentSpendingCaps = async (): Promise<{
   success: boolean;
   capCents?: number;
@@ -340,55 +394,63 @@ export const getCurrentSpendingCaps = async (): Promise<{
   periodEnd?: Date;
   error?: string;
 }> => {
+  const user = getCurrentUser();
+  if (!user) {
+    return { success: false, error: 'User not authenticated' };
+  }
+
   try {
-    // TESTING: Always return high limits for development
-    const TESTING_MODE = true;
-    
-    if (TESTING_MODE) {
-      console.log('🧪 TESTING MODE: Returning default high spending limits');
-      return {
-        success: true,
-        capCents: 10000, // $100 default limit for testing
-        spentCents: 0,
-        remainingCents: 10000,
-        periodStart: new Date(),
-        periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
-      };
-    }
+    return await cache.getOrFetch(
+      CACHE_CONFIGS.SPENDING_CAPS,
+      async () => {
+        console.log('🔄 Loading fresh spending caps...');
+        
+        // TESTING: Always return high limits for development
+        const TESTING_MODE = true;
+        
+        if (TESTING_MODE) {
+          console.log('🧪 TESTING MODE: Returning default high spending limits');
+          return {
+            success: true,
+            capCents: 10000, // $100 default limit for testing
+            spentCents: 0,
+            remainingCents: 10000,
+            periodStart: new Date(),
+            periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+          };
+        }
 
-    const user = getCurrentUser();
-    if (!user) {
-      return { success: false, error: 'User not authenticated' };
-    }
+        const subscription = await getActiveSubscription(user.uid);
+        if (!subscription) {
+          // For testing: provide default high limit when no subscription
+          console.log('No subscription found, using default limits for testing');
+          return {
+            success: true,
+            capCents: 10000, // $100 default limit for testing
+            spentCents: 0,
+            remainingCents: 10000,
+            periodStart: new Date(),
+            periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+          };
+        }
 
-    const subscription = await getActiveSubscription(user.uid);
-    if (!subscription) {
-      // For testing: provide default high limit when no subscription
-      console.log('No subscription found, using default limits for testing');
-      return {
-        success: true,
-        capCents: 10000, // $100 default limit for testing
-        spentCents: 0,
-        remainingCents: 10000,
-        periodStart: new Date(),
-        periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
-      };
-    }
+        const periodSpend = await getCurrentPeriodSpend(
+          user.uid,
+          subscription.current_period_start_utc.toDate(),
+          subscription.current_period_end_utc.toDate()
+        );
 
-    const periodSpend = await getCurrentPeriodSpend(
-      user.uid,
-      subscription.current_period_start_utc.toDate(),
-      subscription.current_period_end_utc.toDate()
+        return {
+          success: true,
+          capCents: subscription.cap_cents,
+          spentCents: periodSpend.spent_cents,
+          remainingCents: subscription.cap_cents - periodSpend.spent_cents,
+          periodStart: subscription.current_period_start_utc.toDate(),
+          periodEnd: subscription.current_period_end_utc.toDate()
+        };
+      },
+      user.uid
     );
-
-    return {
-      success: true,
-      capCents: subscription.cap_cents,
-      spentCents: periodSpend.spent_cents,
-      remainingCents: subscription.cap_cents - periodSpend.spent_cents,
-      periodStart: subscription.current_period_start_utc.toDate(),
-      periodEnd: subscription.current_period_end_utc.toDate()
-    };
   } catch (error: any) {
     console.error('Error getting spending caps:', error);
     return { success: false, error: error.message };

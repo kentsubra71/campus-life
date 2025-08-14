@@ -282,7 +282,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     set({ supportMessages: updatedMessages });
   },
 
-  requestSupport: () => {
+  requestSupport: async () => {
     const current = get();
     const now = new Date();
     
@@ -292,19 +292,70 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       return;
     }
 
-    const newRequest: SupportRequest = {
-      id: Date.now().toString(),
-      timestamp: now,
-      message: 'I could use some extra support right now 💙',
-      from: 'student-1',
-      familyId: 'family-1',
-      acknowledged: false,
-    };
+    const user = getCurrentUser();
+    if (!user) return;
 
-    set({ 
-      supportRequests: [newRequest, ...current.supportRequests],
-      lastSupportRequest: now
-    });
+    try {
+      // Get user profile for family info
+      const { getUserProfile, getFamilyMembers } = await import('../lib/firebase');
+      const userProfile = await getUserProfile(user.uid);
+      if (!userProfile || !userProfile.family_id) return;
+
+      // Create support request in Firebase
+      const { collection, addDoc, Timestamp } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+
+      const supportRequestData = {
+        from_user_id: user.uid,
+        family_id: userProfile.family_id,
+        message: 'I could use some extra support right now 💙',
+        created_at: Timestamp.now(),
+        acknowledged: false,
+        type: 'care_request'
+      };
+
+      const docRef = await addDoc(collection(db, 'support_requests'), supportRequestData);
+      
+      // Create local request for immediate UI update
+      const newRequest: SupportRequest = {
+        id: docRef.id,
+        timestamp: now,
+        message: 'I could use some extra support right now 💙',
+        from: user.uid,
+        familyId: userProfile.family_id,
+        acknowledged: false,
+      };
+
+      set({ 
+        supportRequests: [newRequest, ...current.supportRequests],
+        lastSupportRequest: now
+      });
+
+      // Send push notifications to all parents in the family
+      try {
+        const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+        const { parents } = await getFamilyMembers(userProfile.family_id);
+        
+        const studentName = userProfile.full_name;
+        
+        for (const parent of parents) {
+          if (parent.pushToken) {
+            const notification = {
+              ...NotificationTemplates.careRequest(studentName, 'I could use some extra support right now 💙'),
+              userId: parent.id
+            };
+            
+            console.log('📱 Sending care request notification to parent:', parent.id);
+            await pushNotificationService.sendPushNotification(notification);
+          }
+        }
+      } catch (notifError) {
+        console.error('📱 Failed to send care request notifications:', notifError);
+      }
+
+    } catch (error) {
+      console.error('Failed to create support request:', error);
+    }
   },
 
   acknowledgeSupport: (id: string) => {

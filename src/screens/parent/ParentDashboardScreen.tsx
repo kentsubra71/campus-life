@@ -22,6 +22,7 @@ import { StatsCard } from '../../components/cards/StatsCard';
 import { ActionCard } from '../../components/cards/ActionCard';
 import { ListCard } from '../../components/cards/ListCard';
 import { BudgetProgressBar } from '../../components/BudgetProgressBar';
+import { pushNotificationService, NotificationTemplates } from '../../services/pushNotificationService';
 
 interface ParentDashboardScreenProps {
   navigation: any;
@@ -240,6 +241,59 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         `Share this code with your college student:\n\n${family.inviteCode}\n\nThis code has been copied to your clipboard.`,
         [{ text: 'OK' }]
       );
+    }
+  };
+
+  const sendDebugNotification = async (type: 'local' | 'firebase') => {
+    try {
+      if (type === 'local') {
+        // Send local notification to self
+        await pushNotificationService.sendLocalNotification(
+          '🧪 Parent Local Debug Test',
+          'This is a test notification sent locally to your device. Local notifications work in Expo Go!'
+        );
+        Alert.alert('Debug Success', 'Local test notification sent! Check your notification bar.');
+      } else {
+        // Test Firebase push notification setup
+        if (!user) return;
+        
+        Alert.alert(
+          '🚨 Firebase Push Test',
+          'This tests your Firebase/EAS setup:\n\n1. If you get "no project id" - you need EAS setup\n2. If the call succeeds but no notification shows - that\'s normal in Expo Go\n3. In production/development builds, this will work properly',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Try Anyway', 
+              onPress: async () => {
+                try {
+                  const testNotification = NotificationTemplates.supportReceived(
+                    user.name || 'Parent',
+                    '🧪 Debug: This is a test support message from the parent dashboard'
+                  );
+                  
+                  const success = await pushNotificationService.sendPushNotification({
+                    ...testNotification,
+                    userId: user.id
+                  });
+                  
+                  Alert.alert(
+                    'Firebase Test Result', 
+                    success 
+                      ? 'Firebase call succeeded! (But notification won\'t show in Expo Go)' 
+                      : 'Firebase call failed - check console for details'
+                  );
+                } catch (error) {
+                  console.error('Firebase debug error:', error);
+                  Alert.alert('Firebase Error', 'Firebase call failed - check console for details');
+                }
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Debug notification error:', error);
+      Alert.alert('Debug Error', `Failed to send test notification: ${error.message}`);
     }
   };
 
@@ -604,6 +658,30 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </View>
           )}
         </View>
+        {/* Debug Notifications Section */}
+        <View style={styles.debugSection}>
+          <Text style={styles.sectionTitle}>🧪 Debug Notifications</Text>
+          <Text style={styles.debugSubtext}>Test notifications from one device (for development)</Text>
+          
+          <View style={styles.debugButtonRow}>
+            <TouchableOpacity 
+              style={styles.debugButton}
+              onPress={() => sendDebugNotification('local')}
+            >
+              <Text style={styles.debugButtonText}>Test Local ✅</Text>
+              <Text style={styles.debugButtonSubtext}>Works in Expo Go</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.debugButton, styles.debugButtonDisabled]}
+              onPress={() => sendDebugNotification('firebase')}
+            >
+              <Text style={styles.debugButtonText}>Test Firebase ⚠️</Text>
+              <Text style={styles.debugButtonSubtext}>Limited in Expo Go</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Wellness */}
         <View style={styles.wellnessSection}>
           <Text style={styles.sectionHeader}>Wellness Check-in</Text>
@@ -1168,5 +1246,86 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.textPrimary,
     textAlign: 'center',
+  },
+  
+  // Debug Section Styles
+  debugSection: {
+    paddingHorizontal: 24,
+    marginTop: 24,
+  },
+  debugSubtext: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginBottom: 16,
+    fontStyle: 'italic',
+  },
+  debugButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  debugButton: {
+    flex: 1,
+    backgroundColor: theme.colors.backgroundSecondary,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  debugButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  debugButtonSubtext: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+  },
+  debugButtonDisabled: {
+    opacity: 0.7,
+    borderColor: '#f59e0b',
+    borderWidth: 1,
+  },
+  
+  // Wellness Section Styles
+  wellnessSection: {
+    paddingHorizontal: 24,
+    marginTop: 24,
+    marginBottom: 40,
+  },
+  sectionHeader: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 12,
+  },
+  wellnessContainer: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    padding: 20,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  wellnessText: {
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+    flex: 1,
+  },
+  tapHint: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
+    marginLeft: 8,
+  },
+  pullHint: {
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+    marginTop: 4,
   },
 });

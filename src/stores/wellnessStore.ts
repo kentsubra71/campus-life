@@ -120,6 +120,45 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       // Calculate and update stats after setting entries
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
+      
+      // Send wellness log notification to parents
+      try {
+        const { getCurrentUser, getUserProfile, getFamilyMembers } = await import('../lib/firebase');
+        const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+        
+        const user = getCurrentUser();
+        if (!user) return;
+        
+        const userProfile = await getUserProfile(user.uid);
+        if (!userProfile || !userProfile.family_id || userProfile.user_type !== 'student') return;
+        
+        // Get family members to notify parents
+        const { parents } = await getFamilyMembers(userProfile.family_id);
+        const studentName = userProfile.full_name;
+        
+        // Only send notification for significant wellness changes (good or concerning)
+        const shouldNotify = wellnessScore >= 8 || wellnessScore <= 4;
+        
+        if (shouldNotify) {
+          for (const parent of parents) {
+            if (parent.pushToken) {
+              const notification = {
+                ...NotificationTemplates.weeklyReport(studentName, wellnessScore),
+                userId: parent.id,
+                title: wellnessScore >= 8 ? 
+                  `✨ ${studentName} had a great day!` : 
+                  `💙 ${studentName} may need support`,
+                body: `Wellness score: ${wellnessScore}/10 - Check their latest log`
+              };
+              
+              console.log('📱 Sending wellness notification to parent:', parent.id);
+              await pushNotificationService.sendPushNotification(notification);
+            }
+          }
+        }
+      } catch (notifError) {
+        console.error('📱 Failed to send wellness log notification:', notifError);
+      }
     } catch (error) {
       console.error('Failed to add wellness entry:', error);
     }

@@ -93,9 +93,12 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const firebaseEntry: Omit<FirebaseWellnessEntry, 'id' | 'created_at'> = {
       user_id: user.uid,
       mood: entryData.mood,
-      stress_level: entryData.academic, // Map academic to stress_level
       sleep_hours: entryData.sleep,
       exercise_minutes: entryData.exercise,
+      nutrition: entryData.nutrition,
+      water: entryData.water,
+      social: entryData.social,
+      academic: entryData.academic,
       notes: entryData.notes,
     };
 

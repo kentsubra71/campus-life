@@ -159,10 +159,10 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
 
   const getTypeColor = useMemo(() => (type: string) => {
     switch (type) {
-      case 'automatic': return '#10b981';
+      case 'automatic': return theme.colors.success;
       case 'manual': return 'theme.colors.primary';
-      case 'challenge': return '#f59e0b';
-      default: return '#6b7280';
+      case 'challenge': return theme.colors.warning;
+      default: return theme.colors.textSecondary;
     }
   }, []);
 
@@ -179,7 +179,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
 
   const formatTimeAgo = (timestamp: Date) => {
     const now = new Date();
-    const diff = now.getTime() - timestamp.getTime();
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    const diff = now.getTime() - date.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(hours / 24);
     
@@ -333,7 +334,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
         <TouchableOpacity 
           style={[
             styles.supportButton,
-            lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+            lastSupportRequest && new Date().getTime() - new Date(lastSupportRequest).getTime() < 60 * 60 * 1000 
               ? styles.supportButtonSent 
               : null
           ]}
@@ -344,13 +345,13 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
         >
           <Text style={[
             styles.supportButtonText,
-            lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+            lastSupportRequest && new Date().getTime() - new Date(lastSupportRequest).getTime() < 60 * 60 * 1000 
               ? styles.supportButtonTextSent 
               : null
           ]}>
             {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
-              ? 'Support request sent! ✓' 
-              : 'I need support 💙'}
+              ? 'Support request sent!' 
+              : 'I need support'}
           </Text>
           <Text style={styles.supportButtonSubtext}>
             {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
@@ -456,7 +457,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
             </View>
           </View>
           <Text style={styles.rewardsSubtext}>
-            Small surprises from family when you're doing great ✨
+            Small surprises from family when you're doing great
           </Text>
           
           {activeRewards.map((reward) => (
@@ -510,7 +511,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
             style={styles.debugButton}
             onPress={() => sendDebugNotification('local')}
           >
-            <Text style={styles.debugButtonText}>Test Local ✅</Text>
+            <Text style={styles.debugButtonText}>Test Local</Text>
             <Text style={styles.debugButtonSubtext}>Works in Expo Go</Text>
           </TouchableOpacity>
           
@@ -518,7 +519,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
             style={[styles.debugButton, styles.debugButtonDisabled]}
             onPress={() => sendDebugNotification('firebase')}
           >
-            <Text style={styles.debugButtonText}>Test Firebase ⚠️</Text>
+            <Text style={styles.debugButtonText}>Test Firebase</Text>
             <Text style={styles.debugButtonSubtext}>Limited in Expo Go</Text>
           </TouchableOpacity>
         </View>
@@ -534,7 +535,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'theme.colors.background',
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -543,10 +544,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'theme.colors.background',
+    backgroundColor: theme.colors.background,
   },
   loadingText: {
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     fontSize: 16,
   },
   header: {
@@ -556,21 +557,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     marginTop: 6,
   },
   connectionCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     margin: 20,
     padding: 24,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -580,7 +581,7 @@ const styles = StyleSheet.create({
   connectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     marginBottom: 20,
   },
   connectionStats: {
@@ -593,17 +594,17 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 22,
     fontWeight: '800',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
   },
   statLabel: {
     fontSize: 12,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     marginTop: 6,
     fontWeight: '500',
   },
   statHint: {
     fontSize: 10,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     marginTop: 2,
     fontWeight: '600',
   },
@@ -613,18 +614,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
   messageCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 18,
     borderRadius: 12,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -636,7 +637,7 @@ const styles = StyleSheet.create({
     borderLeftColor: 'theme.colors.primary',
   },
   messageTypeContainer: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -655,27 +656,27 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 14,
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
     fontWeight: '500',
   },
   messageTime: {
     fontSize: 12,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
   },
   levelCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     margin: 20,
     padding: 24,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -691,46 +692,46 @@ const styles = StyleSheet.create({
   levelTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
   },
   levelNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
   },
   experienceBar: {
     height: 8,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 4,
     marginBottom: 8,
   },
   experienceFill: {
     height: '100%',
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     borderRadius: 4,
   },
   experienceText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     fontWeight: '500',
   },
   totalEarned: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#4ade80',
+    color: theme.colors.success,
     textAlign: 'center',
     marginTop: 8,
     letterSpacing: 0.5,
   },
   scoreCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     margin: 20,
     padding: 24,
     borderRadius: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -739,7 +740,7 @@ const styles = StyleSheet.create({
   },
   scoreTitle: {
     fontSize: 16,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     marginBottom: 12,
     fontWeight: '500',
   },
@@ -751,26 +752,26 @@ const styles = StyleSheet.create({
   scoreValue: {
     fontSize: 48,
     fontWeight: '800',
-    color: '#10b981',
+    color: theme.colors.success,
   },
   scoreMax: {
     fontSize: 20,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
     marginLeft: 4,
   },
   scoreMessage: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     marginTop: 12,
     fontWeight: '600',
   },
   card: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -781,17 +782,17 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
   },
   cardValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     marginTop: 4,
   },
   cardStreak: {
     fontSize: 12,
-    color: '#f59e0b',
+    color: theme.colors.warning,
     marginTop: 4,
   },
   rewardsHeader: {
@@ -806,21 +807,21 @@ const styles = StyleSheet.create({
   },
   rewardsTotal: {
     fontSize: 16,
-    color: '#10b981',
+    color: theme.colors.success,
     fontWeight: '700',
   },
   rewardsTotalLabel: {
     fontSize: 12,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     marginLeft: 4,
     fontWeight: '500',
   },
   rewardCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -840,7 +841,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rewardCategoryContainer: {
-    backgroundColor: '#10b981',
+    backgroundColor: theme.colors.success,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -864,7 +865,7 @@ const styles = StyleSheet.create({
   },
   rewardDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   rewardAmount: {
@@ -873,7 +874,7 @@ const styles = StyleSheet.create({
   amountText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#10b981',
+    color: theme.colors.success,
     marginBottom: 4,
   },
   typeBadge: {
@@ -892,17 +893,17 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 12,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   progressBar: {
     height: 4,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 2,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     borderRadius: 2,
   },
   sectionHeader: {
@@ -913,16 +914,16 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     fontSize: 14,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   wellnessActionCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 20,
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -932,12 +933,12 @@ const styles = StyleSheet.create({
   wellnessActionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     marginBottom: 6,
   },
   wellnessActionSubtitle: {
     fontSize: 14,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   statsRow: {
@@ -945,14 +946,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   statCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -961,9 +962,9 @@ const styles = StyleSheet.create({
   },
   newMessagesBadge: {
     fontSize: 12,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
-    backgroundColor: '#1e1b4b',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
@@ -971,26 +972,26 @@ const styles = StyleSheet.create({
   smallSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     marginBottom: 8,
   },
   rewardsSmallTotal: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     fontWeight: '600',
   },
   rewardsSubtext: {
     fontSize: 13,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     marginBottom: 12,
     fontStyle: 'italic',
   },
   smallRewardCard: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1001,21 +1002,21 @@ const styles = StyleSheet.create({
   smallRewardTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
   },
   smallRewardDescription: {
     fontSize: 12,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     marginTop: 2,
   },
   smallAmountText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#10b981',
+    color: theme.colors.success,
     marginBottom: 4,
   },
   supportButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: theme.colors.primary,
     marginHorizontal: 20,
     marginTop: 16,
     padding: 16,
@@ -1028,25 +1029,25 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   supportButtonSent: {
-    backgroundColor: '#059669',
+    backgroundColor: theme.colors.success,
   },
   supportButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     marginBottom: 4,
   },
   supportButtonTextSent: {
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
   },
   supportButtonSubtext: {
     fontSize: 12,
-    color: '#dbeafe',
+    color: theme.colors.backgroundSecondary,
     textAlign: 'center',
   },
   debugSubtext: {
     fontSize: 13,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     marginBottom: 16,
     fontStyle: 'italic',
   },
@@ -1056,27 +1057,27 @@ const styles = StyleSheet.create({
   },
   debugButton: {
     flex: 1,
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
   },
   debugButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   debugButtonSubtext: {
     fontSize: 12,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   debugButtonDisabled: {
     opacity: 0.7,
-    borderColor: '#f59e0b',
+    borderColor: theme.colors.warning,
     borderWidth: 1,
   },
 }); 

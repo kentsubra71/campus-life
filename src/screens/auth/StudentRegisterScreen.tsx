@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { AuthScreenProps } from '../../types/navigation';
+import { theme } from '../../styles/theme';
 
 interface StudentRegisterScreenProps extends AuthScreenProps<'StudentRegister'> {}
 
@@ -214,7 +215,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.backgroundAuth,
   },
   content: {
     padding: 24,
@@ -225,20 +226,20 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
     marginBottom: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
   },
   inviteCard: {
     backgroundColor: '#059669',
@@ -249,7 +250,7 @@ const styles = StyleSheet.create({
   inviteTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     marginBottom: 8,
   },
   inviteText: {
@@ -267,16 +268,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   input: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 16,
     fontSize: 16,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   inviteInput: {
     fontSize: 18,
@@ -294,21 +295,21 @@ const styles = StyleSheet.create({
   },
   helpText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   benefitsCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 20,
     borderRadius: 12,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
   },
   benefitsTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
   benefitsList: {
@@ -332,12 +333,12 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   registerButtonDisabled: {
-    backgroundColor: '#4b5563',
+    backgroundColor: theme.colors.buttonPrimary,
   },
   registerButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
   },
   loginLink: {
     alignItems: 'center',
@@ -345,7 +346,7 @@ const styles = StyleSheet.create({
   },
   loginLinkText: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
 });

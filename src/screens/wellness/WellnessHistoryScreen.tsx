@@ -43,9 +43,9 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 8) return '#28a745';
-    if (score >= 6) return '#ffc107';
-    return '#dc3545';
+    if (score >= 8) return theme.colors.success;
+    if (score >= 6) return theme.colors.warning;
+    return theme.colors.error;
   };
 
   const getMoodLevel = (mood: number) => {
@@ -195,7 +195,7 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -203,9 +203,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: theme.colors.border,
   },
   backButton: {
     padding: 8,
@@ -218,18 +218,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   content: {
     flex: 1,
     padding: 20,
   },
   statsContainer: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   statsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 15,
   },
   statsGrid: {
@@ -258,15 +258,15 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   filterContainer: {
     flexDirection: 'row',
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     padding: 4,
     marginBottom: 20,
     shadowColor: '#000',
@@ -288,17 +288,17 @@ const styles = StyleSheet.create({
   filterButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
   },
   filterButtonTextActive: {
     color: '#fff',
   },
   entryCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -315,10 +315,10 @@ const styles = StyleSheet.create({
   entryDate: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   entryScore: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 16,
@@ -337,21 +337,21 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   notesContainer: {
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: theme.colors.border,
     paddingTop: 8,
   },
   notesText: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontStyle: 'italic',
   },
   emptyContainer: {
@@ -361,12 +361,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
     paddingHorizontal: 20,

@@ -30,8 +30,8 @@ export const StudentNavigator = () => {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarStyle: {
-          backgroundColor: '#1f2937',
-          borderTopColor: '#374151',
+          backgroundColor: theme.colors.backgroundCard,
+          borderTopColor: theme.colors.border,
         },
         headerShown: false,
       }}

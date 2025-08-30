@@ -77,7 +77,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   const getRoleColor = (role: string) => {
-    return role === 'parent' ? '#1e40af' : '#059669';
+    return role === 'parent' ? theme.colors.primary : theme.colors.success;
   };
 
 
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
   },
   profileInfo: {
     flex: 1,
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   saveButtonText: {
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
   roleText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     textTransform: 'uppercase',
   },
   familyCard: {
@@ -459,6 +459,6 @@ const styles = StyleSheet.create({
   signOutButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
   },
 });

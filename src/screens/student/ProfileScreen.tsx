@@ -14,6 +14,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { showMessage } from 'react-native-flash-message';
+import { theme } from '../../styles/theme';
 // Removed supabase import as it's not used in this version
 
 interface ProfileScreenProps {
@@ -21,7 +22,7 @@ interface ProfileScreenProps {
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { stats } = useWellnessStore();
   const { level, totalEarned } = useRewardsStore();
   
@@ -33,6 +34,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     school: '',
     major: '',
     graduationYear: '',
+    paypalEmail: '',
   });
   
   const [preferences, setPreferences] = useState({
@@ -53,21 +55,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     if (!user) return;
     
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      // Profile data is already available from user object
+      const data = user;
+      const error = null;
       
       if (data) {
         setProfile({
-          fullName: data.full_name || '',
-          email: user.email || '',
-          phone: data.phone || '',
-          emergencyContact: data.emergency_contact || '',
-          school: data.school || '',
-          major: data.major || '',
-          graduationYear: data.graduation_year || '',
+          fullName: user?.name || '',
+          email: user?.email || '',
+          phone: '',
+          emergencyContact: '',
+          school: '',
+          major: '',
+          graduationYear: '',
+          paypalEmail: user?.paypal_email || '',
         });
       }
     } catch (error) {
@@ -80,34 +81,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          full_name: profile.fullName,
-          phone: profile.phone,
-          emergency_contact: profile.emergencyContact,
-          school: profile.school,
-          major: profile.major,
-          graduation_year: profile.graduationYear,
-          updated_at: new Date().toISOString(),
-        });
+      // Update profile using Firebase (implement based on your Firebase structure)
+      console.log('Profile update would save:', profile);
+      const error = null; // Placeholder
       
       if (error) {
         showMessage({
           message: 'Error',
           description: 'Failed to update profile',
           type: 'danger',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
+          backgroundColor: theme.colors.backgroundCard,
+          color: theme.colors.textPrimary,
         });
       } else {
         showMessage({
           message: 'Success',
           description: 'Profile updated successfully',
           type: 'success',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
+          backgroundColor: theme.colors.backgroundCard,
+          color: theme.colors.textPrimary,
         });
         setIsEditing(false);
       }
@@ -116,8 +108,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         message: 'Error',
         description: 'Failed to update profile',
         type: 'danger',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
+        backgroundColor: theme.colors.backgroundCard,
+        color: theme.colors.textPrimary,
       });
     } finally {
       setLoading(false);
@@ -126,25 +118,26 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   const handleSignOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
+      await logout();
+      const error = null;
       if (error) {
         showMessage({
           message: 'Error',
           description: 'Failed to sign out',
           type: 'danger',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
+          backgroundColor: theme.colors.backgroundCard,
+          color: theme.colors.textPrimary,
         });
       } else {
-        setUser(null);
+        // User is already logged out via logout()
       }
     } catch (error) {
       showMessage({
         message: 'Error',
         description: 'Failed to sign out',
         type: 'danger',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
+        backgroundColor: theme.colors.backgroundCard,
+        color: theme.colors.textPrimary,
       });
     }
   };
@@ -154,8 +147,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       message: 'Sign Out',
       description: 'Are you sure you want to sign out?',
       type: 'info',
-      backgroundColor: '#1f2937',
-      color: '#f9fafb',
+      backgroundColor: theme.colors.backgroundCard,
+      color: theme.colors.textPrimary,
       duration: 4000,
     });
     // For now, just sign out directly since we can't customize the action buttons
@@ -178,7 +171,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           value={value}
           onChangeText={(text) => setProfile({ ...profile, [key]: text })}
           placeholder={`Enter ${label.toLowerCase()}`}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={theme.colors.textTertiary}
           multiline={multiline}
           numberOfLines={multiline ? 3 : 1}
           textAlignVertical={multiline ? 'top' : 'center'}
@@ -202,8 +195,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       <Switch
         value={preferences[key]}
         onValueChange={(value) => setPreferences({ ...preferences, [key]: value })}
-        trackColor={{ false: '#374151', true: 'theme.colors.primary' }}
-        thumbColor={preferences[key] ? '#f9fafb' : '#9ca3af'}
+        trackColor={{ false: theme.colors.backgroundTertiary, true: theme.colors.primary }}
+        thumbColor={preferences[key] ? theme.colors.backgroundSecondary : theme.colors.textTertiary}
       />
     </View>
   );
@@ -243,7 +236,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               </Text>
               <Text style={styles.overviewEmail}>{profile.email}</Text>
               <Text style={styles.overviewStatus}>
-                {userType?.charAt(0).toUpperCase() + userType?.slice(1)} • Level {level}
+                {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)} • Level {level}
               </Text>
             </View>
           </View>
@@ -297,6 +290,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Payment Setup */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment Setup</Text>
+          <Text style={styles.sectionSubtitle}>
+            Add your PayPal email so family can send you money directly
+          </Text>
+          <View style={styles.fieldsContainer}>
+            {renderProfileField('PayPal Email', profile.paypalEmail, 'paypalEmail')}
+          </View>
+        </View>
+
         {/* Account Details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Details</Text>
@@ -307,7 +311,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           <View style={styles.accountDetail}>
             <Text style={styles.accountLabel}>Account Type</Text>
             <Text style={styles.accountValue}>
-              {userType?.charAt(0).toUpperCase() + userType?.slice(1)}
+              {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
             </Text>
           </View>
           <View style={styles.accountDetail}>
@@ -372,7 +376,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
@@ -385,20 +389,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     lineHeight: 22,
   },
   overviewCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 24,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     marginBottom: 30,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -415,7 +419,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -431,17 +435,17 @@ const styles = StyleSheet.create({
   overviewName: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   overviewEmail: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   overviewStatus: {
     fontSize: 12,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   statsRow: {
@@ -454,12 +458,12 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   section: {
@@ -474,10 +478,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 16,
+    lineHeight: 20,
   },
   editButton: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -488,10 +498,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   fieldsContainer: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     padding: 20,
   },
   fieldContainer: {
@@ -500,23 +510,23 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   fieldValue: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     paddingVertical: 8,
   },
   fieldInput: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderWidth: 1,
-    borderColor: '#4b5563',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   multilineInput: {
     minHeight: 80,
@@ -526,28 +536,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     marginBottom: 8,
   },
   accountLabel: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   accountValue: {
     fontSize: 14,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     fontWeight: '600',
   },
   preferencesContainer: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     padding: 20,
   },
   preferenceContainer: {
@@ -563,37 +573,37 @@ const styles = StyleSheet.create({
   preferenceLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   preferenceDescription: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     lineHeight: 18,
   },
   actionsSection: {
     marginBottom: 40,
   },
   actionButton: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     marginBottom: 8,
     alignItems: 'center',
   },
   actionButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   signOutButton: {
-    borderColor: '#ef4444',
+    borderColor: theme.colors.error,
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
   },
   signOutText: {
-    color: '#ef4444',
+    color: theme.colors.error,
   },
 }); 

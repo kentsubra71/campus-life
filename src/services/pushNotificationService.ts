@@ -8,7 +8,8 @@ import { db } from '../lib/firebase';
 // Configure notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -417,7 +418,6 @@ class PushNotificationService {
         },
         trigger: {
           date: reminderTime,
-          repeats: true,
         },
       });
 

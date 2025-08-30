@@ -27,7 +27,7 @@ import { cache, CACHE_CONFIGS } from '../../utils/universalCache';
 
 interface ActivityItem {
   id: string;
-  type: 'payment' | 'message';
+  type: 'payment' | 'message' | 'item_request';
   timestamp: Date;
   amount?: number;
   provider?: string;
@@ -36,6 +36,10 @@ interface ActivityItem {
   student_name?: string;
   message_content?: string;
   message_type?: string;
+  item_name?: string;
+  item_price?: number;
+  item_description?: string;
+  request_reason?: string;
 }
 
 type ParentStackParamList = {
@@ -48,7 +52,7 @@ interface ActivityHistoryScreenProps {
 }
 
 type FilterPeriod = 'all' | '7days' | '30days' | '90days';
-type FilterType = 'all' | 'payments' | 'messages';
+type FilterType = 'all' | 'payments' | 'messages' | 'requests';
 
 export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
@@ -219,6 +223,85 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         }
       }
 
+      // Load item requests
+      try {
+        const requestsQuery = query(
+          collection(db, 'item_requests'),
+          where('parent_id', '==', user.id),
+          orderBy('created_at', 'desc')
+        );
+        const requestsSnapshot = await getDocs(requestsQuery);
+        
+        console.log(`📦 Found ${requestsSnapshot.size} item requests`);
+        
+        for (const doc of requestsSnapshot.docs) {
+          const request = doc.data();
+          const studentId = request.student_id;
+          
+          let studentName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`);
+          if (!studentName) {
+            const studentQuery = query(
+              collection(db, 'users'),
+              where('id', '==', studentId)
+            );
+            const studentSnapshot = await getDocs(studentQuery);
+            studentName = studentSnapshot.docs[0]?.data()?.full_name || 'Student';
+            await cache.set(CACHE_CONFIGS.STUDENT_NAMES, studentName, `${user.id}_${studentId}`);
+          }
+
+          allActivities.push({
+            id: doc.id,
+            type: 'item_request',
+            timestamp: request.created_at.toDate(),
+            status: request.status || 'pending',
+            item_name: request.item_name,
+            item_price: request.item_price,
+            item_description: request.item_description,
+            request_reason: request.request_reason,
+            student_name: studentName
+          });
+        }
+      } catch (requestsError) {
+        console.log('Item requests query failed, trying fallback...', requestsError);
+        try {
+          const requestsQuery = query(
+            collection(db, 'item_requests'),
+            where('parent_id', '==', user.id)
+          );
+          const requestsSnapshot = await getDocs(requestsQuery);
+          
+          for (const doc of requestsSnapshot.docs) {
+            const request = doc.data();
+            const studentId = request.student_id;
+            
+            let studentName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`);
+            if (!studentName) {
+              const studentQuery = query(
+                collection(db, 'users'),
+                where('id', '==', studentId)
+              );
+              const studentSnapshot = await getDocs(studentQuery);
+              studentName = studentSnapshot.docs[0]?.data()?.full_name || 'Student';
+              await cache.set(CACHE_CONFIGS.STUDENT_NAMES, studentName, `${user.id}_${studentId}`);
+            }
+
+            allActivities.push({
+              id: doc.id,
+              type: 'item_request',
+              timestamp: request.created_at.toDate(),
+              status: request.status || 'pending',
+              item_name: request.item_name,
+              item_price: request.item_price,
+              item_description: request.item_description,
+              request_reason: request.request_reason,
+              student_name: studentName
+            });
+          }
+        } catch (fallbackError) {
+          console.log('Item requests fallback also failed:', fallbackError);
+        }
+      }
+
       // Sort all activities by timestamp
       allActivities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
       
@@ -357,7 +440,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
     // Filter by type
     if (filterType !== 'all') {
-      filtered = filtered.filter(activity => activity.type === filterType.slice(0, -1)); // Remove 's' from 'payments'/'messages'
+      if (filterType === 'requests') {
+        filtered = filtered.filter(activity => activity.type === 'item_request');
+      } else {
+        filtered = filtered.filter(activity => activity.type === filterType.slice(0, -1)); // Remove 's' from 'payments'/'messages'
+      }
     }
 
     setFilteredActivities(filtered);
@@ -378,6 +465,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       case 'all': return 'All Activities';
       case 'payments': return 'Payments Only';
       case 'messages': return 'Messages Only';
+      case 'requests': return 'Item Requests';
       default: return 'All Activities';
     }
   };
@@ -393,6 +481,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         case 'timeout': return '#dc2626';
         case 'cancelled': return '#9ca3af';
         case 'failed': return '#dc2626';
+        default: return '#9ca3af';
+      }
+    } else if (type === 'item_request') {
+      switch (status) {
+        case 'approved': return '#10b981';
+        case 'denied': return '#dc2626';
+        case 'pending': return '#f59e0b';
         default: return '#9ca3af';
       }
     } else {
@@ -415,6 +510,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         case 'timeout': return 'Timed Out';
         case 'cancelled': return 'Cancelled';
         case 'failed': return 'Failed';
+        default: return status;
+      }
+    } else if (type === 'item_request') {
+      switch (status) {
+        case 'approved': return 'Approved';
+        case 'denied': return 'Denied';
+        case 'pending': return 'Pending';
         default: return status;
       }
     } else {
@@ -503,8 +605,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         <View style={styles.activityHeader}>
           <View style={styles.activityInfo}>
             <Text style={styles.activityType}>
-              {item.type === 'payment' ? 'Payment' : 'Message'}
-              {item.student_name && ` to ${item.student_name.split(' ')[0]}`}
+              {item.type === 'payment' ? 'Payment' : 
+               item.type === 'item_request' ? 'Item Request' : 'Message'}
+              {item.student_name && ` ${item.type === 'item_request' ? 'from' : 'to'} ${item.student_name.split(' ')[0]}`}
             </Text>
             <Text style={styles.activityTime}>{formatTime(item.timestamp)}</Text>
           </View>
@@ -579,6 +682,22 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             </Text>
           </View>
         )}
+
+        {item.type === 'item_request' && (
+          <View style={styles.requestDetails}>
+            <Text style={styles.requestItem}>
+              {item.item_name} - ${item.item_price?.toFixed(2)}
+            </Text>
+            {item.item_description && (
+              <Text style={styles.requestDescription} numberOfLines={2}>
+                {item.item_description}
+              </Text>
+            )}
+            <Text style={styles.requestReason}>
+              Reason: {item.request_reason}
+            </Text>
+          </View>
+        )}
         </TouchableOpacity>
       </Animated.View>
     );
@@ -619,7 +738,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           <View style={styles.filterRow}>
             <Text style={styles.filterLabel}>Type:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
-              {(['all', 'payments', 'messages'] as FilterType[]).map((type) => (
+              {(['all', 'payments', 'messages', 'requests'] as FilterType[]).map((type) => (
                 <TouchableOpacity
                   key={type}
                   style={[
@@ -943,5 +1062,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textTertiary,
     textAlign: 'center',
+  },
+  requestDetails: {
+    marginTop: 12,
+  },
+  requestItem: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  requestDescription: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  requestReason: {
+    fontSize: 14,
+    color: theme.colors.textTertiary,
+    lineHeight: 18,
   },
 });

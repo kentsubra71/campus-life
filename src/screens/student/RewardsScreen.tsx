@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { showMessage } from 'react-native-flash-message';
 import { theme } from '../../styles/theme';
+import { ReceivedPayments } from '../../components/ReceivedPayments';
 
 interface RewardsScreenProps {
   navigation: any;
@@ -228,6 +229,12 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
               <Text style={styles.levelProgressText}>{nextLevelExp} XP to next level</Text>
             </View>
           </View>
+        </View>
+
+        {/* Money Received Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Money Received</Text>
+          <ReceivedPayments />
         </View>
 
         {/* Active Rewards */}

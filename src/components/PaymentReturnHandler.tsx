@@ -289,7 +289,7 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#ffffff',
     padding: 24,
     paddingTop: 60,
     justifyContent: 'center',
@@ -305,23 +305,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: '#111827',
     textAlign: 'center',
     marginBottom: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: '#6b7280',
     textAlign: 'center',
     lineHeight: 24,
   },
   paymentDetails: {
-    backgroundColor: '#1f2937',
+    backgroundColor: '#f9fafb',
     borderRadius: 12,
     padding: 20,
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#e5e7eb',
   },
   detailRow: {
     flexDirection: 'row',
@@ -331,12 +331,12 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: '#6b7280',
     fontWeight: '600',
   },
   detailValue: {
     fontSize: 14,
-    color: '#f9fafb',
+    color: '#111827',
     fontWeight: '700',
     textAlign: 'right',
     flex: 1,
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   button: {
-    backgroundColor: '#374151',
+    backgroundColor: '#e5e7eb',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -358,44 +358,44 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#d1d5db',
   },
   buttonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#111827',
   },
   secondaryButtonText: {
-    color: '#9ca3af',
+    color: '#6b7280',
   },
   disclaimer: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#9ca3af',
     textAlign: 'center',
     lineHeight: 16,
     fontStyle: 'italic',
   },
   loadingText: {
     fontSize: 16,
-    color: '#f9fafb',
+    color: '#111827',
     textAlign: 'center',
   },
   statusContainer: {
-    backgroundColor: '#1f2937',
+    backgroundColor: '#f9fafb',
     borderRadius: 12,
     padding: 24,
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#e5e7eb',
   },
   statusText: {
     fontSize: 16,
-    color: '#d1d5db',
+    color: '#374151',
     textAlign: 'center',
     lineHeight: 24,
   },
   infoBox: {
-    backgroundColor: '#1e3a8a',
+    backgroundColor: '#dbeafe',
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#bfdbfe',
+    color: '#1e40af',
     textAlign: 'center',
     lineHeight: 20,
   },

@@ -364,18 +364,20 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
             <Text style={styles.sectionSubtitle}>Choose how to send the money</Text>
             <View style={styles.paymentProviders}>
               {[
-                { id: 'paypal', name: 'PayPal', desc: 'Best experience' },
-                { id: 'venmo', name: 'Venmo', desc: 'Quick & easy' },
-                { id: 'cashapp', name: 'Cash App', desc: 'Instant transfer' },
-                { id: 'zelle', name: 'Zelle', desc: 'Bank to bank' }
+                { id: 'paypal', name: 'PayPal', desc: 'Best experience', available: true },
+                { id: 'venmo', name: 'Venmo', desc: 'Coming soon', available: false },
+                { id: 'cashapp', name: 'Cash App', desc: 'Coming soon', available: false },
+                { id: 'zelle', name: 'Zelle', desc: 'Coming soon', available: false }
               ].map((provider) => (
                 <TouchableOpacity
                   key={provider.id}
                   style={[
                     styles.providerRow,
-                    selectedProvider === provider.id && styles.providerRowActive
+                    selectedProvider === provider.id && styles.providerRowActive,
+                    !provider.available && styles.providerRowDisabled
                   ]}
-                  onPress={() => setSelectedProvider(provider.id as any)}
+                  onPress={() => provider.available && setSelectedProvider(provider.id as any)}
+                  disabled={!provider.available}
                 >
                   <View style={styles.providerContent}>
                     <View style={styles.providerLogoContainer}>
@@ -745,6 +747,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.secondary,
     marginHorizontal: -24,
     paddingHorizontal: 24,
+  },
+  providerRowDisabled: {
+    opacity: 0.4,
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 8,
   },
   providerContent: {

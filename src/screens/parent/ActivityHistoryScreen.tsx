@@ -15,6 +15,7 @@ import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/
 import { db } from '../../lib/firebase';
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
+import { StatusHeader } from '../../components/StatusHeader';
 import { NavigationProp } from '@react-navigation/native';
 import { getUserFriendlyError, logError } from '../../utils/userFriendlyErrors';
 import { 
@@ -585,23 +586,10 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Back</Text>
-        </TouchableOpacity>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Activity History</Text>
-          {backgroundLoading && (
-            <ActivityIndicator size="small" color={theme.colors.primary} style={styles.headerLoader} />
-          )}
-          {usingCache && (
-            <Text style={styles.cacheIndicator}>📦</Text>
-          )}
-        </View>
+      <StatusHeader title="Activity" />
+      <View style={[styles.header, { paddingTop: 50 }]}>
+        <Text style={styles.title}>Activity History</Text>
         <Text style={styles.subtitle}>Payments and messages sent</Text>
-        <Text style={styles.pullHint}>
-          {usingCache ? 'Showing cached data • Pull down to refresh' : 'Pull down to refresh and verify payments'}
-        </Text>
         
         {/* Filter Controls */}
         <View style={styles.filterContainer}>
@@ -707,7 +695,9 @@ const styles = StyleSheet.create({
     ...commonStyles.container,
   },
   header: {
-    ...commonStyles.headerWithSubtitle,
+    marginBottom: 30,
+    paddingTop: 10,
+    paddingHorizontal: 24,
   },
   backButton: {
     fontSize: 16,
@@ -724,7 +714,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: theme.colors.textPrimary,
-    letterSpacing: -0.5,
+    marginBottom: 8,
   },
   headerLoader: {
     marginLeft: 12,

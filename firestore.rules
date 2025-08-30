@@ -103,7 +103,7 @@ service cloud.firestore {
       
       // Validate payment updates (only allow status and verification fields)
       function validatePaymentUpdate(oldData, newData) {
-        let allowedFields = ['status', 'completed_at', 'updated_at', 'verification_method', 'provider_transaction_id', 'error_message', 'paypal_order_id', 'cancelled_at', 'cancelled_reason', 'completion_method'];
+        let allowedFields = ['status', 'completed_at', 'updated_at', 'verification_method', 'provider_transaction_id', 'error_message', 'paypal_order_id', 'cancelled_at', 'cancelled_reason', 'completion_method', 'paypal_capture_id', 'paypal_capture_data', 'paypal_order_data', 'recipient_email'];
         return newData.diff(oldData).affectedKeys().hasOnly(allowedFields);
       }
     }

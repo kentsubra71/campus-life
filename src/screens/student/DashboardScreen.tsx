@@ -18,9 +18,12 @@ import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
 import { useDataSync } from '../../hooks/useRefreshOnFocus';
 import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
+import { StatusHeader } from '../../components/StatusHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pushNotificationService, NotificationTemplates } from '../../services/pushNotificationService';
 
 export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMain'>> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { stats, todayEntry, getEntryByDate } = useWellnessStore();
   const { 
     activeRewards, 
@@ -63,7 +66,6 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
       await smartRefresh(
         CACHE_CONFIGS.DASHBOARD_DATA,
         async () => {
-          console.log('🔄 Loading student dashboard data...');
           const results = await Promise.allSettled([
             handleAsyncError(() => fetchActiveRewards(), 'Loading rewards'),
             handleAsyncError(() => fetchSupportMessages(), 'Loading messages'),
@@ -86,7 +88,6 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           
           if (errors.length > 0) {
             setLoadingErrors(errors);
-            console.warn('Some data failed to load:', errors);
           }
           
           // Return data for caching
@@ -103,17 +104,14 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           };
         },
         (cachedDashboard) => {
-          console.log('📦 Using cached student dashboard data');
-          // Data is in stores, just show it's cached
+            // Data is in stores, just show it's cached
         },
         (freshDashboard) => {
-          console.log('✅ Updated with fresh student dashboard data');
-        },
+          },
         user.id
       );
       
     } catch (error) {
-      console.error('Error loading student dashboard:', error);
       setLoadingErrors([{
         code: 'LOAD_ERROR',
         message: 'Failed to load dashboard data',
@@ -201,58 +199,6 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     return 'Difficult';
   }, [todayEntry?.mood]);
 
-  const sendDebugNotification = async (type: 'local' | 'firebase') => {
-    try {
-      if (type === 'local') {
-        // Send local notification to self (simulating receiving a notification)
-        await pushNotificationService.sendLocalNotification(
-          '🧪 Local Debug Test',
-          'This is a test notification sent locally to your device. Local notifications work in Expo Go!'
-        );
-        Alert.alert('Debug Success', 'Local test notification sent! Check your notification bar.');
-      } else {
-        // Test Firebase push notification setup
-        if (!user) return;
-        
-        Alert.alert(
-          '🚨 Firebase Push Test',
-          'This tests your Firebase/EAS setup:\n\n1. If you get "no project id" - you need EAS setup\n2. If the call succeeds but no notification shows - that\'s normal in Expo Go\n3. In production/development builds, this will work properly',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Try Anyway', 
-              onPress: async () => {
-                try {
-                  const testNotification = NotificationTemplates.careRequest(
-                    user.name || 'Student',
-                    '🧪 Debug: This is a test care request from the dashboard'
-                  );
-                  
-                  const success = await pushNotificationService.sendPushNotification({
-                    ...testNotification,
-                    userId: user.id
-                  });
-                  
-                  Alert.alert(
-                    'Firebase Test Result', 
-                    success 
-                      ? 'Firebase call succeeded! In a development build, you\'d see the notification.' 
-                      : 'Firebase call failed - check console for details. Common issue: notification preferences not set.'
-                  );
-                } catch (error) {
-                  console.error('Firebase debug error:', error);
-                  Alert.alert('Firebase Error', 'Firebase call failed - check console for details');
-                }
-              }
-            }
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('Debug notification error:', error);
-      Alert.alert('Debug Error', `Failed to send test notification: ${error.message}`);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -264,11 +210,13 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
 
   return (
     <View style={styles.container}>
+      <StatusHeader title="Home" />
       <ScrollView
-        style={styles.scrollContainer}
+        style={[styles.scrollContainer, { paddingTop: 50 }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -308,51 +256,28 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
         </View>
       )}
 
-      {/* Family Connection Card */}
+      {/* Dashboard Stats */}
       <View style={styles.connectionCard}>
-        <Text style={styles.connectionTitle}>Family Love</Text>
+        <Text style={styles.connectionTitle}>Dashboard</Text>
         <View style={styles.connectionStats}>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>{supportMessages.filter(m => !m.read).length}</Text>
-            <Text style={styles.statLabel}>New Messages</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>{supportMessages.length}</Text>
-            <Text style={styles.statLabel}>Care Moments</Text>
-          </View>
           <TouchableOpacity 
             style={styles.stat}
             onPress={() => navigation.navigate('WellnessLog')}
           >
             <Text style={styles.statNumber}>{getMoodLevel}</Text>
-            <Text style={styles.statLabel}>How You Feel</Text>
-            <Text style={styles.statHint}>Tap to update</Text>
+            <Text style={styles.statLabel}>Today's Mood</Text>
           </TouchableOpacity>
+          <View style={styles.stat}>
+            <Text style={styles.statNumber}>{supportMessages.filter(m => !m.read).length}</Text>
+            <Text style={styles.statLabel}>New Messages</Text>
+          </View>
         </View>
         
-        {/* I Need Support Button */}
         <TouchableOpacity 
-          style={[
-            styles.supportButton,
-            lastSupportRequest && new Date().getTime() - new Date(lastSupportRequest).getTime() < 60 * 60 * 1000 
-              ? styles.supportButtonSent 
-              : null
-          ]}
-          onPress={() => {
-            requestSupport();
-          }}
-          disabled={lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000}
+          style={styles.supportButton}
+          onPress={() => requestSupport()}
         >
-          <Text style={[
-            styles.supportButtonText,
-            lastSupportRequest && new Date().getTime() - new Date(lastSupportRequest).getTime() < 60 * 60 * 1000 
-              ? styles.supportButtonTextSent 
-              : null
-          ]}>
-            {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
-              ? 'Support request sent!' 
-              : 'I need support'}
-          </Text>
+          <Text style={styles.supportButtonText}>Request Support</Text>
           <Text style={styles.supportButtonSubtext}>
             {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
               ? 'Your family has been notified and will reach out soon' 
@@ -501,29 +426,6 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
         </View>
       )}
 
-      {/* Debug Notifications Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🧪 Debug Notifications</Text>
-        <Text style={styles.debugSubtext}>Test notifications from one device (for development)</Text>
-        
-        <View style={styles.debugButtonRow}>
-          <TouchableOpacity 
-            style={styles.debugButton}
-            onPress={() => sendDebugNotification('local')}
-          >
-            <Text style={styles.debugButtonText}>Test Local</Text>
-            <Text style={styles.debugButtonSubtext}>Works in Expo Go</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.debugButton, styles.debugButtonDisabled]}
-            onPress={() => sendDebugNotification('firebase')}
-          >
-            <Text style={styles.debugButtonText}>Test Firebase</Text>
-            <Text style={styles.debugButtonSubtext}>Limited in Expo Go</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
 
       {/* Received Payments */}
       <ReceivedPayments />
@@ -551,36 +453,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   header: {
-    padding: 24,
-    paddingTop: 60,
+    marginBottom: 30,
+    paddingTop: 10,
+    paddingHorizontal: 24,
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
     color: theme.colors.textPrimary,
-    letterSpacing: -0.5,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
     color: theme.colors.textSecondary,
-    marginTop: 6,
+    lineHeight: 22,
   },
   connectionCard: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    margin: 20,
+    backgroundColor: theme.colors.backgroundCard,
+    margin: 24,
     padding: 24,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
   },
   connectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
     marginBottom: 20,
   },
@@ -1044,40 +945,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.backgroundSecondary,
     textAlign: 'center',
-  },
-  debugSubtext: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    marginBottom: 16,
-    fontStyle: 'italic',
-  },
-  debugButtonRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  debugButton: {
-    flex: 1,
-    backgroundColor: theme.colors.backgroundSecondary,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  debugButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  debugButtonSubtext: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-  },
-  debugButtonDisabled: {
-    opacity: 0.7,
-    borderColor: theme.colors.warning,
-    borderWidth: 1,
   },
 }); 

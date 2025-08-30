@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   },
   fromText: {
     fontSize: 14,
-    color: '#d1d5db',
+    color: theme.colors.textPrimary,
   },
   paymentMeta: {
     alignItems: 'flex-end',
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
   },
   provider: {
     fontSize: 11,
-    color: '#6b7280',
+    color: '#ffffff',
     backgroundColor: theme.colors.buttonPrimary,
     paddingHorizontal: 6,
     paddingVertical: 2,

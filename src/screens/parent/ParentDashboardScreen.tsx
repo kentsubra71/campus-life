@@ -118,10 +118,11 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         await smartRefresh(
           CACHE_CONFIGS.DASHBOARD_DATA,
           async () => {
+            const { loadEntries } = useWellnessStore.getState();
             await Promise.all([
               fetchSupportMessages(),
               fetchMonthlyPayments(selectedStudent?.id),
-              getEntryByDate(new Date().toISOString().split('T')[0])
+              loadEntries(selectedStudent?.id)
             ]);
             
             // Return dashboard state for caching
@@ -167,8 +168,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   useEffect(() => {
     if (familyMembers.students.length > 0 && selectedStudentIndex < familyMembers.students.length) {
       const selectedStudent = familyMembers.students[selectedStudentIndex];
-      // Reload data for the selected student
-      getEntryByDate(new Date().toISOString().split('T')[0]);
+      // Reload wellness data for the selected student
+      const { loadEntries } = useWellnessStore.getState();
+      loadEntries(selectedStudent?.id);
       fetchMonthlyPayments(selectedStudent?.id);
     }
   }, [selectedStudentIndex, fetchMonthlyPayments]);
@@ -520,18 +522,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
               <Text style={styles.actionArrow}>›</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={styles.actionItem}
-              onPress={() => navigation.navigate('PayPalTest')}
-            >
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>PayPal Test</Text>
-                <Text style={styles.actionSubtitle}>Development testing</Text>
-              </View>
-              <View style={styles.devBadge}>
-                <Text style={styles.devBadgeText}>DEV</Text>
-              </View>
-            </TouchableOpacity>
           </View>
         </View>
 

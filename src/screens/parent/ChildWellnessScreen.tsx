@@ -11,18 +11,31 @@ import {
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useAuthStore } from '../../stores/authStore';
 import { theme } from '../../styles/theme';
+import { StatusHeader } from '../../components/StatusHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ChildWellnessScreenProps {
   navigation: any;
+  route?: {
+    params?: {
+      studentId?: string;
+    };
+  };
 }
 
-export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ navigation }) => {
+export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const { stats, todayEntry, entries, loadEntries } = useWellnessStore();
   const { getFamilyMembers } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'all'>('week');
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
+  
+  // Get the current student being viewed
+  const studentId = route?.params?.studentId;
+  const currentStudent = familyMembers.students.find(s => s.id === studentId) || familyMembers.students[0];
+  const studentName = currentStudent?.name || 'Student';
 
   useEffect(() => {
     loadData();
@@ -32,7 +45,11 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
     try {
       const members = await getFamilyMembers();
       setFamilyMembers(members);
-      await loadEntries();
+      // Use studentId from route params or first student
+      const targetStudentId = route?.params?.studentId || members.students[0]?.id;
+      if (targetStudentId) {
+        await loadEntries(targetStudentId);
+      }
     } catch (error) {
       console.log('Error loading wellness data:', error);
     } finally {
@@ -117,18 +134,20 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
 
   return (
     <View style={styles.container}>
+      <StatusHeader title="Wellness" />
       <ScrollView
-        style={styles.scrollContainer}
+        style={[styles.scrollContainer, { paddingTop: 50 }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>{familyMembers.students[0]?.name || 'Student'}'s Wellness</Text>
+          <Text style={styles.title}>{studentName}'s Wellness</Text>
           <Text style={styles.subtitle}>Understanding how they're doing</Text>
         </View>
 
@@ -167,7 +186,7 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
           <View style={styles.overallHeader}>
             <Text style={styles.overallTitle}>Overall Wellness</Text>
             <View style={styles.scoreContainer}>
-              <Text style={styles.scoreNumber}>{averageScore.toFixed(1)}</Text>
+              <Text style={styles.scoreNumber}>{averageScore?.toFixed(1) || '--'}</Text>
               <Text style={styles.scoreMax}>/10</Text>
             </View>
           </View>
@@ -191,7 +210,7 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
               <View style={styles.metricItem}>
                 <Text style={styles.metricLabel}>Wellness Score</Text>
                 <Text style={[styles.metricValue, { color: getWellnessCategory(todayEntry.wellnessScore).color }]}>
-                  {todayEntry.wellnessScore.toFixed(1)}/10
+                  {todayEntry.wellnessScore?.toFixed(1) || '--'}/10
                 </Text>
               </View>
               <View style={styles.metricItem}>
@@ -274,7 +293,7 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
             const category = getWellnessCategory(entry.wellnessScore);
             const moodLevel = getMoodLevel(entry.mood);
             return (
-              <View key={entry.date} style={styles.entryItem}>
+              <View key={entry.id} style={styles.entryItem}>
                 <View style={styles.entryHeader}>
                   <Text style={styles.entryDate}>
                     {new Date(entry.date).toLocaleDateString('en-US', { 
@@ -284,7 +303,7 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
                     })}
                   </Text>
                   <Text style={[styles.entryScore, { color: category.color }]}>
-                    {entry.wellnessScore.toFixed(1)}/10
+                    {entry.wellnessScore?.toFixed(1) || '--'}/10
                   </Text>
                 </View>
                 <View style={styles.entryMetrics}>
@@ -349,9 +368,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   header: {
+    marginBottom: 30,
+    paddingTop: 10,
     paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 20,
   },
   backButton: {
     fontSize: 16,
@@ -363,7 +382,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: theme.colors.textPrimary,
-    letterSpacing: -0.5,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,

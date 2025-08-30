@@ -483,7 +483,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
               title="🚨 Support Needed"
               subtitle={`${supportRequests.filter(req => !req.acknowledged).length} unread requests`}
               backgroundColor="#ef4444"
-              textColor="#ffffff"
+              textColor={theme.colors.backgroundSecondary}
               onPress={() => acknowledgeSupport(supportRequests.filter(req => !req.acknowledged)[0]?.id)}
               actionText="Acknowledge & respond"
             >
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
   statusBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -1058,7 +1058,7 @@ const styles = StyleSheet.create({
   actionBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     textTransform: 'uppercase',
   },
   actionArrow: {
@@ -1075,7 +1075,7 @@ const styles = StyleSheet.create({
   devBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     letterSpacing: 0.5,
   },
   
@@ -1136,13 +1136,13 @@ const styles = StyleSheet.create({
   inviteLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     marginBottom: 12,
   },
   inviteCodeLarge: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     letterSpacing: 2,
     marginBottom: 12,
   },
@@ -1177,7 +1177,7 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: theme.colors.primary,
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
     fontSize: 14,
     fontWeight: '700',
     textAlign: 'center',
@@ -1225,7 +1225,7 @@ const styles = StyleSheet.create({
   
   // Missing action card styles for the old duplicate component (removed)
   actionCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',

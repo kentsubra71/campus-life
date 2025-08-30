@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuthStore } from '../stores/authStore';
+import { theme } from '../styles/theme';
 
 interface Payment {
   id: string;
@@ -182,13 +183,13 @@ export const ReceivedPayments: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderRadius: 12,
     margin: 16,
     padding: 16,
   },
   loadingText: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     padding: 20,
   },
@@ -201,7 +202,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   totalAmount: {
     fontSize: 16,
@@ -219,12 +220,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -232,7 +233,7 @@ const styles = StyleSheet.create({
     maxHeight: 300,
   },
   paymentCard: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
@@ -262,13 +263,13 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   provider: {
     fontSize: 11,
     color: '#6b7280',
-    backgroundColor: '#4b5563',
+    backgroundColor: theme.colors.buttonPrimary,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -277,7 +278,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#4b5563',
+    borderTopColor: theme.colors.buttonPrimary,
   },
   note: {
     fontSize: 13,

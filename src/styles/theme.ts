@@ -44,52 +44,52 @@ export const theme = {
     titleLarge: {
       fontSize: 32,
       fontWeight: '900' as const,
-      color: '#f9fafb',
+      color: '#1e293b',
       letterSpacing: -1,
     },
     titleMedium: {
       fontSize: 24,
       fontWeight: '800' as const,
-      color: '#f9fafb',
+      color: '#1e293b',
     },
     titleSmall: {
       fontSize: 20,
       fontWeight: '700' as const,
-      color: '#f9fafb',
+      color: '#1e293b',
     },
     
     // Subtitle styles  
     subtitleLarge: {
       fontSize: 18,
       fontWeight: '700' as const,
-      color: '#f9fafb',
+      color: '#1e293b',
     },
     subtitleMedium: {
       fontSize: 16,
       fontWeight: '600' as const,
-      color: '#9ca3af',
+      color: '#64748b',
     },
     subtitleSmall: {
       fontSize: 14,
       fontWeight: '500' as const,
-      color: '#9ca3af',
+      color: '#64748b',
     },
     
     // Body text
     bodyLarge: {
       fontSize: 18,
       fontWeight: '600' as const,
-      color: '#f9fafb',
+      color: '#1e293b',
     },
     bodyMedium: {
       fontSize: 16,
       fontWeight: '500' as const,
-      color: '#d1d5db',
+      color: '#475569',
     },
     bodySmall: {
       fontSize: 14,
       fontWeight: '500' as const,
-      color: '#d1d5db',
+      color: '#475569',
     },
     
     // Label and caption

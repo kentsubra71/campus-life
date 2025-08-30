@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, User } from 'firebase/auth';
+import { initializeAuth, getReactNativePersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, User } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, Timestamp, limit } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -15,7 +16,9 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export { app };
-export const auth = getAuth(app);
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+});
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
 
@@ -31,7 +34,7 @@ export interface UserProfile {
   // Payment provider info
   venmo_username?: string;
   cashapp_cashtag?: string;
-  paypal_id?: string;
+  paypal_email?: string;
   zelle_email?: string;
   zelle_phone?: string;
   // Push notification fields
@@ -57,9 +60,12 @@ export interface WellnessEntry {
   id?: string;
   user_id: string;
   mood: number;
-  stress_level: number;
   sleep_hours: number;
   exercise_minutes: number;
+  nutrition: number;
+  water: number;
+  social: number;
+  academic: number;
   notes?: string;
   created_at: Timestamp;
 }

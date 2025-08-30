@@ -7,6 +7,7 @@ import { useAuthStore } from './src/stores/authStore';
 import { View, Text, ActivityIndicator, StyleSheet, StatusBar, Alert } from 'react-native';
 import * as Linking from 'expo-linking';
 import { theme } from './src/styles/theme';
+import { AuthStackParamList } from './src/types/navigation';
 
 // Lazy load heavy navigation components
 const StudentNavigator = lazy(() => import('./src/navigation/StudentNavigator').then(m => ({ default: m.StudentNavigator })));
@@ -20,7 +21,7 @@ import { LoginScreen } from './src/screens/auth/LoginScreen';
 import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/auth/ResetPasswordScreen';
 
-const Stack = createStackNavigator();
+const Stack = createStackNavigator<AuthStackParamList>();
 
 export default function App() {
   const { isAuthenticated, user, isLoading } = useAuthStore();
@@ -174,19 +175,11 @@ export default function App() {
   const AuthStack = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
-      <Stack.Screen name="Login">
-        {(props) => <LoginScreen {...props} />}
-      </Stack.Screen>
+      <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="ParentRegister" component={ParentRegisterScreen} />
-      <Stack.Screen name="StudentRegister">
-        {(props) => <StudentRegisterScreen {...props} />}
-      </Stack.Screen>
-      <Stack.Screen name="ForgotPassword">
-        {(props) => <ForgotPasswordScreen {...props} />}
-      </Stack.Screen>
-      <Stack.Screen name="ResetPassword">
-        {(props) => <ResetPasswordScreen {...props} />}
-      </Stack.Screen>
+      <Stack.Screen name="StudentRegister" component={StudentRegisterScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </Stack.Navigator>
   );
 

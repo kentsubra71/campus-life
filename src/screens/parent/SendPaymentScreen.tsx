@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { createPaymentIntent, getCurrentSpendingCaps, SUBSCRIPTION_TIERS, getPaymentProviders } from '../../lib/payments';
+import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { 
   createPayPalP2POrder, 
   testPayPalConnection 
@@ -24,6 +26,7 @@ import {
 } from '../../utils/paymentValidation';
 import { getUserFriendlyError, logError } from '../../utils/userFriendlyErrors';
 import { getTimeoutDuration } from '../../utils/paymentTimeout';
+import { theme } from '../../styles/theme';
 
 interface SendPaymentScreenProps {
   navigation: any;
@@ -249,8 +252,6 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
 
     try {
       // Cancel payment in database by marking as cancelled
-      const { doc, updateDoc, Timestamp } = await import('firebase/firestore');
-      const { db } = await import('../lib/firebase');
       
       await updateDoc(doc(db, 'payments', currentPaymentId), {
         status: 'cancelled',
@@ -451,7 +452,7 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -462,49 +463,49 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
     marginBottom: 12,
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginTop: 6,
   },
   budgetCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     margin: 20,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
   },
   budgetTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 12,
   },
   budgetBar: {
     height: 6,
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 3,
     marginBottom: 8,
   },
   budgetFill: {
     height: '100%',
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     borderRadius: 3,
   },
   budgetText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   section: {
@@ -513,29 +514,29 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 12,
   },
   amountInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     paddingHorizontal: 16,
   },
   dollarSign: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginRight: 8,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     padding: 16,
   },
   presetContainer: {
@@ -543,7 +544,7 @@ const styles = StyleSheet.create({
   },
   presetLabel: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginBottom: 8,
   },
   presetButtons: {
@@ -553,33 +554,33 @@ const styles = StyleSheet.create({
   },
   presetButton: {
     flex: 1,
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
   },
   presetButtonActive: {
     backgroundColor: '#1e1b4b',
-    borderColor: 'theme.colors.primary',
+    borderColor: theme.colors.primary,
   },
   presetButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
   },
   presetButtonTextActive: {
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
   },
   noteInput: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 16,
     fontSize: 16,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     textAlignVertical: 'top',
     minHeight: 80,
   },
@@ -591,16 +592,16 @@ const styles = StyleSheet.create({
   },
   providerCard: {
     width: '48%',
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     alignItems: 'center',
     marginBottom: 12,
   },
   providerCardActive: {
-    borderColor: 'theme.colors.primary',
+    borderColor: theme.colors.primary,
     backgroundColor: '#1e1b4b',
   },
   providerCardDisabled: {
@@ -613,12 +614,12 @@ const styles = StyleSheet.create({
   providerName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   providerDescription: {
     fontSize: 11,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 14,
   },
@@ -634,7 +635,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   sendButtonDisabled: {
-    backgroundColor: '#4b5563',
+    backgroundColor: theme.colors.buttonPrimary,
   },
   sendButtonProcessing: {
     backgroundColor: '#f59e0b',
@@ -642,7 +643,7 @@ const styles = StyleSheet.create({
   sendButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
   },
   buttonContainer: {
     gap: 12,
@@ -661,15 +662,15 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.colors.backgroundSecondary,
   },
   disclaimerCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     margin: 20,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     marginBottom: 40,
   },
   disclaimerTitle: {
@@ -680,14 +681,14 @@ const styles = StyleSheet.create({
   },
   disclaimerText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     lineHeight: 18,
   },
   timeoutInfo: {
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: theme.colors.border,
   },
   timeoutInfoTitle: {
     fontSize: 14,

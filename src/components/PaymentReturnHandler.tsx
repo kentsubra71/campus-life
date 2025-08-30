@@ -54,15 +54,12 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
     try {
       setLoading(true);
       
-      // Update payment to completed status (PayPal already processed it)
-      const { updateDoc, doc, Timestamp } = await import('firebase/firestore');
-      const { db } = await import('../lib/firebase');
+      // Use the proper confirmPayment function to update spending caps
+      const result = await confirmPayment(paymentId, payment.idempotency_key);
       
-      await updateDoc(doc(db, 'payments', paymentId), {
-        status: 'completed', // Not pending confirmation - already done by PayPal
-        completed_at: Timestamp.now(),
-        completion_method: 'paypal_automatic'
-      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to confirm payment');
+      }
       
       // Show success and navigate
       Alert.alert(

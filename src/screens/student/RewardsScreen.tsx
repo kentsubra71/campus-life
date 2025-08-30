@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { showMessage } from 'react-native-flash-message';
+import { theme } from '../../styles/theme';
 
 interface RewardsScreenProps {
   navigation: any;
@@ -55,8 +56,8 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
           message: 'Monthly Limit Reached',
           description: 'You\'ve reached your $50 monthly limit. Great job!',
           type: 'info',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
+          backgroundColor: theme.colors.backgroundCard,
+          color: theme.colors.textPrimary,
         });
         return;
       }
@@ -67,8 +68,8 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
           message: 'Reward Claimed!',
           description: `You earned $${reward.amount}! Keep up the great work.`,
           type: 'success',
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
+          backgroundColor: theme.colors.backgroundCard,
+          color: theme.colors.textPrimary,
         });
       }
     }
@@ -133,13 +134,13 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
 
   const getCategoryColor = (category: string) => {
     const colors = {
-      sleep: 'theme.colors.primary',
-      meals: '#10b981',
-      exercise: '#f59e0b',
-      wellness: '#8b5cf6',
-      streak: '#ef4444',
+      sleep: theme.colors.primary,
+      meals: theme.colors.success,
+      exercise: theme.colors.warning,
+      wellness: theme.colors.primary,
+      streak: theme.colors.error,
     };
-    return colors[category as keyof typeof colors] || '#6b7280';
+    return colors[category as keyof typeof colors] || theme.colors.textSecondary;
   };
 
   const renderSupportMessage = (message: any) => {
@@ -167,7 +168,7 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
         <View style={styles.messageHeader}>
           <View style={[
             styles.messageIcon,
-            { backgroundColor: !message.read ? 'theme.colors.primary' : '#374151' }
+            { backgroundColor: !message.read ? theme.colors.primary : theme.colors.backgroundTertiary }
           ]}>
             <Text style={styles.messageIconText}>
               {getMessageIcon(message.type)}
@@ -176,7 +177,7 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
           <View style={styles.messageContent}>
             <Text style={styles.messageText}>{message.content}</Text>
             <Text style={styles.messageTime}>
-              {message.timestamp.toLocaleDateString()} at {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {new Date(message.timestamp).toLocaleDateString()} at {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </Text>
           </View>
           {!message.read && <View style={styles.unreadDot} />}
@@ -270,7 +271,7 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
@@ -283,12 +284,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     lineHeight: 22,
   },
   statsContainer: {
@@ -298,11 +299,11 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -313,18 +314,18 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
     marginBottom: 2,
   },
   statSubtext: {
     fontSize: 10,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
   },
   levelProgressContainer: {
     width: '100%',
@@ -332,18 +333,18 @@ const styles = StyleSheet.create({
   },
   levelProgressBar: {
     height: 4,
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 2,
     marginBottom: 4,
   },
   levelProgressFill: {
     height: '100%',
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     borderRadius: 2,
   },
   levelProgressText: {
     fontSize: 8,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   section: {
@@ -352,15 +353,15 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
   rewardCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -369,8 +370,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   completedRewardCard: {
-    borderColor: '#10b981',
-    backgroundColor: '#1f2937',
+    borderColor: theme.colors.success,
+    backgroundColor: theme.colors.backgroundCard,
   },
   rewardHeader: {
     flexDirection: 'row',
@@ -385,12 +386,12 @@ const styles = StyleSheet.create({
   rewardTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   rewardDescription: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     lineHeight: 18,
   },
   rewardValue: {
@@ -399,7 +400,7 @@ const styles = StyleSheet.create({
   rewardAmount: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#10b981',
+    color: theme.colors.success,
     marginBottom: 8,
   },
   categoryBadge: {
@@ -420,23 +421,23 @@ const styles = StyleSheet.create({
   progressBarBackground: {
     flex: 1,
     height: 8,
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 4,
     marginRight: 12,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     borderRadius: 4,
   },
   progressText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '600',
     minWidth: 40,
   },
   claimButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: theme.colors.success,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -452,7 +453,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   unreadBadge: {
-    backgroundColor: '#ef4444',
+    backgroundColor: theme.colors.error,
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -466,11 +467,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   messageCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -479,7 +480,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   unreadMessage: {
-    borderColor: 'theme.colors.primary',
+    borderColor: theme.colors.primary,
   },
   messageHeader: {
     flexDirection: 'row',
@@ -503,39 +504,39 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 14,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     fontWeight: '500',
     marginBottom: 4,
     lineHeight: 18,
   },
   messageTime: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     marginLeft: 8,
   },
   emptyState: {
     alignItems: 'center',
     padding: 32,
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '600',
     marginBottom: 4,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
 }); 

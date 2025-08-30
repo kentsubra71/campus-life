@@ -51,7 +51,20 @@ service cloud.firestore {
       allow write: if request.auth != null && 
         request.auth.uid == resource.data.user_id;
       allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.user_id;
+        request.auth.uid == request.resource.data.user_id &&
+        validateWellnessEntry(request.resource.data);
+    }
+    
+    // Validate wellness entry data
+    function validateWellnessEntry(data) {
+      return data.keys().hasAll(['user_id', 'mood', 'sleep_hours', 'exercise_minutes', 'nutrition', 'water', 'social', 'academic']) &&
+             data.mood is number && data.mood >= 1 && data.mood <= 10 &&
+             data.sleep_hours is number && data.sleep_hours >= 0 && data.sleep_hours <= 24 &&
+             data.exercise_minutes is number && data.exercise_minutes >= 0 &&
+             data.nutrition is number && data.nutrition >= 1 && data.nutrition <= 10 &&
+             data.water is number && data.water >= 0 && data.water <= 20 &&
+             data.social is number && data.social >= 1 && data.social <= 10 &&
+             data.academic is number && data.academic >= 1 && data.academic <= 10;
     }
     
     // Rewards - user can access their own, family members can read
@@ -90,7 +103,7 @@ service cloud.firestore {
       
       // Validate payment updates (only allow status and verification fields)
       function validatePaymentUpdate(oldData, newData) {
-        let allowedFields = ['status', 'completed_at', 'updated_at', 'verification_method', 'provider_transaction_id', 'error_message'];
+        let allowedFields = ['status', 'completed_at', 'updated_at', 'verification_method', 'provider_transaction_id', 'error_message', 'paypal_order_id', 'cancelled_at', 'cancelled_reason', 'completion_method'];
         return newData.diff(oldData).affectedKeys().hasOnly(allowedFields);
       }
     }
@@ -121,6 +134,20 @@ service cloud.firestore {
         isInSameFamily(request.auth.uid, request.resource.data.to_user_id);
       allow update: if request.auth != null && 
         resource.data.to_user_id == request.auth.uid;
+    }
+
+    // Support requests - students can create, family members can read
+    match /support_requests/{requestId} {
+      allow read: if request.auth != null && 
+        (resource.data.from_user_id == request.auth.uid || 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.family_id == resource.data.family_id);
+      allow create: if request.auth != null && 
+        request.resource.data.from_user_id == request.auth.uid;
+      allow update: if request.auth != null && 
+        (resource.data.from_user_id == request.auth.uid || 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.family_id == resource.data.family_id);
     }
 
     // Transactions (PayPal P2P) - parents and students can read their own transactions

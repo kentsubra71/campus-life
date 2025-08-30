@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1028408297935",
+    "project_id": "campus-life-b0fd3",
+    "storage_bucket": "campus-life-b0fd3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1028408297935:android:7992603242922805482aba",
+        "android_client_info": {
+          "package_name": "com.vero.campuslife"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArOxuw2DUcKxjoUaWlWNQtks4s5ft703Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

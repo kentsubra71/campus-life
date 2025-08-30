@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { showMessage } from 'react-native-flash-message';
+import { theme } from '../../styles/theme';
 
 interface LogWellnessScreenProps {
   navigation: any;
@@ -47,8 +48,8 @@ export const LogWellnessScreen: React.FC<LogWellnessScreenProps> = ({ navigation
       message: 'Weekly Summary',
       description: `Current streak: ${currentStreak} days • Average score: ${stats.averageScore}/10`,
       type: 'info',
-      backgroundColor: '#1f2937',
-      color: '#f9fafb',
+      backgroundColor: theme.colors.info,
+      color: theme.colors.backgroundSecondary,
       duration: 3000,
     });
   };
@@ -83,10 +84,10 @@ export const LogWellnessScreen: React.FC<LogWellnessScreenProps> = ({ navigation
         </View>
         <View style={styles.statusIndicator}>
           {action.status === 'completed' && (
-            <Text style={styles.statusText}>✓</Text>
+            <Text style={styles.statusText}>Done</Text>
           )}
           {action.status === 'pending' && (
-            <Text style={styles.statusTextPending}>!</Text>
+            <Text style={styles.statusTextPending}>Pending</Text>
           )}
         </View>
       </View>
@@ -143,7 +144,7 @@ export const LogWellnessScreen: React.FC<LogWellnessScreenProps> = ({ navigation
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
@@ -156,43 +157,39 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     lineHeight: 22,
   },
   streakCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 24,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     alignItems: 'center',
     marginBottom: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+    ...theme.shadows.medium,
   },
   streakNumber: {
     fontSize: 48,
     fontWeight: '800',
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     marginBottom: 8,
   },
   streakLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     marginBottom: 12,
   },
   streakMessage: {
     fontSize: 14,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     textAlign: 'center',
     fontWeight: '500',
   },
@@ -202,25 +199,21 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 16,
   },
   actionCard: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    ...theme.shadows.small,
   },
   completedCard: {
-    borderColor: '#10b981',
-    backgroundColor: '#1f2937',
+    borderColor: theme.colors.success,
+    backgroundColor: theme.colors.backgroundCard,
   },
   actionHeader: {
     flexDirection: 'row',
@@ -230,21 +223,21 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
   completedIcon: {
-    backgroundColor: '#10b981',
+    backgroundColor: theme.colors.success,
   },
   pendingIcon: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: theme.colors.warning,
   },
   actionIconText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
   },
   completedIconText: {
     color: 'white',
@@ -255,12 +248,12 @@ const styles = StyleSheet.create({
   actionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   actionSubtitle: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   statusIndicator: {
@@ -270,14 +263,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusText: {
-    fontSize: 16,
-    color: '#10b981',
-    fontWeight: '700',
+    fontSize: 12,
+    color: theme.colors.success,
+    fontWeight: '600',
   },
   statusTextPending: {
-    fontSize: 16,
-    color: '#f59e0b',
-    fontWeight: '700',
+    fontSize: 12,
+    color: theme.colors.warning,
+    fontWeight: '600',
   },
   statsSection: {
     marginBottom: 20,
@@ -287,29 +280,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   statItem: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    ...theme.shadows.small,
   },
   statValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
     textAlign: 'center',
   },

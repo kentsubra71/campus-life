@@ -63,8 +63,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         message: 'Success',
         description: 'Wellness entry updated successfully!',
         type: 'success',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
+        backgroundColor: theme.colors.success,
+        color: theme.colors.backgroundSecondary,
       });
     } else {
       addEntry({
@@ -75,8 +75,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         message: 'Success', 
         description: 'Wellness entry saved successfully!',
         type: 'success',
-        backgroundColor: '#1f2937',
-        color: '#f9fafb',
+        backgroundColor: theme.colors.success,
+        color: theme.colors.backgroundSecondary,
       });
     }
     
@@ -107,9 +107,9 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={value}
             onValueChange={onValueChange}
             step={step}
-            minimumTrackTintColor="#3b82f6"
-            maximumTrackTintColor="#374151"
-            thumbTintColor="#ffffff"
+            minimumTrackTintColor={theme.colors.primary}
+            maximumTrackTintColor={theme.colors.backgroundTertiary}
+            thumbTintColor={theme.colors.backgroundSecondary}
           />
         </View>
         
@@ -149,9 +149,9 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={formData.mood}
             onValueChange={handleMoodChange}
             step={1}
-            minimumTrackTintColor="#3b82f6"
-            maximumTrackTintColor="#374151"
-            thumbTintColor="#ffffff"
+            minimumTrackTintColor={theme.colors.primary}
+            maximumTrackTintColor={theme.colors.backgroundTertiary}
+            thumbTintColor={theme.colors.backgroundSecondary}
           />
         </View>
         
@@ -264,7 +264,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={formData.notes}
             onChangeText={(text) => setFormData({ ...formData, notes: text })}
             placeholder="How was your day? Any highlights or challenges?"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={theme.colors.textTertiary}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
@@ -293,7 +293,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -301,9 +301,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: theme.colors.border,
   },
   backButton: {
     padding: 8,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
   },
   saveButton: {
     backgroundColor: 'theme.colors.primary',
@@ -339,16 +339,16 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   sliderContainer: {
     marginBottom: 30,
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   sliderLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     flex: 1,
   },
   sliderValue: {
@@ -392,22 +392,22 @@ const styles = StyleSheet.create({
   },
   sliderLabelText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   moodDescription: {
     marginTop: 10,
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   notesContainer: {
     marginBottom: 30,
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -417,26 +417,26 @@ const styles = StyleSheet.create({
   notesLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 10,
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: '#4b5563',
+    borderColor: theme.colors.borderSecondary,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     minHeight: 100,
-    backgroundColor: '#374151',
-    color: '#f9fafb',
+    backgroundColor: theme.colors.backgroundTertiary,
+    color: theme.colors.textPrimary,
   },
   previewContainer: {
     alignItems: 'center',
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundCard,
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -447,13 +447,13 @@ const styles = StyleSheet.create({
   previewTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 10,
   },
   previewScore: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#10b981',
+    color: theme.colors.success,
   },
 });
 

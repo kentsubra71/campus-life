@@ -1,114 +1,315 @@
-# CampusLife - Family Wellness Tracker
+# Campus Life
 
-A cross-platform native app focused on family connection and wellness tracking with gamification elements.
+A React Native application for secure family financial support and wellness tracking designed for college students and their parents.
 
-## 🎯 Product Vision
+## Product Overview
 
-**Connection-First Family Wellness**: CampusLife emphasizes family support, encouragement, and connection over transactional rewards. The app helps families stay connected while promoting healthy habits through gamification.
+Campus Life facilitates direct peer-to-peer financial transfers between parents and students while maintaining comprehensive wellness tracking and family communication. The platform enables parents to send immediate financial support through PayPal integration and monitor student wellbeing through structured data collection.
 
-### Core Features
-- **Wellness Tracking**: Sleep, meals, exercise, hydration, study time
-- **Family Connection**: Support messages, care packages, video calls, mood tracking
-- **Gamification**: Levels, experience points, streaks, achievements
-- **Family Dashboard**: Parents can monitor wellness and send encouragement
+### Core Functionality
 
-## 🚀 Getting Started
+**Direct Payment System**
+- Real-time PayPal peer-to-peer payments with immediate processing
+- Monthly budget enforcement with automatic spending cap management
+- Comprehensive transaction history with detailed audit trails
+- Automatic payment verification with Firebase Cloud Functions integration
 
-### Prerequisites
-- Node.js (v18+)
-- Expo CLI
-- Expo Go app on your phone
+**Wellness Data Platform**
+- Seven-metric wellness logging system (mood, sleep, exercise, nutrition, water intake, social interaction, academic performance)
+- Historical data visualization with trend analysis
+- Family dashboard access to student wellness patterns
+- Automated data synchronization with offline capability
 
-### Installation
+**Family Communication Network**
+- Real-time messaging system with push notification delivery
+- Emergency support request functionality with immediate family alerts
+- Activity monitoring and family interaction logging
+- Secure family linking with role-based access control
+
+## Technical Architecture
+
+### Frontend Implementation
+- **React Native 0.74** with Expo SDK 51 for cross-platform deployment
+- **TypeScript 5.3** with strict type checking and interface definitions
+- **React Navigation 6** with stack and bottom tab navigation patterns
+- **Zustand 4.4** for state management with persistence and hydration
+- **Firebase SDK 10.x** for authentication, database, and cloud functions
+
+### Backend Infrastructure
+- **Firebase Authentication** with email verification and family account linking
+- **Cloud Firestore** with real-time synchronization and offline persistence
+- **Firebase Cloud Functions** (Node.js 18) for secure server-side operations
+- **Firebase Security Rules** for granular data access control
+- **Expo Push Notifications** with Apple/Google FCM integration
+
+### Payment Processing Architecture
+- **PayPal Orders API v2** for direct peer-to-peer transaction processing
+- **Firebase Cloud Functions** middleware for payment verification and capture
+- **Idempotency key system** to prevent duplicate payment processing
+- **Real-time status updates** with automatic retry mechanisms
+
+### Data Schema Design
+
+**User Management System**
+```typescript
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: 'parent' | 'student';
+  family_id: string;
+  paypal_email?: string;
+  push_token?: string;
+  email_verified: boolean;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+interface Family {
+  id: string;
+  name: string;
+  parentIds: string[];
+  studentIds: string[];
+  created_at: Timestamp;
+}
+```
+
+**Financial Transaction System**
+```typescript
+interface Payment {
+  id: string;
+  parent_id: string;
+  student_id: string;
+  intent_cents: number;
+  status: 'initiated' | 'completed' | 'failed' | 'cancelled';
+  provider: 'paypal';
+  paypal_order_id: string;
+  paypal_capture_id?: string;
+  completion_method: 'direct_paypal';
+  idempotency_key: string;
+  recipient_email: string;
+  created_at: Timestamp;
+  completed_at?: Timestamp;
+  updated_at: Timestamp;
+}
+
+interface MonthlySpend {
+  parent_id: string;
+  month: string; // YYYY-MM format
+  totalCents: number;
+  limitCents: number;
+  paymentCount: number;
+  updated_at: Timestamp;
+}
+```
+
+**Wellness Data System**
+```typescript
+interface WellnessEntry {
+  id: string;
+  user_id: string;
+  date: string; // YYYY-MM-DD format
+  mood: number; // 1-10 scale
+  sleep_hours: number; // 0-24 hours
+  exercise_minutes: number; // 0+ minutes
+  nutrition: number; // 1-10 quality rating
+  water: number; // 0-20 glasses
+  social: number; // 1-10 interaction rating
+  academic: number; // 1-10 productivity rating
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+```
+
+### Security Implementation
+
+**Authentication and Authorization**
+- Firebase Authentication with email/password verification
+- Family-based access control with role separation (parent/student)
+- Session management with automatic token refresh
+- Multi-factor authentication support for sensitive operations
+
+**Data Protection Strategy**
+- Firestore Security Rules enforce user-specific and family-based data access
+- All payment operations require server-side authentication verification
+- Sensitive financial data encrypted in transit using TLS 1.3
+- PII data minimization with automatic data retention policies
+
+**Payment Security Architecture**
+- PayPal OAuth 2.0 with server-side credential management
+- All payment verification performed in Firebase Cloud Functions
+- Idempotency key system prevents duplicate payment processing
+- Comprehensive audit logging for regulatory compliance
+- Rate limiting and fraud detection mechanisms
+
+### Performance and Scalability
+
+**Caching and Data Management**
+- Universal caching system with configurable TTL and cache invalidation
+- Smart refresh pattern with stale-while-revalidate strategy
+- Background data synchronization with conflict resolution
+- Optimistic UI updates with automatic rollback on failure
+
+**State Management Architecture**
+- Zustand stores with persistence layer and automatic hydration
+- Selective component re-rendering with computed value optimization
+- Error boundary implementation for graceful failure handling
+- Memory management with automatic cleanup of stale data
+
+**Network Optimization**
+- Request batching for multiple simultaneous data operations
+- Automatic retry mechanisms with exponential backoff
+- Offline capability with local data persistence
+- Bandwidth optimization with data compression
+
+## Development Environment
+
+### Prerequisites and Setup
 ```bash
+# Required Tools
+node --version  # v18.17.0+
+npm --version   # 9.6.7+
+expo --version  # 6.3.2+
+
+# Firebase CLI Setup
+npm install -g firebase-tools
+firebase login
+firebase use campus-life-b0fd3
+```
+
+### Environment Configuration
+```bash
+# Firebase Project Configuration
+EXPO_PUBLIC_FIREBASE_API_KEY=AIzaSyExample123
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=campus-life-b0fd3.firebaseapp.com
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=campus-life-b0fd3
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=campus-life-b0fd3.appspot.com
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
+EXPO_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef123456
+
+# PayPal Sandbox Integration
+EXPO_PUBLIC_PAYPAL_CLIENT_ID=AY123456789_sandbox_client_id
+EXPO_PUBLIC_PAYPAL_CLIENT_SECRET=EL123456789_sandbox_secret
+EXPO_PUBLIC_PAYPAL_ENVIRONMENT=sandbox
+
+# Additional Services
+EXPO_PUBLIC_RESEND_API_KEY=re_123456789_resend_api_key
+```
+
+### Build and Deployment Process
+```bash
+# Development Server
 npm install
-npx expo start
+npx expo start --clear
+
+# Firebase Functions Deployment
+cd functions
+npm install
+npm run build
+firebase deploy --only functions
+
+# Firestore Rules and Indexes
+firebase deploy --only firestore:rules,firestore:indexes
+
+# Production Build (EAS)
+eas build --platform android --profile production
+eas build --platform ios --profile production
 ```
 
-Scan the QR code with Expo Go to run the app on your device.
+## API Documentation
 
-## 📱 Current Status
+### Firebase Cloud Functions
 
-✅ **Working Features**:
-- Basic app structure with navigation
-- Student dashboard with wellness tracking
-- Family connection features (support messages, mood tracking)
-- Gamification system (levels, experience, rewards)
-- Minimal dependencies for stability
+**createPayPalOrder**
+```typescript
+interface CreateOrderRequest {
+  studentId: string;
+  amountCents: number;
+  note?: string;
+}
 
-🔄 **In Development**:
-- Authentication system
-- Parent dashboard
-- Real-time data sync
-- Push notifications
-
-## 🏗️ Architecture
-
-- **Frontend**: React Native with Expo
-- **State Management**: Zustand
-- **Navigation**: React Navigation
-- **UI**: React Native built-in components
-- **Backend**: Supabase (planned)
-
-## 📊 Wellness Tracking
-
-The app tracks:
-- **Sleep**: Hours per night with streak tracking
-- **Meals**: Daily meal count and consistency
-- **Exercise**: Minutes of activity per day
-- **Hydration**: Water intake tracking
-- **Study Time**: Academic focus hours
-
-## 🎮 Gamification
-
-- **Levels**: Freshman → Sophomore → Junior → Senior → Graduate
-- **Experience Points**: Earned through wellness activities
-- **Streaks**: Maintain healthy habits for consecutive days
-- **Achievements**: Unlock rewards for milestones
-- **Family Support**: Receive encouragement and care packages
-
-## 💝 Family Connection
-
-- **Support Messages**: Parents can send encouraging messages
-- **Care Packages**: Schedule surprise deliveries
-- **Video Calls**: Coordinate family check-ins
-- **Mood Tracking**: Share emotional well-being
-- **Wellness Monitoring**: Parents can view progress
-
-## 🔧 Development
-
-### Project Structure
-```
-src/
-├── navigation/     # Navigation components
-├── screens/        # Screen components
-│   ├── student/    # Student-facing screens
-│   └── parent/     # Parent-facing screens
-├── stores/         # Zustand state management
-└── lib/           # Utilities and configurations
+interface CreateOrderResponse {
+  success: boolean;
+  transactionId?: string;
+  orderId?: string;
+  approvalUrl?: string;
+  error?: string;
+}
 ```
 
-### Key Dependencies
-- `expo`: Cross-platform development
-- `@react-navigation`: Navigation system
-- `zustand`: State management
-- `@expo/vector-icons`: Icon library
+**verifyPayPalPayment**
+```typescript
+interface VerifyPaymentRequest {
+  transactionId: string;
+  orderId: string;
+  payerID?: string;
+}
 
-## 🎯 Next Steps
+interface VerifyPaymentResponse {
+  success: boolean;
+  status?: string;
+  captureId?: string;
+  message?: string;
+  error?: string;
+}
+```
 
-1. **Authentication**: Implement user registration and login
-2. **Parent Dashboard**: Create parent-specific screens
-3. **Real-time Sync**: Connect to Supabase backend
-4. **Push Notifications**: Alert for support messages
-5. **Wellness Logging**: Complete the logging interface
+### Data Access Patterns
 
-## 💡 Monetization Strategy
+**Payment Flow Architecture**
+1. Parent initiates payment through createPayPalP2POrder()
+2. Firebase Function creates payment record with 'initiated' status
+3. PayPal order generated with student email as recipient
+4. Parent completes payment through PayPal web interface
+5. PayPalP2PReturnHandler verifies payment completion
+6. Firebase Function captures payment and updates status to 'completed'
+7. PaymentReturnHandler calls confirmPayment() for budget updates
+8. Student receives push notification confirmation
 
-**Connection-First Model**:
-- Free tier: Basic wellness tracking and family connection
-- Premium features: Advanced analytics, unlimited care packages, priority support
-- Focus on value through connection rather than transactional rewards
+**Wellness Data Synchronization**
+1. Student logs wellness metrics through WellnessLogScreen
+2. Data validated client-side before submission
+3. WellnessStore manages local state with optimistic updates
+4. Firebase Cloud Functions validate and store wellness entries
+5. Real-time listeners update parent dashboard views
+6. Universal caching system maintains performance
 
----
+## Production Considerations
 
-*Building stronger families through wellness and connection* 🌟 
+### Security Compliance
+- SOC 2 Type II compliance through Firebase infrastructure
+- PCI DSS compliance through PayPal payment processing
+- GDPR compliance with data minimization and user consent
+- Regular security audits and penetration testing
+
+### Monitoring and Analytics
+- Firebase Performance Monitoring for app performance metrics
+- Firebase Crashlytics for error tracking and crash reporting
+- Custom analytics for user behavior and feature adoption
+- Payment transaction monitoring with anomaly detection
+
+### Scalability Planning
+- Horizontal scaling through Firebase's managed infrastructure
+- Database indexing optimization for query performance
+- CDN integration for static asset delivery
+- Load balancing for high-traffic scenarios
+
+## Development Workflow
+
+### Code Quality Standards
+- TypeScript strict mode with comprehensive type coverage
+- ESLint configuration with Expo and React Native rules
+- Prettier for consistent code formatting
+- Pre-commit hooks for automated quality checks
+
+### Testing Strategy
+- Unit testing for business logic and utility functions
+- Integration testing for Firebase Cloud Functions
+- End-to-end testing for critical payment flows
+- Manual testing protocols for UI/UX validation
+
+### Deployment Pipeline
+- Continuous integration with automated testing
+- Staged deployment with development → staging → production
+- Automated rollback capabilities for critical failures
+- Blue-green deployment strategy for zero-downtime updates 

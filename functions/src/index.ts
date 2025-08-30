@@ -19,7 +19,7 @@ const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || functions.config().payp
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || functions.config().paypal?.client_secret;
 const PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL || functions.config().paypal?.base_url || 'https://api-m.sandbox.paypal.com';
 
-// Debug logging function
+// Debug logging function - updated for payments collection
 const debugLog = (functionName: string, message: string, data?: any) => {
   console.log(`🔍 [${functionName}] ${message}`, data ? JSON.stringify(data, null, 2) : '');
 };
@@ -114,26 +114,29 @@ export const createPayPalOrder = functions.https.onCall(async (data, context) =>
 
     debugLog('createPayPalOrder', 'PayPal order created', { orderId, approvalUrl });
 
-    // Create transaction record in Firestore first
-    const transactionData = {
-      parentId: context.auth.uid,
-      studentId,
-      paypalOrderId: orderId,
-      amountCents,
+    // Create payment record in Firestore to match existing payment system
+    const paymentData = {
+      parent_id: context.auth.uid,
+      student_id: studentId,
+      paypal_order_id: orderId,
+      intent_cents: amountCents,
       note: note || '',
-      recipientEmail,
-      status: 'created',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      recipient_email: recipientEmail,
+      status: 'initiated',
+      provider: 'paypal',
+      completion_method: 'direct_paypal',
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      idempotency_key: `paypal_${orderId}_${Date.now()}`
     };
 
-    const transactionRef = await db.collection('transactions').add(transactionData);
+    const paymentRef = await db.collection('payments').add(paymentData);
     
-    // Update the PayPal order with custom return URLs that include our transaction ID
+    // Update the PayPal order with custom return URLs that include our payment ID
     const updateData = {
       op: 'replace',
       path: '/application_context/return_url',
-      value: `https://campus-life-verification.vercel.app/api/paypal-success?transactionId=${transactionRef.id}`
+      value: `https://campus-life-verification.vercel.app/api/paypal-success?paymentId=${paymentRef.id}`
     };
     
     try {
@@ -143,16 +146,16 @@ export const createPayPalOrder = functions.https.onCall(async (data, context) =>
           'Content-Type': 'application/json',
         },
       });
-      debugLog('createPayPalOrder', 'Updated return URL with transaction ID', { transactionId: transactionRef.id });
+      debugLog('createPayPalOrder', 'Updated return URL with payment ID', { paymentId: paymentRef.id });
     } catch (patchError) {
       debugLog('createPayPalOrder', 'Failed to update return URL, using default', patchError);
     }
 
-    debugLog('createPayPalOrder', 'Transaction record created', { transactionId: transactionRef.id });
+    debugLog('createPayPalOrder', 'Payment record created', { paymentId: paymentRef.id });
 
     return {
       success: true,
-      transactionId: transactionRef.id,
+      transactionId: paymentRef.id,
       orderId,
       approvalUrl
     };
@@ -184,19 +187,19 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
   }
 
   try {
-    // Get transaction record
-    const transactionRef = db.collection('transactions').doc(transactionId);
-    const transactionDoc = await transactionRef.get();
+    // Get payment record
+    const paymentRef = db.collection('payments').doc(transactionId);
+    const paymentDoc = await paymentRef.get();
 
-    if (!transactionDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Transaction not found');
+    if (!paymentDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Payment not found');
     }
 
-    const transaction = transactionDoc.data()!;
+    const payment = paymentDoc.data()!;
 
-    // Verify user owns this transaction
-    if (transaction.parentId !== context.auth.uid) {
-      throw new functions.https.HttpsError('permission-denied', 'Unauthorized access to transaction');
+    // Verify user owns this payment
+    if (payment.parent_id !== context.auth.uid) {
+      throw new functions.https.HttpsError('permission-denied', 'Unauthorized access to payment');
     }
 
     debugLog('verifyPayPalPayment', 'Verifying PayPal order', { orderId, payerID });
@@ -220,10 +223,10 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
     // Handle different order statuses
     if (orderStatus === 'CREATED') {
       // Order was created but not approved/paid by user
-      await transactionRef.update({
+      await paymentRef.update({
         status: 'pending_payment',
-        paypalOrderData: orderData,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        paypal_order_data: orderData,
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
       });
 
       return {
@@ -256,17 +259,17 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
 
       debugLog('verifyPayPalPayment', 'PayPal capture response', { captureStatus, captureId });
 
-      // Update transaction based on capture status
+      // Update payment based on capture status
       const updateData: any = {
-        paypalCaptureId: captureId,
-        paypalCaptureData: captureData,
-        paypalOrderData: orderData,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        paypal_capture_id: captureId,
+        paypal_capture_data: captureData,
+        paypal_order_data: orderData,
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
       };
 
       if (captureStatus === 'COMPLETED' || captureStatus === 'PENDING') {
         updateData.status = 'completed';
-        updateData.completedAt = admin.firestore.FieldValue.serverTimestamp();
+        updateData.completed_at = admin.firestore.FieldValue.serverTimestamp();
         debugLog('verifyPayPalPayment', 'Payment completed successfully', { captureStatus });
         
         // Log PENDING status for P2P payments (common in sandbox)
@@ -278,7 +281,7 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
         debugLog('verifyPayPalPayment', 'Payment capture failed', { captureStatus });
       }
 
-      await transactionRef.update(updateData);
+      await paymentRef.update(updateData);
 
       return {
         success: captureStatus === 'COMPLETED' || captureStatus === 'PENDING',
@@ -291,11 +294,11 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
 
     if (orderStatus === 'COMPLETED') {
       // Order already completed
-      await transactionRef.update({
+      await paymentRef.update({
         status: 'completed',
-        paypalOrderData: orderData,
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        paypal_order_data: orderData,
+        completed_at: admin.firestore.FieldValue.serverTimestamp(),
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
       });
 
       return {
@@ -307,11 +310,11 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
     }
 
     // Handle other statuses (CANCELLED, etc.)
-    await transactionRef.update({
+    await paymentRef.update({
       status: 'failed',
-      paypalOrderData: orderData,
+      paypal_order_data: orderData,
       error: `PayPal order status: ${orderStatus}`,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updated_at: admin.firestore.FieldValue.serverTimestamp()
     });
 
     return {
@@ -326,15 +329,15 @@ export const verifyPayPalPayment = functions.https.onCall(async (data, context) 
     
     const errorMessage = error.response?.data?.message || error.message;
     
-    // Update transaction as failed
+    // Update payment as failed
     try {
-      await db.collection('transactions').doc(transactionId).update({
+      await db.collection('payments').doc(transactionId).update({
         status: 'failed',
         error: errorMessage,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
       });
     } catch (updateError) {
-      debugLog('verifyPayPalPayment', 'Error updating failed transaction', updateError);
+      debugLog('verifyPayPalPayment', 'Error updating failed payment', updateError);
     }
     
     if (error instanceof functions.https.HttpsError) {
@@ -360,31 +363,31 @@ export const getTransactionStatus = functions.https.onCall(async (data, context)
   }
 
   try {
-    const transactionDoc = await db.collection('transactions').doc(transactionId).get();
+    const paymentDoc = await db.collection('payments').doc(transactionId).get();
 
-    if (!transactionDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Transaction not found');
+    if (!paymentDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Payment not found');
     }
 
-    const transaction = transactionDoc.data()!;
+    const payment = paymentDoc.data()!;
 
-    // Verify user has access to this transaction
-    if (transaction.parentId !== context.auth.uid && transaction.studentId !== context.auth.uid) {
-      throw new functions.https.HttpsError('permission-denied', 'Unauthorized access to transaction');
+    // Verify user has access to this payment
+    if (payment.parent_id !== context.auth.uid && payment.student_id !== context.auth.uid) {
+      throw new functions.https.HttpsError('permission-denied', 'Unauthorized access to payment');
     }
 
-    debugLog('getTransactionStatus', 'Transaction found', { transactionId, status: transaction.status });
+    debugLog('getTransactionStatus', 'Payment found', { transactionId, status: payment.status });
 
     return {
       success: true,
       transaction: {
         id: transactionId,
-        status: transaction.status,
-        amountCents: transaction.amountCents,
-        note: transaction.note,
-        createdAt: transaction.createdAt,
-        completedAt: transaction.completedAt,
-        recipientEmail: transaction.recipientEmail
+        status: payment.status,
+        amountCents: payment.intent_cents,
+        note: payment.note,
+        createdAt: payment.created_at,
+        completedAt: payment.completed_at,
+        recipientEmail: payment.recipient_email
       }
     };
 

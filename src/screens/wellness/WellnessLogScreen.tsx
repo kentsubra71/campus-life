@@ -109,7 +109,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             step={step}
             minimumTrackTintColor={theme.colors.primary}
             maximumTrackTintColor={theme.colors.backgroundTertiary}
-            thumbTintColor={theme.colors.backgroundSecondary}
+            thumbTintColor={theme.colors.primary}
           />
         </View>
         
@@ -151,7 +151,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             step={1}
             minimumTrackTintColor={theme.colors.primary}
             maximumTrackTintColor={theme.colors.backgroundTertiary}
-            thumbTintColor={theme.colors.backgroundSecondary}
+            thumbTintColor={theme.colors.primary}
           />
         </View>
         
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
   },
   saveButton: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,

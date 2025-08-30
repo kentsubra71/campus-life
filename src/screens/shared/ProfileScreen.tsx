@@ -9,7 +9,9 @@ import {
   TextInput
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
+import { StatusHeader } from '../../components/StatusHeader';
 import { theme } from '../../styles/theme';
 
 interface ProfileScreenProps {
@@ -18,6 +20,7 @@ interface ProfileScreenProps {
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, family, logout, updateProfile, getFamilyMembers } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
@@ -90,15 +93,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Profile</Text>
-        <Text style={styles.subtitle}>Manage your account and family</Text>
-      </View>
+    <View style={styles.container}>
+      <StatusHeader title="Profile" />
+      <ScrollView 
+        style={[styles.scrollContainer, { paddingTop: 50 }]} 
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.subtitle}>Manage your account and family</Text>
+        </View>
 
       {/* User Info Card */}
       <View style={styles.profileCard}>
@@ -219,7 +224,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           <Text style={styles.signOutButtonText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -228,9 +234,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  scrollContainer: {
+    flex: 1,
+  },
   content: {
     padding: 24,
-    paddingTop: 60,
+    paddingTop: 20,
   },
   centerContainer: {
     flex: 1,
@@ -255,7 +264,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: theme.colors.textPrimary,
-    letterSpacing: -0.5,
     marginBottom: 8,
   },
   subtitle: {

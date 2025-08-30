@@ -7,7 +7,6 @@ import { useFocusEffect } from '@react-navigation/native';
  */
 export const useRefreshOnFocus = (refreshFunction: () => Promise<void> | void) => {
   const refresh = useCallback(() => {
-    console.log('🔄 Screen focused - refreshing data');
     refreshFunction();
   }, [refreshFunction]);
 

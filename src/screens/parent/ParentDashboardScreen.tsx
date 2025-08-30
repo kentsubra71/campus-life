@@ -11,6 +11,7 @@ import {
   Alert
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
@@ -22,6 +23,7 @@ import { StatsCard } from '../../components/cards/StatsCard';
 import { ActionCard } from '../../components/cards/ActionCard';
 import { ListCard } from '../../components/cards/ListCard';
 import { BudgetProgressBar } from '../../components/BudgetProgressBar';
+import { StatusHeader } from '../../components/StatusHeader';
 import { pushNotificationService, NotificationTemplates } from '../../services/pushNotificationService';
 
 interface ParentDashboardScreenProps {
@@ -29,6 +31,7 @@ interface ParentDashboardScreenProps {
 }
 
 export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { stats, todayEntry, getEntryByDate } = useWellnessStore();
   const { 
     supportMessages, 
@@ -90,24 +93,15 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       await smartRefresh(
         CACHE_CONFIGS.FAMILY_MEMBERS,
         async () => {
-          console.log('🔄 Loading family members...');
           const members = await getFamilyMembers();
-          console.log('👨‍👩‍👧‍👦 Family members loaded:', {
-            parentsCount: members.parents.length,
-            studentsCount: members.students.length,
-            parents: members.parents.map(p => ({ id: p.id, name: p.name })),
-            students: members.students.map(s => ({ id: s.id, name: s.name }))
-          });
           return members;
         },
         (cachedMembers) => {
           // Show cached data immediately
-          console.log('📦 Using cached family members');
           setFamilyMembers(cachedMembers);
         },
         (freshMembers) => {
           // Update with fresh data
-          console.log('✅ Updated with fresh family members');
           setFamilyMembers(freshMembers);
         },
         user.id
@@ -124,7 +118,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         await smartRefresh(
           CACHE_CONFIGS.DASHBOARD_DATA,
           async () => {
-            console.log('🔄 Loading dashboard data...');
             await Promise.all([
               fetchSupportMessages(),
               fetchMonthlyPayments(selectedStudent?.id),
@@ -143,11 +136,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             };
           },
           (cachedDashboard) => {
-            console.log('📦 Using cached dashboard data');
             // Dashboard data already in stores, just log
           },
           (freshDashboard) => {
-            console.log('✅ Updated with fresh dashboard data');
           },
           `${user.id}_${selectedStudent?.id}`
         );
@@ -155,11 +146,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         // PayPal verification (reduced delay)
         setTimeout(async () => {
           try {
-            console.log('🔄 Auto-verifying pending PayPal payments...');
             const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
             const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
             if (verifiedCount > 0) {
-              console.log(`✅ Auto-verified ${verifiedCount} PayPal payments`);
               // Refresh monthly payments to show updates
               fetchMonthlyPayments(selectedStudent?.id);
             }
@@ -169,7 +158,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         }, 100); // Almost immediate verification
       }
     } catch (error) {
-      console.log('Error loading data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -244,58 +232,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     }
   };
 
-  const sendDebugNotification = async (type: 'local' | 'firebase') => {
-    try {
-      if (type === 'local') {
-        // Send local notification to self
-        await pushNotificationService.sendLocalNotification(
-          '🧪 Parent Local Debug Test',
-          'This is a test notification sent locally to your device. Local notifications work in Expo Go!'
-        );
-        Alert.alert('Debug Success', 'Local test notification sent! Check your notification bar.');
-      } else {
-        // Test Firebase push notification setup
-        if (!user) return;
-        
-        Alert.alert(
-          '🚨 Firebase Push Test',
-          'This tests your Firebase/EAS setup:\n\n1. If you get "no project id" - you need EAS setup\n2. If the call succeeds but no notification shows - that\'s normal in Expo Go\n3. In production/development builds, this will work properly',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Try Anyway', 
-              onPress: async () => {
-                try {
-                  const testNotification = NotificationTemplates.supportReceived(
-                    user.name || 'Parent',
-                    '🧪 Debug: This is a test support message from the parent dashboard'
-                  );
-                  
-                  const success = await pushNotificationService.sendPushNotification({
-                    ...testNotification,
-                    userId: user.id
-                  });
-                  
-                  Alert.alert(
-                    'Firebase Test Result', 
-                    success 
-                      ? 'Firebase call succeeded! (But notification won\'t show in Expo Go)' 
-                      : 'Firebase call failed - check console for details'
-                  );
-                } catch (error) {
-                  console.error('Firebase debug error:', error);
-                  Alert.alert('Firebase Error', 'Firebase call failed - check console for details');
-                }
-              }
-            }
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('Debug notification error:', error);
-      Alert.alert('Debug Error', `Failed to send test notification: ${error.message}`);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -311,11 +247,13 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   if (familyMembers.students.length === 0) {
     return (
       <View style={styles.container}>
+        <StatusHeader title="Home" />
         <ScrollView
-          style={styles.scrollContainer}
+          style={[styles.scrollContainer, { paddingTop: 50 }]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
         >
           {/* Header */}
           <View style={styles.header}>
@@ -401,11 +339,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   const hasMultipleStudents = familyMembers.students.length > 1;
   
   // Debug logging
-  console.log('🔍 Family members debug:', {
-    studentsCount: familyMembers.students.length,
-    hasMultipleStudents,
-    students: familyMembers.students.map(s => ({ id: s.id, name: s.name }))
-  });
 
   // Additional variables for components
   const selectedStudent = familyMembers.students[selectedStudentIndex] || familyMembers.students[0];
@@ -415,12 +348,14 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
   return (
     <View style={styles.container}>
+      <StatusHeader title="Home" />
       <ScrollView
-        style={styles.scrollContainer}
+        style={[styles.scrollContainer, { paddingTop: 50 }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
         {/* Modern Header */}
         <View style={styles.header}>
@@ -658,29 +593,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </View>
           )}
         </View>
-        {/* Debug Notifications Section */}
-        <View style={styles.debugSection}>
-          <Text style={styles.sectionTitle}>🧪 Debug Notifications</Text>
-          <Text style={styles.debugSubtext}>Test notifications from one device (for development)</Text>
-          
-          <View style={styles.debugButtonRow}>
-            <TouchableOpacity 
-              style={styles.debugButton}
-              onPress={() => sendDebugNotification('local')}
-            >
-              <Text style={styles.debugButtonText}>Test Local ✅</Text>
-              <Text style={styles.debugButtonSubtext}>Works in Expo Go</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.debugButton, styles.debugButtonDisabled]}
-              onPress={() => sendDebugNotification('firebase')}
-            >
-              <Text style={styles.debugButtonText}>Test Firebase ⚠️</Text>
-              <Text style={styles.debugButtonSubtext}>Limited in Expo Go</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         {/* Wellness */}
         <View style={styles.wellnessSection}>
@@ -718,9 +630,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    marginBottom: 30,
+    paddingTop: 10,
     paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 20,
   },
   greeting: {
     fontSize: 16,
@@ -729,10 +641,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     color: theme.colors.textPrimary,
-    letterSpacing: -1,
+    marginBottom: 8,
   },
 
   // Segmented Control System
@@ -1092,10 +1004,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 16,
     color: theme.colors.textSecondary,
     fontWeight: '500',
-    marginBottom: 8,
   },
   waitingCard: {
     backgroundColor: theme.colors.backgroundSecondary,
@@ -1248,46 +1159,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   
-  // Debug Section Styles
-  debugSection: {
-    paddingHorizontal: 24,
-    marginTop: 24,
-  },
-  debugSubtext: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    marginBottom: 16,
-    fontStyle: 'italic',
-  },
-  debugButtonRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  debugButton: {
-    flex: 1,
-    backgroundColor: theme.colors.backgroundSecondary,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  debugButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  debugButtonSubtext: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-  },
-  debugButtonDisabled: {
-    opacity: 0.7,
-    borderColor: '#f59e0b',
-    borderWidth: 1,
-  },
   
   // Wellness Section Styles
   wellnessSection: {

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, User } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, Timestamp, limit } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, updateDoc, Timestamp, limit } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -218,6 +218,16 @@ export const addWellnessEntry = async (entry: Omit<WellnessEntry, 'id' | 'create
     return { id: docRef.id, error: null };
   } catch (error: any) {
     return { id: null, error: error.message };
+  }
+};
+
+export const updateWellnessEntry = async (entryId: string, updates: Partial<Omit<WellnessEntry, 'id' | 'created_at'>>) => {
+  try {
+    const docRef = doc(db, 'wellness_entries', entryId);
+    await updateDoc(docRef, updates);
+    return { success: true, error: null };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 };
 

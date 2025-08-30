@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { 
   addWellnessEntry, 
+  updateWellnessEntry,
   getWellnessEntries, 
   WellnessEntry as FirebaseWellnessEntry,
   getCurrentUser 
@@ -35,8 +36,8 @@ interface WellnessStore {
   todayEntry: WellnessEntry | null;
   
   // Actions
-  addEntry: (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>) => void;
-  updateEntry: (id: string, updates: Partial<WellnessEntry>) => void;
+  addEntry: (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>) => Promise<void>;
+  updateEntry: (id: string, updates: Partial<WellnessEntry>) => Promise<void>;
   getEntryByDate: (date: string) => WellnessEntry | null;
   calculateWellnessScore: (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>) => number;
   calculateStats: () => WellnessStats;
@@ -89,6 +90,16 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
 
     const wellnessScore = calculateWellnessScore(entryData);
     
+    // Check if entry for today already exists
+    const today = entryData.date;
+    const existingEntry = get().entries.find(entry => entry.date === today);
+    
+    if (existingEntry) {
+      // Update existing entry instead of creating new one
+      await get().updateEntry(existingEntry.id, entryData);
+      return;
+    }
+    
     // Convert to Firebase format
     const firebaseEntry: Omit<FirebaseWellnessEntry, 'id' | 'created_at'> = {
       user_id: user.uid,
@@ -123,6 +134,9 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       // Calculate and update stats after setting entries
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
+      
+      // Invalidate cache so fresh data is loaded next time
+      await cache.invalidate(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
       
       // Send wellness log notification to parents
       try {
@@ -167,29 +181,55 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     }
   },
 
-  updateEntry: (id, updates) => {
-    set((state) => {
-      const updatedEntries = state.entries.map((entry) => {
-        if (entry.id === id) {
-          const updatedEntry = { ...entry, ...updates };
-          if (updates.mood || updates.sleep || updates.exercise || updates.nutrition || updates.water || updates.social || updates.academic) {
-            updatedEntry.wellnessScore = calculateWellnessScore(updatedEntry);
-          }
-          return updatedEntry;
-        }
-        return entry;
-      });
+  updateEntry: async (id, updates) => {
+    const user = getCurrentUser();
+    if (!user) return;
 
+    try {
+      // Convert local format to Firebase format for update
+      const firebaseUpdates: any = {};
+      if (updates.mood !== undefined) firebaseUpdates.mood = updates.mood;
+      if (updates.sleep !== undefined) firebaseUpdates.sleep_hours = updates.sleep;
+      if (updates.exercise !== undefined) firebaseUpdates.exercise_minutes = updates.exercise;
+      if (updates.nutrition !== undefined) firebaseUpdates.nutrition = updates.nutrition;
+      if (updates.water !== undefined) firebaseUpdates.water = updates.water;
+      if (updates.social !== undefined) firebaseUpdates.social = updates.social;
+      if (updates.academic !== undefined) firebaseUpdates.academic = updates.academic;
+      if (updates.notes !== undefined) firebaseUpdates.notes = updates.notes;
+
+      const { success, error } = await updateWellnessEntry(id, firebaseUpdates);
+      if (!success) {
+        console.error('Failed to update wellness entry:', error);
+        return;
+      }
+
+      set((state) => {
+        const updatedEntries = state.entries.map((entry) => {
+          if (entry.id === id) {
+            const updatedEntry = { ...entry, ...updates };
+            if (updates.mood || updates.sleep || updates.exercise || updates.nutrition || updates.water || updates.social || updates.academic) {
+              updatedEntry.wellnessScore = calculateWellnessScore(updatedEntry);
+            }
+            return updatedEntry;
+          }
+          return entry;
+        });
+
+        return {
+          entries: updatedEntries,
+          todayEntry: updatedEntries.find(entry => entry.date === new Date().toISOString().split('T')[0]) || null,
+        };
+      });
       
-      return {
-        entries: updatedEntries,
-        todayEntry: updatedEntries.find(entry => entry.date === new Date().toISOString().split('T')[0]) || null,
-      };
-    });
-    
-    // Calculate and update stats after setting entries
-    const updatedStats = get().calculateStats();
-    set({ stats: updatedStats });
+      // Calculate and update stats after setting entries
+      const updatedStats = get().calculateStats();
+      set({ stats: updatedStats });
+      
+      // Invalidate cache so fresh data is loaded next time
+      await cache.invalidate(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+    } catch (error) {
+      console.error('Failed to update wellness entry:', error);
+    }
   },
 
   getEntryByDate: (date) => {
@@ -274,9 +314,12 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     return entries.filter(entry => new Date(entry.date) >= monthAgo);
   },
 
-  loadEntries: async () => {
+  loadEntries: async (studentId?: string) => {
     const user = getCurrentUser();
     if (!user) return;
+
+    // For parents viewing student data, use studentId parameter
+    const targetUserId = studentId || user.uid;
 
     try {
       // Use smart caching for wellness data
@@ -284,7 +327,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         CACHE_CONFIGS.WELLNESS_DATA,
         async () => {
           console.log('🔄 Loading fresh wellness entries...');
-          const firebaseEntries = await getWellnessEntries(user.uid);
+          const firebaseEntries = await getWellnessEntries(targetUserId);
           
           // Convert Firebase entries to local format
           const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
@@ -293,20 +336,20 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
             mood: entry.mood,
             sleep: entry.sleep_hours,
             exercise: entry.exercise_minutes,
-            nutrition: 5, // Default value since not in Firebase
-            water: 4, // Default value since not in Firebase
-            social: 5, // Default value since not in Firebase
-            academic: entry.stress_level,
+            nutrition: entry.nutrition,
+            water: entry.water,
+            social: entry.social,
+            academic: entry.academic,
             notes: entry.notes,
             wellnessScore: calculateWellnessScore({
               date: entry.created_at.toDate().toISOString().split('T')[0],
               mood: entry.mood,
               sleep: entry.sleep_hours,
               exercise: entry.exercise_minutes,
-              nutrition: 5,
-              water: 4,
-              social: 5,
-              academic: entry.stress_level,
+              nutrition: entry.nutrition,
+              water: entry.water,
+              social: entry.social,
+              academic: entry.academic,
               notes: entry.notes,
             }),
           }));
@@ -316,7 +359,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           
           return { entries, todayEntry };
         },
-        user.uid
+        targetUserId
       );
 
       // Set the data from cache or fresh fetch

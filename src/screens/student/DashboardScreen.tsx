@@ -273,17 +273,29 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           </View>
         </View>
         
-        <TouchableOpacity 
-          style={styles.supportButton}
-          onPress={() => requestSupport()}
-        >
-          <Text style={styles.supportButtonText}>Request Support</Text>
-          <Text style={styles.supportButtonSubtext}>
-            {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
-              ? 'Your family has been notified and will reach out soon' 
-              : 'Let your family know you could use some help'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.supportButtonsRow}>
+          <TouchableOpacity 
+            style={styles.supportButton}
+            onPress={() => requestSupport()}
+          >
+            <Text style={styles.supportButtonText}>Request Support</Text>
+            <Text style={styles.supportButtonSubtext}>
+              {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+                ? 'Your family has been notified and will reach out soon' 
+                : 'Let your family know you could use some help'}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.itemRequestButton}
+            onPress={() => navigation.navigate('ItemRequest')}
+          >
+            <Text style={styles.itemRequestButtonText}>Request Item</Text>
+            <Text style={styles.itemRequestButtonSubtext}>
+              Ask for something you need
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Level & Experience */}
@@ -916,10 +928,27 @@ const styles = StyleSheet.create({
     color: theme.colors.success,
     marginBottom: 4,
   },
-  supportButton: {
-    backgroundColor: theme.colors.primary,
+  supportButtonsRow: {
+    flexDirection: 'row',
     marginHorizontal: 20,
     marginTop: 16,
+    gap: 12,
+  },
+  supportButton: {
+    backgroundColor: theme.colors.primary,
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  itemRequestButton: {
+    backgroundColor: theme.colors.success,
+    flex: 1,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -933,17 +962,32 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.success,
   },
   supportButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: theme.colors.backgroundSecondary,
     marginBottom: 4,
+    textAlign: 'center',
   },
   supportButtonTextSent: {
     color: theme.colors.backgroundSecondary,
   },
   supportButtonSubtext: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.colors.backgroundSecondary,
     textAlign: 'center',
+    lineHeight: 14,
+  },
+  itemRequestButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.backgroundSecondary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  itemRequestButtonSubtext: {
+    fontSize: 11,
+    color: theme.colors.backgroundSecondary,
+    textAlign: 'center',
+    lineHeight: 14,
   },
 }); 

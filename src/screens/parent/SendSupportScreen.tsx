@@ -16,6 +16,8 @@ import { createPaymentIntent, getCurrentSpendingCaps } from '../../lib/payments'
 import { createTestSubscription } from '../../lib/subscriptionWebhooks';
 import * as Linking from 'expo-linking';
 import { theme } from '../../styles/theme';
+import { StatusHeader } from '../../components/StatusHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SendSupportScreenProps {
   navigation: any;
@@ -30,6 +32,7 @@ interface SendSupportScreenProps {
 }
 
 export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
   const { monthlyEarned } = useRewardsStore();
   const { getFamilyMembers } = useAuthStore();
   const preselectedType = route?.params?.preselectedType || 'message';
@@ -255,12 +258,13 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollContainer}>
+      <StatusHeader title="Send Support" />
+      <ScrollView 
+        style={[styles.scrollContainer, { paddingTop: 50 }]}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+      >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backButton}>← Back</Text>
-          </TouchableOpacity>
           <Text style={styles.title}>Send Support to {targetStudent}</Text>
           {route?.params?.preselectedType ? (
             <View style={styles.statusRow}>
@@ -364,18 +368,20 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
             <Text style={styles.sectionSubtitle}>Choose how to send the money</Text>
             <View style={styles.paymentProviders}>
               {[
-                { id: 'paypal', name: 'PayPal', desc: 'Best experience' },
-                { id: 'venmo', name: 'Venmo', desc: 'Quick & easy' },
-                { id: 'cashapp', name: 'Cash App', desc: 'Instant transfer' },
-                { id: 'zelle', name: 'Zelle', desc: 'Bank to bank' }
+                { id: 'paypal', name: 'PayPal', desc: 'Best experience', available: true },
+                { id: 'venmo', name: 'Venmo', desc: 'Coming soon', available: false },
+                { id: 'cashapp', name: 'Cash App', desc: 'Coming soon', available: false },
+                { id: 'zelle', name: 'Zelle', desc: 'Coming soon', available: false }
               ].map((provider) => (
                 <TouchableOpacity
                   key={provider.id}
                   style={[
                     styles.providerRow,
-                    selectedProvider === provider.id && styles.providerRowActive
+                    selectedProvider === provider.id && styles.providerRowActive,
+                    !provider.available && styles.providerRowDisabled
                   ]}
-                  onPress={() => setSelectedProvider(provider.id as any)}
+                  onPress={() => provider.available && setSelectedProvider(provider.id as any)}
+                  disabled={!provider.available}
                 >
                   <View style={styles.providerContent}>
                     <View style={styles.providerLogoContainer}>
@@ -486,14 +492,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 10,
     paddingBottom: 20,
-  },
-  backButton: {
-    fontSize: 16,
-    color: theme.colors.primary,
-    fontWeight: '600',
-    marginBottom: 12,
   },
   title: {
     fontSize: 28,
@@ -745,6 +745,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.secondary,
     marginHorizontal: -24,
     paddingHorizontal: 24,
+  },
+  providerRowDisabled: {
+    opacity: 0.4,
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 8,
   },
   providerContent: {

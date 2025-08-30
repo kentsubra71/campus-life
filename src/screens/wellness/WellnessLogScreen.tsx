@@ -51,36 +51,46 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     }
   }, []);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const today = new Date().toISOString().split('T')[0];
     
-    if (isEditing && todayEntry) {
-      updateEntry(todayEntry.id, {
-        ...formData,
-        date: today,
-      });
+    try {
+      if (isEditing && todayEntry) {
+        await updateEntry(todayEntry.id, {
+          ...formData,
+          date: today,
+        });
+        showMessage({
+          message: 'Success',
+          description: 'Wellness entry updated successfully!',
+          type: 'success',
+          backgroundColor: theme.colors.success,
+          color: theme.colors.backgroundSecondary,
+        });
+      } else {
+        await addEntry({
+          ...formData,
+          date: today,
+        });
+        showMessage({
+          message: 'Success', 
+          description: 'Wellness entry saved successfully!',
+          type: 'success',
+          backgroundColor: theme.colors.success,
+          color: theme.colors.backgroundSecondary,
+        });
+      }
+      
+      navigation.goBack();
+    } catch (error) {
       showMessage({
-        message: 'Success',
-        description: 'Wellness entry updated successfully!',
-        type: 'success',
-        backgroundColor: theme.colors.success,
-        color: theme.colors.backgroundSecondary,
-      });
-    } else {
-      addEntry({
-        ...formData,
-        date: today,
-      });
-      showMessage({
-        message: 'Success', 
-        description: 'Wellness entry saved successfully!',
-        type: 'success',
-        backgroundColor: theme.colors.success,
+        message: 'Error',
+        description: 'Failed to save wellness entry. Please try again.',
+        type: 'danger',
+        backgroundColor: theme.colors.error,
         color: theme.colors.backgroundSecondary,
       });
     }
-    
-    navigation.goBack();
   };
 
   const renderSlider = (

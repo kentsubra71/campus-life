@@ -98,7 +98,9 @@ export const MoneyCompactSummary: React.FC<MoneyCompactSummaryProps> = ({ onView
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Money Received</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Money Received</Text>
+        </View>
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -107,7 +109,9 @@ export const MoneyCompactSummary: React.FC<MoneyCompactSummaryProps> = ({ onView
   if (recentPayments.length === 0) {
     return (
       <TouchableOpacity style={styles.container} onPress={onViewAll}>
-        <Text style={styles.title}>Money Received</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Money Received</Text>
+        </View>
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No payments yet</Text>
           <Text style={styles.tapText}>Tap to view details</Text>
@@ -148,8 +152,6 @@ export const MoneyCompactSummary: React.FC<MoneyCompactSummaryProps> = ({ onView
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
     marginBottom: 20,
   },
   title: {
@@ -162,6 +164,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    paddingHorizontal: 24,
   },
   weekTotal: {
     fontSize: 14,
@@ -172,10 +175,12 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     textAlign: 'center',
     padding: 20,
+    paddingHorizontal: 24,
   },
   emptyState: {
     alignItems: 'center',
     padding: 20,
+    paddingHorizontal: 24,
   },
   emptyText: {
     fontSize: 14,
@@ -189,6 +194,7 @@ const styles = StyleSheet.create({
   },
   recentList: {
     marginBottom: 8,
+    paddingHorizontal: 24,
   },
   paymentRow: {
     flexDirection: 'row',
@@ -225,5 +231,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginTop: 4,
+    paddingHorizontal: 24,
   },
 });

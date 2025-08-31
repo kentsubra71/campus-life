@@ -655,8 +655,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                       filterPeriod === period && styles.segmentTextActive
                     ]}>
                       {period === 'all' ? 'All' :
-                       period === 'day' ? 'Day' : 
-                       period === 'week' ? 'Week' : 'Month'}
+                       period === 'day' ? '24h' : 
+                       period === 'week' ? '7d' : '30d'}
                     </Text>
                   </TouchableOpacity>
                 ))}

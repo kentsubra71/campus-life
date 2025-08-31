@@ -45,45 +45,41 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
   };
 
 
-  const renderSupportMessage = (message: any) => {
-    const getMessageIcon = (type: string) => {
-      switch (type) {
-        case 'message': return 'M';
-        case 'voice': return 'V';
-        case 'care_package': return 'P';
-        case 'video_call': return 'C';
-        case 'boost': return 'B';
-        default: return 'M';
-      }
-    };
+  const getMessageType = (type: string) => {
+    switch (type) {
+      case 'message': return 'Message';
+      case 'voice': return 'Voice';
+      case 'care_package': return 'Package';
+      case 'video_call': return 'Video Call';
+      case 'boost': return 'Boost';
+      default: return 'Message';
+    }
+  };
 
+  const formatTimeAgo = (timestamp: any) => {
+    const now = new Date();
+    const messageTime = new Date(timestamp);
+    const diffInMinutes = Math.floor((now.getTime() - messageTime.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
+  const renderSupportMessage = (message: any) => {
     return (
       <TouchableOpacity
         key={message.id}
-        style={[
-          styles.messageCard,
-          !message.read && styles.unreadMessage
-        ]}
+        style={[styles.activityItem, !message.read && styles.unreadMessage]}
         onPress={() => !message.read && markMessageRead(message.id)}
-        activeOpacity={0.8}
       >
-        <View style={styles.messageHeader}>
-          <View style={[
-            styles.messageIcon,
-            { backgroundColor: !message.read ? theme.colors.primary : theme.colors.backgroundTertiary }
-          ]}>
-            <Text style={styles.messageIconText}>
-              {getMessageIcon(message.type)}
-            </Text>
-          </View>
-          <View style={styles.messageContent}>
-            <Text style={styles.messageText}>{message.content}</Text>
-            <Text style={styles.messageTime}>
-              {new Date(message.timestamp).toLocaleDateString()} at {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </View>
-          {!message.read && <View style={styles.unreadDot} />}
+        <View style={styles.activityContent}>
+          <Text style={styles.activityTitle}>{message.content}</Text>
+          <Text style={styles.activitySubtitle}>
+            {getMessageType(message.type)} • {formatTimeAgo(message.timestamp)}
+          </Text>
         </View>
+        {!message.read && <View style={styles.unreadDot} />}
       </TouchableOpacity>
     );
   };
@@ -108,29 +104,43 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
           <Text style={styles.subtitle}>Money, level, and family support</Text>
         </View>
 
-        {/* Current Status - Clean */}
+        {/* Current Status - No Card */}
         <View style={styles.statusSection}>
           <View style={styles.statusHeader}>
             <Text style={styles.statusTitle}>Level {level} Student</Text>
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusBadgeText}>{monthlyEarned >= 40 ? 'Great Month!' : monthlyEarned >= 20 ? 'Doing Well' : 'Just Getting Started'}</Text>
+            <View style={[styles.statusBadge, { 
+              backgroundColor: monthlyEarned >= 40 ? theme.colors.success : 
+                              monthlyEarned >= 20 ? theme.colors.primary : theme.colors.warning 
+            }]}>
+              <Text style={styles.statusBadgeText}>
+                {monthlyEarned >= 40 ? 'GREAT MONTH' : monthlyEarned >= 20 ? 'DOING WELL' : 'GETTING STARTED'}
+              </Text>
             </View>
           </View>
           <Text style={styles.statusSubtitle}>
-            {experienceProgress > 80 ? 'Almost to the next level!' : 
-             experienceProgress > 50 ? 'Making great progress' : 
-             'Keep logging wellness to level up'}
+            {experienceProgress > 80 ? 'Almost to the next level! Keep up the great work.' : 
+             experienceProgress > 50 ? 'Making solid progress toward your next level.' : 
+             'Log your wellness daily to level up and earn more rewards'}
           </Text>
         </View>
 
-        {/* Key Metrics - Clean Layout */}
+        {/* Key Metrics - No Cards */}
         <View style={styles.metricsSection}>
           <View style={styles.metricItem}>
             <View style={styles.metricHeader}>
               <Text style={styles.metricLabel}>This Month</Text>
               <Text style={styles.metricValue}>${monthlyEarned}</Text>
             </View>
-            <Text style={styles.metricTag}>${50 - monthlyEarned} left this month</Text>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { 
+                  width: `${Math.max(5, Math.min(100, (monthlyEarned / 50) * 100))}%` 
+                }]} />
+              </View>
+              <Text style={styles.progressText}>
+                ${Math.max(0, 50 - monthlyEarned)} left to reach $50 monthly goal
+              </Text>
+            </View>
           </View>
           
           <View style={styles.metricItem}>
@@ -140,7 +150,9 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
             </View>
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${experienceProgress}%` }]} />
+                <View style={[styles.progressFill, { 
+                  width: `${Math.max(5, experienceProgress)}%` 
+                }]} />
               </View>
               <Text style={styles.progressText}>{nextLevelExp} XP to next level</Text>
             </View>
@@ -151,13 +163,13 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
         <MoneyCompactSummary onViewAll={() => navigation.navigate('PaymentHistory')} />
 
         {/* Family Support Messages */}
-        <View style={styles.section}>
+        <View style={styles.messagesSection}>
           <View style={styles.messagesSectionHeader}>
             <Text style={styles.sectionTitle}>Family Support</Text>
             {unreadCount > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
-              </View>
+              <Text style={styles.newMessagesBadge}>
+                {unreadCount} new
+              </Text>
             )}
           </View>
           
@@ -182,7 +194,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   header: {
     marginBottom: 24,
@@ -195,10 +207,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     color: theme.colors.textPrimary,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
@@ -206,79 +218,78 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   statusSection: {
-    backgroundColor: theme.colors.backgroundCard,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    paddingVertical: 16,
+    marginBottom: 20,
   },
   statusHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
   statusTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: theme.colors.textPrimary,
+    flex: 1,
+    marginRight: 12,
   },
   statusBadge: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   statusBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: 'white',
+    color: theme.colors.backgroundSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   statusSubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: theme.colors.textSecondary,
+    marginBottom: 12,
     lineHeight: 20,
   },
   metricsSection: {
-    marginBottom: 24,
+    gap: 12,
+    marginBottom: 20,
   },
   metricItem: {
-    backgroundColor: theme.colors.backgroundCard,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   metricHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   metricLabel: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
+    fontSize: 14,
     fontWeight: '500',
+    color: theme.colors.textSecondary,
   },
   metricValue: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     color: theme.colors.textPrimary,
   },
   metricTag: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   progressContainer: {
-    marginTop: 8,
+    gap: 6,
   },
   progressBar: {
     height: 6,
-    backgroundColor: theme.colors.backgroundSecondary,
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 3,
-    marginBottom: 8,
   },
   progressFill: {
     height: '100%',
@@ -287,82 +298,54 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 12,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
+    color: theme.colors.textTertiary,
   },
-  section: {
+  messagesSection: {
     marginBottom: 30,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: theme.colors.textPrimary,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   messagesSectionHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  unreadBadge: {
-    backgroundColor: theme.colors.error,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  unreadBadgeText: {
-    color: 'white',
+  newMessagesBadge: {
     fontSize: 12,
-    fontWeight: '700',
+    color: theme.colors.backgroundSecondary,
+    fontWeight: '600',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
-  messageCard: {
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  unreadMessage: {
-    borderColor: theme.colors.primary,
-  },
-  messageHeader: {
+  activityItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  messageIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+  unreadMessage: {
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
   },
-  messageIconText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  messageContent: {
+  activityContent: {
     flex: 1,
   },
-  messageText: {
-    fontSize: 14,
+  activityTitle: {
+    fontSize: 15,
+    fontWeight: '600',
     color: theme.colors.textPrimary,
-    fontWeight: '500',
-    marginBottom: 4,
-    lineHeight: 18,
+    marginBottom: 1,
   },
-  messageTime: {
-    fontSize: 12,
+  activitySubtitle: {
+    fontSize: 13,
     color: theme.colors.textSecondary,
   },
   unreadDot: {
@@ -374,11 +357,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-    padding: 32,
-    backgroundColor: theme.colors.backgroundCard,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    paddingVertical: 32,
   },
   emptyStateText: {
     fontSize: 16,

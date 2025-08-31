@@ -98,7 +98,7 @@ export const MoneyCompactSummary: React.FC<MoneyCompactSummaryProps> = ({ onView
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>💰 Money Received</Text>
+        <Text style={styles.title}>Money Received</Text>
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -107,7 +107,7 @@ export const MoneyCompactSummary: React.FC<MoneyCompactSummaryProps> = ({ onView
   if (recentPayments.length === 0) {
     return (
       <TouchableOpacity style={styles.container} onPress={onViewAll}>
-        <Text style={styles.title}>💰 Money Received</Text>
+        <Text style={styles.title}>Money Received</Text>
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No payments yet</Text>
           <Text style={styles.tapText}>Tap to view details</Text>
@@ -119,7 +119,7 @@ export const MoneyCompactSummary: React.FC<MoneyCompactSummaryProps> = ({ onView
   return (
     <TouchableOpacity style={styles.container} onPress={onViewAll}>
       <View style={styles.header}>
-        <Text style={styles.title}>💰 Money Received</Text>
+        <Text style={styles.title}>Money Received</Text>
         <Text style={styles.weekTotal}>
           ${(totalThisWeek / 100).toFixed(2)} this week
         </Text>
@@ -148,15 +148,12 @@ export const MoneyCompactSummary: React.FC<MoneyCompactSummaryProps> = ({ onView
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.backgroundCard,
-    borderRadius: 12,
-    margin: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: theme.colors.textPrimary,
   },

@@ -25,9 +25,6 @@ import {
   isPaymentTimedOut 
 } from '../../utils/paymentTimeout';
 import { cache, CACHE_CONFIGS } from '../../utils/universalCache';
-import { MoneySentSummary } from '../../components/MoneySentSummary';
-import { MessagesSummary } from '../../components/MessagesSummary';
-import { ItemsSummary } from '../../components/ItemsSummary';
 
 interface ActivityItem {
   id: string;
@@ -43,7 +40,7 @@ interface ActivityItem {
   item_name?: string;
   item_price?: number;
   item_description?: string;
-  request_reason?: string;
+  reason?: string;
 }
 
 type ParentStackParamList = {
@@ -65,14 +62,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   const [displayedActivities, setDisplayedActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('month');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [currentPage, setCurrentPage] = useState(0);
   const [itemsPerPage] = useState(10);
   const [newActivityIds, setNewActivityIds] = useState<string[]>([]);
-  const [usingCache, setUsingCache] = useState(false);
-  const [lastCacheLoad, setLastCacheLoad] = useState<Date | null>(null);
   const animatedValues = useRef<{ [key: string]: Animated.Value }>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const allActivityRef = useRef<View>(null);
@@ -81,19 +75,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     loadActivities();
   }, []);
 
-  const scrollToAllActivity = (filterType?: FilterType) => {
-    if (allActivityRef.current && scrollViewRef.current) {
-      allActivityRef.current.measureLayout(
-        scrollViewRef.current as any,
-        (x, y) => {
-          scrollViewRef.current?.scrollTo({ y: y - 100, animated: true });
-        }
-      );
-    }
-    if (filterType && filterType !== 'all') {
-      setFilterType(filterType);
-    }
-  };
 
   const loadActivities = async (isRefresh = false, forceRefresh = false) => {
     if (!user) return;
@@ -106,8 +87,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         
         if (cachedData && Array.isArray(cachedData)) {
           setActivities(cachedData as ActivityItem[]);
-          setUsingCache(true);
-          setLastCacheLoad(new Date());
           console.log(`📦 Loaded ${cachedData.length} activities from cache`);
           
           // Start background refresh to get latest data
@@ -119,14 +98,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       // Show appropriate loading state
       if (!isRefresh && activities.length === 0) {
         setLoading(true);
-      } else {
-        setBackgroundLoading(true);
       }
       
       console.log(`🔄 Loading activities from database (${isRefresh ? 'refresh' : 'initial'})...`);
       
       const allActivities: ActivityItem[] = [];
-      const studentNamesCache: { [key: string]: string } = {};
 
       // Load payments with optimized student name caching
       const paymentsQuery = query(
@@ -242,7 +218,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             item_name: request.item_name,
             item_price: request.item_price,
             item_description: request.item_description,
-            request_reason: request.request_reason,
+            reason: request.reason,
             student_name: studentName
           });
         }
@@ -275,15 +251,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         console.log(`💾 Cached ${allActivities.length} activities`);
       }
       
-      setUsingCache(false);
-      setLastCacheLoad(null);
-      
     } catch (error) {
       console.error('Error loading activities:', error);
       logError(error, 'Loading activity history', { userId: user.id });
     } finally {
       setLoading(false);
-      setBackgroundLoading(false);
       if (isRefresh) {
         setRefreshing(false);
       }
@@ -371,15 +343,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     }
   };
 
-  const getTypeLabel = (type: FilterType) => {
-    switch (type) {
-      case 'all': return 'All Activities';
-      case 'payments': return 'Payments Only';
-      case 'messages': return 'Messages Only';
-      case 'items': return 'Item Requests';
-      default: return 'All Activities';
-    }
-  };
 
   const getStatusColor = (type: string, status: string) => {
     if (type === 'payment') {
@@ -608,7 +571,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
               </Text>
             )}
             <Text style={styles.requestReason}>
-              Reason: {item.request_reason}
+              Reason: {item.reason}
             </Text>
           </View>
         )}
@@ -622,33 +585,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       <StatusHeader title="Activity" />
       <View style={[styles.header, { paddingTop: 50 }]}>
         <Text style={styles.title}>Activity History</Text>
-        <Text style={styles.subtitle}>Payments and messages sent</Text>
+        <Text style={styles.subtitle}>All your family activity in one place</Text>
         
-        {/* Time Period Filter */}
-        <View style={styles.filterContainer}>
-          <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>Time Period:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
-              {(['day', 'week', 'month', 'all'] as FilterPeriod[]).map((period) => (
-                <TouchableOpacity
-                  key={period}
-                  style={[
-                    styles.filterButton,
-                    filterPeriod === period && styles.filterButtonActive
-                  ]}
-                  onPress={() => setFilterPeriod(period)}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    filterPeriod === period && styles.filterButtonTextActive
-                  ]}>
-                    {getPeriodLabel(period)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
       </View>
 
       <ScrollView
@@ -680,11 +618,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           </View>
         </View>
         
-        {/* Summary Sections */}
-        <MoneySentSummary onViewAll={() => scrollToAllActivity('payments')} />
-        <MessagesSummary onViewAll={() => scrollToAllActivity('messages')} userType="parent" />
-        <ItemsSummary onViewAll={() => scrollToAllActivity('items')} userType="parent" />
-        
         {/* Activity List Header */}
         <View ref={allActivityRef} style={styles.activityListHeader}>
           <Text style={styles.activityListTitle}>All Activity</Text>
@@ -703,40 +636,65 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           </View>
         ) : (
           <View style={styles.activitiesContainer}>
-            {/* Results Header with Activity Type Filter */}
-            <View style={styles.resultsHeader}>
-              <View style={styles.resultsLeft}>
-                <Text style={styles.resultsCount}>
-                  Showing {currentPage * itemsPerPage + 1}-{Math.min((currentPage + 1) * itemsPerPage, filteredActivities.length)} of {filteredActivities.length}
-                </Text>
-                <Text style={styles.resultsFilter}>
-                  {getPeriodLabel(filterPeriod)}
-                </Text>
+            {/* Time Period Filter */}
+            <View style={styles.filterSection}>
+              <View style={styles.segmentedControl}>
+                {(['all', 'day', 'week', 'month'] as FilterPeriod[]).map((period, index) => (
+                  <TouchableOpacity
+                    key={period}
+                    style={[
+                      styles.segment,
+                      index === 0 && styles.segmentFirst,
+                      index === 3 && styles.segmentLast,
+                      filterPeriod === period && styles.segmentActive
+                    ]}
+                    onPress={() => setFilterPeriod(period)}
+                  >
+                    <Text style={[
+                      styles.segmentText,
+                      filterPeriod === period && styles.segmentTextActive
+                    ]}>
+                      {period === 'all' ? 'All' :
+                       period === 'day' ? 'Day' : 
+                       period === 'week' ? 'Week' : 'Month'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-              
-              <View style={styles.activityTypeFilter}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.compactFilterScrollView}>
-                  {(['all', 'payments', 'messages', 'items'] as FilterType[]).map((type) => (
-                    <TouchableOpacity
-                      key={type}
-                      style={[
-                        styles.compactFilterButton,
-                        filterType === type && styles.compactFilterButtonActive
-                      ]}
-                      onPress={() => setFilterType(type)}
-                    >
-                      <Text style={[
-                        styles.compactFilterButtonText,
-                        filterType === type && styles.compactFilterButtonTextActive
-                      ]}>
-                        {type === 'all' ? 'All' : 
-                         type === 'payments' ? 'Payments' :
-                         type === 'messages' ? 'Messages' : 'Items'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+            </View>
+
+            {/* Activity Type Filter */}
+            <View style={styles.filterSection}>
+              <View style={styles.segmentedControl}>
+                {(['all', 'payments', 'messages', 'items'] as FilterType[]).map((type, index) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.segment,
+                      index === 0 && styles.segmentFirst,
+                      index === 3 && styles.segmentLast,
+                      filterType === type && styles.segmentActive
+                    ]}
+                    onPress={() => setFilterType(type)}
+                  >
+                    <Text style={[
+                      styles.segmentText,
+                      filterType === type && styles.segmentTextActive
+                    ]}>
+                      {type === 'all' ? 'All' : 
+                       type === 'payments' ? 'Payments' :
+                       type === 'messages' ? 'Messages' : 'Items'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
+            </View>
+
+            {/* Results Info */}
+            <View style={styles.resultsInfo}>
+              <Text style={styles.resultsText}>
+                {filteredActivities.length} {filteredActivities.length === 1 ? 'activity' : 'activities'}
+              </Text>
             </View>
             
             {filteredActivities.length === 0 ? (
@@ -792,7 +750,7 @@ const styles = StyleSheet.create({
     ...commonStyles.container,
   },
   header: {
-    marginBottom: 30,
+    marginBottom: 20,
     paddingTop: 10,
     paddingHorizontal: 24,
   },
@@ -827,16 +785,13 @@ const styles = StyleSheet.create({
   },
   quickStats: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.backgroundCard,
-    borderRadius: 16,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
     padding: 16,
     marginHorizontal: 24,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   statItem: {
     flex: 1,
@@ -1010,66 +965,56 @@ const styles = StyleSheet.create({
   messageType: {
     ...theme.typography.caption,
   },
-  filterContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+  filterSection: {
+    marginBottom: 16,
   },
-  filterRow: {
+  segmentedControl: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    minWidth: 50,
-    marginRight: 12,
-  },
-  filterScrollView: {
-    flex: 1,
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 20,
     backgroundColor: theme.colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderRadius: 8,
+    padding: 2,
   },
-  filterButtonActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
+  segment: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  filterButtonText: {
-    fontSize: 12,
+  segmentFirst: {
+    borderTopLeftRadius: 6,
+    borderBottomLeftRadius: 6,
+  },
+  segmentLast: {
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  segmentActive: {
+    backgroundColor: theme.colors.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  segmentText: {
+    fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textSecondary,
   },
-  filterButtonTextActive: {
-    color: 'white',
+  segmentTextActive: {
+    color: theme.colors.textPrimary,
     fontWeight: '600',
   },
-  resultsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+  resultsInfo: {
     paddingBottom: 12,
+    marginBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  resultsCount: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  resultsFilter: {
-    fontSize: 12,
-    color: theme.colors.textTertiary,
+  resultsText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
   },
   emptyFilterContainer: {
     alignItems: 'center',
@@ -1141,38 +1086,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textPrimary,
-  },
-  resultsLeft: {
-    flex: 1,
-    marginRight: 12,
-  },
-  activityTypeFilter: {
-    flexShrink: 0,
-    maxWidth: 200,
-  },
-  compactFilterScrollView: {
-    flexGrow: 0,
-  },
-  compactFilterButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginLeft: 6,
-    borderRadius: 16,
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  compactFilterButtonActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  compactFilterButtonText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-  },
-  compactFilterButtonTextActive: {
-    color: 'white',
-    fontWeight: '600',
   },
 });

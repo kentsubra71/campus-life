@@ -124,15 +124,35 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           <Text style={styles.subtitle}>Set up your CampusLife family connection</Text>
         </View>
 
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>What happens next?</Text>
-          <Text style={styles.infoText}>
-            1. We'll create your family account{'\n'}
-            2. You'll get an invite code{'\n'}
-            3. Share it with your college student{'\n'}
-            4. They can join and you're connected!
-          </Text>
+        {/* Process Steps */}
+        <View style={styles.processSection}>
+          <Text style={styles.processTitle}>What happens next:</Text>
+          <View style={styles.processSteps}>
+            <View style={styles.processStep}>
+              <View style={styles.stepIndicator}>
+                <View style={[styles.stepDot, { backgroundColor: theme.colors.primary }]} />
+              </View>
+              <Text style={styles.stepText}>We'll create your family account</Text>
+            </View>
+            <View style={styles.processStep}>
+              <View style={styles.stepIndicator}>
+                <View style={[styles.stepDot, { backgroundColor: '#64B5F6' }]} />
+              </View>
+              <Text style={styles.stepText}>You'll get an invite code</Text>
+            </View>
+            <View style={styles.processStep}>
+              <View style={styles.stepIndicator}>
+                <View style={[styles.stepDot, { backgroundColor: '#81C784' }]} />
+              </View>
+              <Text style={styles.stepText}>Share it with your college student</Text>
+            </View>
+            <View style={styles.processStep}>
+              <View style={styles.stepIndicator}>
+                <View style={[styles.stepDot, { backgroundColor: '#FFB74D' }]} />
+              </View>
+              <Text style={styles.stepText}>They can join and you're connected!</Text>
+            </View>
+          </View>
         </View>
 
         {/* Form */}
@@ -254,13 +274,13 @@ const styles = StyleSheet.create({
   // Header
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   backButton: {
     alignSelf: 'flex-start',
     paddingVertical: 8,
     paddingHorizontal: 0,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   backButtonText: {
     fontSize: 16,
@@ -271,15 +291,17 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: theme.colors.backgroundSecondary,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E3F2FD',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   logo: {
     width: 40,
@@ -299,23 +321,39 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   
-  // Info Card
-  infoCard: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
+  // Process Steps
+  processSection: {
+    marginBottom: 24,
   },
-  infoTitle: {
+  processTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 12,
+    color: theme.colors.textPrimary,
+    marginBottom: 16,
   },
-  infoText: {
+  processSteps: {
+    gap: 4,
+  },
+  processStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  stepIndicator: {
+    marginRight: 12,
+  },
+  stepDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  stepText: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.9)',
-    lineHeight: 22,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    flex: 1,
   },
   
   // Form
@@ -361,16 +399,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
   },
   createButtonDisabled: {
     backgroundColor: theme.colors.textSecondary,
-    shadowOpacity: 0,
-    elevation: 0,
   },
   createButtonText: {
     fontSize: 18,

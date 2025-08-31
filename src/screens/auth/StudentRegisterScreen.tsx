@@ -124,12 +124,10 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           <Text style={styles.subtitle}>Connect with your family's CampusLife account</Text>
         </View>
 
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Need an invite code?</Text>
-          <Text style={styles.infoText}>
-            Ask your parent to create a family account first. They'll get an invite code to share with you.
-          </Text>
+        {/* Help Section */}
+        <View style={styles.helpSection}>
+          <Text style={styles.helpTitle}>Need an invite code?</Text>
+          <Text style={styles.helpText}>Ask your parent to create a family account first. They'll get an invite code to share with you.</Text>
         </View>
 
         {/* Form */}
@@ -220,27 +218,19 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           <Text style={styles.benefitsTitle}>What you'll get:</Text>
           <View style={styles.benefitsList}>
             <View style={styles.benefit}>
-              <View style={styles.benefitIcon}>
-                <Text style={styles.benefitIconText}>T</Text>
-              </View>
+              <View style={[styles.benefitDot, { backgroundColor: '#81C784' }]} />
               <Text style={styles.benefitText}>Track your wellness journey</Text>
             </View>
             <View style={styles.benefit}>
-              <View style={styles.benefitIcon}>
-                <Text style={styles.benefitIconText}>S</Text>
-              </View>
+              <View style={[styles.benefitDot, { backgroundColor: '#64B5F6' }]} />
               <Text style={styles.benefitText}>Receive family support & encouragement</Text>
             </View>
             <View style={styles.benefit}>
-              <View style={styles.benefitIcon}>
-                <Text style={styles.benefitIconText}>H</Text>
-              </View>
+              <View style={[styles.benefitDot, { backgroundColor: '#FFB74D' }]} />
               <Text style={styles.benefitText}>Request help when you need it</Text>
             </View>
             <View style={styles.benefit}>
-              <View style={styles.benefitIcon}>
-                <Text style={styles.benefitIconText}>A</Text>
-              </View>
+              <View style={[styles.benefitDot, { backgroundColor: '#F48FB1' }]} />
               <Text style={styles.benefitText}>Share your achievements</Text>
             </View>
           </View>
@@ -283,13 +273,13 @@ const styles = StyleSheet.create({
   // Header
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   backButton: {
     alignSelf: 'flex-start',
     paddingVertical: 8,
     paddingHorizontal: 0,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   backButtonText: {
     fontSize: 16,
@@ -300,15 +290,17 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: theme.colors.backgroundSecondary,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E8F5E8',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   logo: {
     width: 40,
@@ -328,23 +320,26 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   
-  // Info Card
-  infoCard: {
-    backgroundColor: theme.colors.success,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
+  // Help Section
+  helpSection: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0F2FE',
+    marginBottom: 24,
   },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 12,
+  helpTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    marginBottom: 6,
   },
-  infoText: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.9)',
-    lineHeight: 22,
+  helpText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
   },
   
   // Form
@@ -397,16 +392,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: theme.colors.success,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
   },
   joinButtonDisabled: {
     backgroundColor: theme.colors.textSecondary,
-    shadowOpacity: 0,
-    elevation: 0,
   },
   joinButtonText: {
     fontSize: 18,
@@ -416,12 +404,7 @@ const styles = StyleSheet.create({
   
   // Benefits
   benefitsSection: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    marginBottom: 24,
   },
   benefitsTitle: {
     fontSize: 18,
@@ -430,25 +413,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   benefitsList: {
-    gap: 12,
+    gap: 4,
   },
   benefit: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  benefitIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: theme.colors.success,
-    justifyContent: 'center',
-    alignItems: 'center',
+  benefitDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     marginRight: 12,
-  },
-  benefitIconText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
   },
   benefitText: {
     fontSize: 15,

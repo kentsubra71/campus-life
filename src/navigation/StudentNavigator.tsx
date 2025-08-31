@@ -6,6 +6,7 @@ import { theme } from '../styles/theme';
 import { DashboardScreen } from '../screens/student/DashboardScreen';
 import { LogWellnessScreen } from '../screens/student/LogWellnessScreen';
 import { RewardsScreen } from '../screens/student/RewardsScreen';
+import { PaymentHistoryScreen } from '../screens/student/PaymentHistoryScreen';
 import { ProfileScreen } from '../screens/shared/ProfileScreen';
 import WellnessLogScreen from '../screens/wellness/WellnessLogScreen';
 import WellnessHistoryScreen from '../screens/wellness/WellnessHistoryScreen';
@@ -21,6 +22,15 @@ const DashboardStack = () => {
       <Stack.Screen name="WellnessLog" component={WellnessLogScreen} />
       <Stack.Screen name="WellnessHistory" component={WellnessHistoryScreen} />
       <Stack.Screen name="ItemRequest" component={ItemRequestScreen} />
+    </Stack.Navigator>
+  );
+};
+
+const RewardsStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="RewardsMain" component={RewardsScreen} />
+      <Stack.Screen name="PaymentHistory" component={PaymentHistoryScreen} />
     </Stack.Navigator>
   );
 };
@@ -58,7 +68,7 @@ export const StudentNavigator = () => {
       />
       <Tab.Screen
         name="Rewards"
-        component={RewardsScreen}
+        component={RewardsStack}
         options={{
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="card-giftcard" color={color} size={24} />

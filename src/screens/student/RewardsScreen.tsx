@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { showMessage } from 'react-native-flash-message';
 import { theme } from '../../styles/theme';
-import { ReceivedPayments } from '../../components/ReceivedPayments';
+import { MoneyCompactSummary } from '../../components/MoneyCompactSummary';
 
 interface RewardsScreenProps {
   navigation: any;
@@ -19,27 +19,22 @@ interface RewardsScreenProps {
 
 export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
   const {
-    activeRewards,
     supportMessages,
     totalEarned,
     monthlyEarned,
     level,
     experience,
-    fetchActiveRewards,
     fetchSupportMessages,
-    claimReward,
     markMessageRead,
   } = useRewardsStore();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedReward, setExpandedReward] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    await fetchActiveRewards();
     await fetchSupportMessages();
   };
 
@@ -49,100 +44,6 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const handleClaimReward = async (rewardId: string) => {
-    const reward = activeRewards.find(r => r.id === rewardId);
-    if (reward) {
-      if (monthlyEarned + reward.amount > 50) {
-        showMessage({
-          message: 'Monthly Limit Reached',
-          description: 'You\'ve reached your $50 monthly limit. Great job!',
-          type: 'info',
-          backgroundColor: theme.colors.backgroundCard,
-          color: theme.colors.textPrimary,
-        });
-        return;
-      }
-
-      if (reward.progress >= reward.maxProgress) {
-        await claimReward(rewardId);
-        showMessage({
-          message: 'Reward Claimed!',
-          description: `You earned $${reward.amount}! Keep up the great work.`,
-          type: 'success',
-          backgroundColor: theme.colors.backgroundCard,
-          color: theme.colors.textPrimary,
-        });
-      }
-    }
-  };
-
-  const renderProgressBar = (progress: number, maxProgress: number) => {
-    const percentage = Math.min((progress / maxProgress) * 100, 100);
-    return (
-      <View style={styles.progressBarContainer}>
-        <View style={styles.progressBarBackground}>
-          <View style={[styles.progressBarFill, { width: `${percentage}%` }]} />
-        </View>
-        <Text style={styles.progressText}>{progress}/{maxProgress}</Text>
-      </View>
-    );
-  };
-
-  const renderRewardCard = (reward: any) => {
-    const isCompleted = reward.progress >= reward.maxProgress;
-    const isExpanded = expandedReward === reward.id;
-
-    return (
-      <TouchableOpacity
-        key={reward.id}
-        style={[
-          styles.rewardCard,
-          isCompleted && styles.completedRewardCard,
-        ]}
-        onPress={() => setExpandedReward(isExpanded ? null : reward.id)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.rewardHeader}>
-          <View style={styles.rewardInfo}>
-            <Text style={styles.rewardTitle}>{reward.title}</Text>
-            <Text style={styles.rewardDescription}>{reward.description}</Text>
-          </View>
-          <View style={styles.rewardValue}>
-            <Text style={styles.rewardAmount}>${reward.amount}</Text>
-            <View style={[
-              styles.categoryBadge,
-              { backgroundColor: getCategoryColor(reward.category) }
-            ]}>
-              <Text style={styles.categoryText}>{reward.category.toUpperCase()}</Text>
-            </View>
-          </View>
-        </View>
-
-        {renderProgressBar(reward.progress, reward.maxProgress)}
-
-        {isCompleted && (
-          <TouchableOpacity
-            style={styles.claimButton}
-            onPress={() => handleClaimReward(reward.id)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.claimButtonText}>Claim Reward</Text>
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
-    );
-  };
-
-  const getCategoryColor = (category: string) => {
-    const colors = {
-      sleep: theme.colors.primary,
-      meals: theme.colors.success,
-      exercise: theme.colors.warning,
-      wellness: theme.colors.primary,
-      streak: theme.colors.error,
-    };
-    return colors[category as keyof typeof colors] || theme.colors.textSecondary;
-  };
 
   const renderSupportMessage = (message: any) => {
     const getMessageIcon = (type: string) => {
@@ -200,55 +101,54 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {/* Modern Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Rewards & Family Support</Text>
-          <Text style={styles.subtitle}>Track your progress and stay connected</Text>
+          <Text style={styles.greeting}>Hi there!</Text>
+          <Text style={styles.title}>Your Progress</Text>
+          <Text style={styles.subtitle}>Money, level, and family support</Text>
         </View>
 
-        {/* Stats Overview */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>${monthlyEarned}</Text>
-            <Text style={styles.statLabel}>This Month</Text>
-            <Text style={styles.statSubtext}>${50 - monthlyEarned} remaining</Text>
+        {/* Current Status - Clean */}
+        <View style={styles.statusSection}>
+          <View style={styles.statusHeader}>
+            <Text style={styles.statusTitle}>Level {level} Student</Text>
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>{monthlyEarned >= 40 ? 'Great Month!' : monthlyEarned >= 20 ? 'Doing Well' : 'Just Getting Started'}</Text>
+            </View>
+          </View>
+          <Text style={styles.statusSubtitle}>
+            {experienceProgress > 80 ? 'Almost to the next level!' : 
+             experienceProgress > 50 ? 'Making great progress' : 
+             'Keep logging wellness to level up'}
+          </Text>
+        </View>
+
+        {/* Key Metrics - Clean Layout */}
+        <View style={styles.metricsSection}>
+          <View style={styles.metricItem}>
+            <View style={styles.metricHeader}>
+              <Text style={styles.metricLabel}>This Month</Text>
+              <Text style={styles.metricValue}>${monthlyEarned}</Text>
+            </View>
+            <Text style={styles.metricTag}>${50 - monthlyEarned} left this month</Text>
           </View>
           
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>${totalEarned}</Text>
-            <Text style={styles.statLabel}>Total Earned</Text>
-            <Text style={styles.statSubtext}>All time</Text>
-          </View>
-          
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>LVL {level}</Text>
-            <Text style={styles.statLabel}>Current Level</Text>
-            <View style={styles.levelProgressContainer}>
-              <View style={styles.levelProgressBar}>
-                <View style={[styles.levelProgressFill, { width: `${experienceProgress}%` }]} />
+          <View style={styles.metricItem}>
+            <View style={styles.metricHeader}>
+              <Text style={styles.metricLabel}>Your Level</Text>
+              <Text style={styles.metricValue}>LVL {level}</Text>
+            </View>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${experienceProgress}%` }]} />
               </View>
-              <Text style={styles.levelProgressText}>{nextLevelExp} XP to next level</Text>
+              <Text style={styles.progressText}>{nextLevelExp} XP to next level</Text>
             </View>
           </View>
         </View>
 
         {/* Money Received Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Money Received</Text>
-          <ReceivedPayments />
-        </View>
-
-        {/* Active Rewards */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Active Rewards ({activeRewards.length})</Text>
-          {activeRewards.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No active rewards</Text>
-              <Text style={styles.emptyStateSubtext}>Keep tracking your wellness to unlock rewards!</Text>
-            </View>
-          ) : (
-            activeRewards.map(renderRewardCard)
-          )}
-        </View>
+        <MoneyCompactSummary onViewAll={() => navigation.navigate('PaymentHistory')} />
 
         {/* Family Support Messages */}
         <View style={styles.section}>
@@ -282,75 +182,111 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 20,
   },
   header: {
-    marginBottom: 30,
+    marginBottom: 24,
     paddingTop: 10,
   },
+  greeting: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '800',
     color: theme.colors.textPrimary,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
     color: theme.colors.textSecondary,
     lineHeight: 22,
   },
-  statsContainer: {
-    flexDirection: 'row',
-    marginBottom: 30,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
+  statusSection: {
     backgroundColor: theme.colors.backgroundCard,
-    padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
   },
-  statValue: {
+  statusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: theme.colors.primary,
-    marginBottom: 4,
+    color: theme.colors.textPrimary,
   },
-  statLabel: {
+  statusBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
     fontSize: 12,
+    fontWeight: '600',
+    color: 'white',
+  },
+  statusSubtitle: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    lineHeight: 20,
+  },
+  metricsSection: {
+    marginBottom: 24,
+  },
+  metricItem: {
+    backgroundColor: theme.colors.backgroundCard,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  metricHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  metricLabel: {
+    fontSize: 16,
     color: theme.colors.textSecondary,
     fontWeight: '500',
-    marginBottom: 2,
   },
-  statSubtext: {
-    fontSize: 10,
+  metricValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+  },
+  metricTag: {
+    fontSize: 14,
     color: theme.colors.textSecondary,
   },
-  levelProgressContainer: {
-    width: '100%',
-    marginTop: 4,
+  progressContainer: {
+    marginTop: 8,
   },
-  levelProgressBar: {
-    height: 4,
-    backgroundColor: theme.colors.backgroundTertiary,
-    borderRadius: 2,
-    marginBottom: 4,
+  progressBar: {
+    height: 6,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 3,
+    marginBottom: 8,
   },
-  levelProgressFill: {
+  progressFill: {
     height: '100%',
     backgroundColor: theme.colors.primary,
-    borderRadius: 2,
+    borderRadius: 3,
   },
-  levelProgressText: {
-    fontSize: 8,
+  progressText: {
+    fontSize: 12,
     color: theme.colors.textSecondary,
     textAlign: 'center',
   },
@@ -362,97 +298,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.textPrimary,
     marginBottom: 16,
-  },
-  rewardCard: {
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  completedRewardCard: {
-    borderColor: theme.colors.success,
-    backgroundColor: theme.colors.backgroundCard,
-  },
-  rewardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  rewardInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  rewardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  rewardDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 18,
-  },
-  rewardValue: {
-    alignItems: 'flex-end',
-  },
-  rewardAmount: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.success,
-    marginBottom: 8,
-  },
-  categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: 'white',
-  },
-  progressBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  progressBarBackground: {
-    flex: 1,
-    height: 8,
-    backgroundColor: theme.colors.backgroundTertiary,
-    borderRadius: 4,
-    marginRight: 12,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    fontWeight: '600',
-    minWidth: 40,
-  },
-  claimButton: {
-    backgroundColor: theme.colors.success,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  claimButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
   messagesSectionHeader: {
     flexDirection: 'row',

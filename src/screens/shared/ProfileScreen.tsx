@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { StatusHeader } from '../../components/StatusHeader';
 import { theme } from '../../styles/theme';
+import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -24,14 +25,39 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
+  const [loadingMembers, setLoadingMembers] = useState(true);
 
   useEffect(() => {
     loadFamilyMembers();
   }, []);
 
   const loadFamilyMembers = async () => {
-    const members = await getFamilyMembers();
-    setFamilyMembers(members);
+    if (!user) return;
+    
+    try {
+      await smartRefresh(
+        CACHE_CONFIGS.FAMILY_MEMBERS,
+        async () => {
+          console.log('🔄 Loading fresh family members...');
+          const members = await getFamilyMembers();
+          return members;
+        },
+        (cachedMembers) => {
+          console.log('📦 Using cached family members');
+          setFamilyMembers(cachedMembers);
+          setLoadingMembers(false);
+        },
+        (freshMembers) => {
+          console.log('✅ Updated with fresh family members');
+          setFamilyMembers(freshMembers);
+          setLoadingMembers(false);
+        },
+        user.id
+      );
+    } catch (error) {
+      console.error('Failed to load family members:', error);
+      setLoadingMembers(false);
+    }
   };
 
   const handleSaveName = async () => {
@@ -186,34 +212,42 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         <View style={styles.membersSection}>
           <Text style={styles.membersTitle}>Family Members</Text>
           
-          {familyMembers.parents.length > 0 && (
-            <View style={styles.memberGroup}>
-              <Text style={styles.memberGroupTitle}>Parents</Text>
-              {familyMembers.parents.map((parent) => (
-                <View key={parent.id} style={styles.memberItem}>
-                  <Text style={styles.memberName}>
-                    {parent.name}
-                    {parent.id === user.id && ' (You)'}
-                  </Text>
-                  <Text style={styles.memberEmail}>{parent.email}</Text>
-                </View>
-              ))}
+          {loadingMembers ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading family members...</Text>
             </View>
-          )}
+          ) : (
+            <>
+              {familyMembers.parents.length > 0 && (
+                <View style={styles.memberGroup}>
+                  <Text style={styles.memberGroupTitle}>Parents</Text>
+                  {familyMembers.parents.map((parent) => (
+                    <View key={parent.id} style={styles.memberItem}>
+                      <Text style={styles.memberName}>
+                        {parent.name}
+                        {parent.id === user.id && ' (You)'}
+                      </Text>
+                      <Text style={styles.memberEmail}>{parent.email}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
 
-          {familyMembers.students.length > 0 && (
-            <View style={styles.memberGroup}>
-              <Text style={styles.memberGroupTitle}>Students</Text>
-              {familyMembers.students.map((student) => (
-                <View key={student.id} style={styles.memberItem}>
-                  <Text style={styles.memberName}>
-                    {student.name}
-                    {student.id === user.id && ' (You)'}
-                  </Text>
-                  <Text style={styles.memberEmail}>{student.email}</Text>
+              {familyMembers.students.length > 0 && (
+                <View style={styles.memberGroup}>
+                  <Text style={styles.memberGroupTitle}>Students</Text>
+                  {familyMembers.students.map((student) => (
+                    <View key={student.id} style={styles.memberItem}>
+                      <Text style={styles.memberName}>
+                        {student.name}
+                        {student.id === user.id && ' (You)'}
+                      </Text>
+                      <Text style={styles.memberEmail}>{student.email}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
+              )}
+            </>
           )}
         </View>
       </View>
@@ -468,5 +502,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: theme.colors.backgroundSecondary,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
   },
 });

@@ -13,7 +13,7 @@ import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { StudentDashboardScreenProps } from '../../types/navigation';
 import { handleAsyncError, AppError } from '../../utils/errorHandling';
-import { ReceivedPayments } from '../../components/ReceivedPayments';
+import { ReceivedPaymentsSummary } from '../../components/ReceivedPaymentsSummary';
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
 import { useDataSync } from '../../hooks/useRefreshOnFocus';
@@ -24,7 +24,7 @@ import { pushNotificationService, NotificationTemplates } from '../../services/p
 
 export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMain'>> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { stats, todayEntry, getEntryByDate } = useWellnessStore();
+  const { stats, todayEntry, getEntryByDate, loadEntries } = useWellnessStore();
   const { 
     activeRewards, 
     supportMessages, 
@@ -38,7 +38,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     claimReward,
     updateMood,
     markMessageRead,
-    requestSupport
+    requestSupport,
+    loadUserProgress
   } = useRewardsStore();
   const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
@@ -69,7 +70,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           const results = await Promise.allSettled([
             handleAsyncError(() => fetchActiveRewards(), 'Loading rewards'),
             handleAsyncError(() => fetchSupportMessages(), 'Loading messages'),
-            handleAsyncError(() => getEntryByDate(new Date().toISOString().split('T')[0]), 'Loading wellness entry')
+            handleAsyncError(() => loadEntries(), 'Loading wellness entries'),
+            handleAsyncError(() => loadUserProgress(), 'Loading user progress')
           ]);
           
           const errors: AppError[] = [];
@@ -77,7 +79,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
             if (result.status === 'fulfilled' && result.value.error) {
               errors.push(result.value.error);
             } else if (result.status === 'rejected') {
-              const contexts = ['rewards', 'messages', 'wellness'];
+              const contexts = ['rewards', 'messages', 'wellness', 'progress'];
               errors.push({
                 code: 'UNKNOWN_ERROR',
                 message: 'Failed to load data',
@@ -120,7 +122,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     } finally {
       setIsLoading(false);
     }
-  }, [fetchActiveRewards, fetchSupportMessages]);
+  }, [fetchActiveRewards, fetchSupportMessages, loadEntries, loadUserProgress]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -439,8 +441,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
       )}
 
 
-      {/* Received Payments */}
-      <ReceivedPayments />
+      {/* Received Payments Summary */}
+      <ReceivedPaymentsSummary />
       </ScrollView>
     </View>
   );

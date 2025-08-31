@@ -103,6 +103,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     // Convert to Firebase format
     const firebaseEntry: Omit<FirebaseWellnessEntry, 'id' | 'created_at'> = {
       user_id: user.uid,
+      date: entryData.date,
       mood: entryData.mood,
       sleep_hours: entryData.sleep,
       exercise_minutes: entryData.exercise,
@@ -135,8 +136,24 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
       
-      // Invalidate cache so fresh data is loaded next time
-      await cache.invalidate(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+      // Clear cache so fresh data is loaded next time
+      await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+      
+      // Award XP for logging wellness entry
+      try {
+        const { useRewardsStore } = await import('./rewardsStore');
+        const { addExperience } = useRewardsStore.getState();
+        
+        // Award XP based on wellness score
+        let xpAmount = 20; // Base XP for logging
+        if (wellnessScore >= 8) xpAmount = 50; // Bonus for high wellness
+        else if (wellnessScore >= 6) xpAmount = 35; // Bonus for good wellness
+        
+        addExperience(xpAmount);
+        console.log(`🎯 Awarded ${xpAmount} XP for wellness entry (score: ${wellnessScore})`);
+      } catch (error) {
+        console.error('Failed to award XP:', error);
+      }
       
       // Send wellness log notification to parents
       try {
@@ -188,6 +205,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     try {
       // Convert local format to Firebase format for update
       const firebaseUpdates: any = {};
+      if (updates.date !== undefined) firebaseUpdates.date = updates.date;
       if (updates.mood !== undefined) firebaseUpdates.mood = updates.mood;
       if (updates.sleep !== undefined) firebaseUpdates.sleep_hours = updates.sleep;
       if (updates.exercise !== undefined) firebaseUpdates.exercise_minutes = updates.exercise;
@@ -225,8 +243,8 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
       
-      // Invalidate cache so fresh data is loaded next time
-      await cache.invalidate(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+      // Clear cache so fresh data is loaded next time
+      await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
     } catch (error) {
       console.error('Failed to update wellness entry:', error);
     }
@@ -332,7 +350,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           // Convert Firebase entries to local format
           const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
             id: entry.id || '',
-            date: entry.created_at.toDate().toISOString().split('T')[0],
+            date: entry.date || entry.created_at.toDate().toISOString().split('T')[0], // Use stored date or fallback to created_at
             mood: entry.mood,
             sleep: entry.sleep_hours,
             exercise: entry.exercise_minutes,
@@ -342,7 +360,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
             academic: entry.academic,
             notes: entry.notes,
             wellnessScore: calculateWellnessScore({
-              date: entry.created_at.toDate().toISOString().split('T')[0],
+              date: entry.date || entry.created_at.toDate().toISOString().split('T')[0],
               mood: entry.mood,
               sleep: entry.sleep_hours,
               exercise: entry.exercise_minutes,

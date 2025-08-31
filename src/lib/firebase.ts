@@ -59,6 +59,7 @@ export interface UserProfile {
 export interface WellnessEntry {
   id?: string;
   user_id: string;
+  date: string; // YYYY-MM-DD format
   mood: number;
   sleep_hours: number;
   exercise_minutes: number;

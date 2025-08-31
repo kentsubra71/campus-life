@@ -64,6 +64,7 @@ interface ConnectionState {
   markMessageRead: (id: string) => void;
   requestSupport: () => void;
   acknowledgeSupport: (id: string) => void;
+  loadUserProgress: () => Promise<void>;
 }
 
 export const useRewardsStore = create<ConnectionState>((set, get) => ({
@@ -256,15 +257,39 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     }
   },
   
-  addExperience: (amount: number) => {
+  addExperience: async (amount: number) => {
     const current = get();
     const newExp = current.experience + amount;
     const newLevel = Math.floor(newExp / 200) + 1;
+    const leveledUp = newLevel > current.level;
     
     set({ 
       experience: newExp,
       level: newLevel
     });
+    
+    // Save XP to Firebase
+    try {
+      const user = getCurrentUser();
+      if (!user) return;
+      
+      const { collection, doc, setDoc, Timestamp } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      await setDoc(doc(collection(db, 'user_progress'), user.uid), {
+        user_id: user.uid,
+        experience: newExp,
+        level: newLevel,
+        last_updated: Timestamp.now()
+      }, { merge: true });
+      
+      if (leveledUp) {
+        console.log(`🎉 Level up! Reached level ${newLevel}`);
+        // TODO: Show level up animation/notification
+      }
+    } catch (error) {
+      console.error('Failed to save XP to Firebase:', error);
+    }
   },
   
   updateMood: (mood) => {
@@ -364,5 +389,34 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       req.id === id ? { ...req, acknowledged: true } : req
     );
     set({ supportRequests: updatedRequests });
+  },
+  
+  loadUserProgress: async () => {
+    const user = getCurrentUser();
+    if (!user) return;
+    
+    try {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      const progressDoc = await getDoc(doc(db, 'user_progress', user.uid));
+      
+      if (progressDoc.exists()) {
+        const data = progressDoc.data();
+        set({
+          experience: data.experience || 0,
+          level: data.level || 1
+        });
+        console.log(`📊 Loaded user progress: Level ${data.level || 1}, ${data.experience || 0} XP`);
+      } else {
+        // Initialize new user progress
+        set({ experience: 0, level: 1 });
+        console.log('🆕 Initialized new user progress');
+      }
+    } catch (error) {
+      console.error('Failed to load user progress:', error);
+      // Fallback to defaults
+      set({ experience: 0, level: 1 });
+    }
   },
 })); 

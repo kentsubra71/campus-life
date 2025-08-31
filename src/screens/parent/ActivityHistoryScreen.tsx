@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   RefreshControl,
   Alert,
@@ -81,8 +82,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         console.log('🔍 Checking for cached activity data...');
         const cachedData = await cache.get(CACHE_CONFIGS.ACTIVITY_HISTORY, user.id);
         
-        if (cachedData) {
-          setActivities(cachedData);
+        if (cachedData && Array.isArray(cachedData)) {
+          setActivities(cachedData as ActivityItem[]);
           setUsingCache(true);
           setLastCacheLoad(new Date());
           console.log(`📦 Loaded ${cachedData.length} activities from cache`);
@@ -120,7 +121,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         const studentId = payment.student_id;
         
         // Check cache first for student name
-        let studentName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`);
+        let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
         
         if (!studentName) {
           // Query database for student name
@@ -163,7 +164,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           const recipientId = message.to_user_id;
           
           // Check cache first for recipient name
-          let recipientName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${recipientId}`);
+          let recipientName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${recipientId}`)) as string || '';
           
           if (!recipientName) {
             const recipientQuery = query(
@@ -189,38 +190,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         }
       } catch (messageError) {
         console.log('Messages query failed, trying fallback...', messageError);
-        // Fallback without orderBy
-        const messagesQuery = query(
-          collection(db, 'messages'),
-          where('from_user_id', '==', user.id)
-        );
-        const messagesSnapshot = await getDocs(messagesQuery);
-        
-        for (const doc of messagesSnapshot.docs) {
-          const message = doc.data();
-          const recipientId = message.to_user_id;
-          
-          let recipientName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${recipientId}`);
-          if (!recipientName) {
-            const recipientQuery = query(
-              collection(db, 'users'),
-              where('id', '==', recipientId)
-            );
-            const recipientSnapshot = await getDocs(recipientQuery);
-            recipientName = recipientSnapshot.docs[0]?.data()?.full_name || 'Student';
-            await cache.set(CACHE_CONFIGS.STUDENT_NAMES, recipientName, `${user.id}_${recipientId}`);
-          }
-
-          allActivities.push({
-            id: doc.id,
-            type: 'message',
-            timestamp: message.created_at.toDate(),
-            status: message.read ? 'read' : 'sent',
-            message_content: message.content,
-            message_type: message.type || 'message',
-            student_name: recipientName
-          });
-        }
       }
 
       // Load item requests
@@ -238,7 +207,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           const request = doc.data();
           const studentId = request.student_id;
           
-          let studentName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`);
+          let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
           if (!studentName) {
             const studentQuery = query(
               collection(db, 'users'),
@@ -263,156 +232,41 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         }
       } catch (requestsError) {
         console.log('Item requests query failed, trying fallback...', requestsError);
-        try {
-          const requestsQuery = query(
-            collection(db, 'item_requests'),
-            where('parent_id', '==', user.id)
-          );
-          const requestsSnapshot = await getDocs(requestsQuery);
-          
-          for (const doc of requestsSnapshot.docs) {
-            const request = doc.data();
-            const studentId = request.student_id;
-            
-            let studentName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`);
-            if (!studentName) {
-              const studentQuery = query(
-                collection(db, 'users'),
-                where('id', '==', studentId)
-              );
-              const studentSnapshot = await getDocs(studentQuery);
-              studentName = studentSnapshot.docs[0]?.data()?.full_name || 'Student';
-              await cache.set(CACHE_CONFIGS.STUDENT_NAMES, studentName, `${user.id}_${studentId}`);
-            }
-
-            allActivities.push({
-              id: doc.id,
-              type: 'item_request',
-              timestamp: request.created_at.toDate(),
-              status: request.status || 'pending',
-              item_name: request.item_name,
-              item_price: request.item_price,
-              item_description: request.item_description,
-              request_reason: request.request_reason,
-              student_name: studentName
-            });
-          }
-        } catch (fallbackError) {
-          console.log('Item requests fallback also failed:', fallbackError);
-        }
       }
 
-      // Sort all activities by timestamp
+      // Sort all activities by timestamp (newest first)
       allActivities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+      // Mark new activities for animation
+      const existingIds = new Set(activities.map(a => a.id));
+      const newIds = allActivities.filter(a => !existingIds.has(a.id)).map(a => a.id);
       
-      // Cache the results
-      await cache.set(CACHE_CONFIGS.ACTIVITY_HISTORY, allActivities, user.id);
+      if (newIds.length > 0) {
+        setNewActivityIds(newIds);
+        // Clear new activity indicators after animation
+        setTimeout(() => setNewActivityIds([]), 3000);
+      }
+
+      setActivities(allActivities);
       
-      // Animate new activities if this is a refresh
-      if (activities.length > 0) {
-        const newIds = allActivities
-          .filter(newActivity => !activities.some(existing => existing.id === newActivity.id))
-          .map(activity => activity.id);
-        
-        if (newIds.length > 0) {
-          console.log(`🆕 Found ${newIds.length} new activities`);
-          setNewActivityIds(newIds);
-          
-          newIds.forEach(id => {
-            animatedValues.current[id] = new Animated.Value(0);
-          });
-          
-          setTimeout(() => {
-            newIds.forEach(id => {
-              Animated.spring(animatedValues.current[id], {
-                toValue: 1,
-                useNativeDriver: false,
-                tension: 100,
-                friction: 8,
-              }).start();
-            });
-          }, 100);
-          
-          setTimeout(() => setNewActivityIds([]), 3000);
-        }
+      // Cache the fresh data (only cache after successful load)
+      if (!isRefresh || allActivities.length > 0) {
+        await cache.set(CACHE_CONFIGS.ACTIVITY_HISTORY, allActivities, user.id);
+        console.log(`💾 Cached ${allActivities.length} activities`);
       }
       
-      setActivities(allActivities);
       setUsingCache(false);
+      setLastCacheLoad(null);
       
-      console.log(`✅ Loaded ${allActivities.length} activities from database`);
-      
-      // Start PayPal verification for both old and new systems
-      setTimeout(async () => {
-        try {
-          console.log('🔄 Auto-verifying pending PayPal payments (both systems)...');
-          
-          // Try old system first
-          const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
-          const oldSystemCount = await autoVerifyPendingPayPalPayments(user.id);
-          
-          // Try P2P system for any remaining payments
-          let p2pCount = 0;
-          try {
-            const { collection, query, where, getDocs } = await import('firebase/firestore');
-            const { db } = await import('../../lib/firebase');
-            const { verifyPayPalP2PPayment } = await import('../../lib/paypalP2P');
-            
-            // Find P2P payments that might need verification
-            const p2pQuery = query(
-              collection(db, 'payments'),
-              where('parent_id', '==', user.id),
-              where('provider', '==', 'paypal'),
-              where('status', '==', 'initiated')
-            );
-            
-            const p2pSnapshot = await getDocs(p2pQuery);
-            console.log(`🔍 Found ${p2pSnapshot.size} potential P2P payments to verify`);
-            
-            for (const doc of p2pSnapshot.docs) {
-              const payment = doc.data();
-              if (payment.p2p_transaction_id && payment.p2p_order_id) {
-                console.log(`🔄 Attempting P2P verification for ${doc.id}`);
-                const result = await verifyPayPalP2PPayment(
-                  payment.p2p_transaction_id,
-                  payment.p2p_order_id
-                );
-                if (result.success) {
-                  p2pCount++;
-                  console.log(`✅ P2P verified payment: ${doc.id}`);
-                }
-              }
-            }
-          } catch (p2pError) {
-            console.log('P2P verification skipped:', p2pError);
-          }
-          
-          const totalVerified = oldSystemCount + p2pCount;
-          if (totalVerified > 0) {
-            console.log(`✅ Total verified: ${totalVerified} payments (${oldSystemCount} old + ${p2pCount} P2P)`);
-            loadActivities(true);
-          }
-          
-        } catch (verifyError: any) {
-          console.error('⚠️ PayPal verification failed:', verifyError);
-          const errorMessage = verifyError?.message || 'Unknown error occurred';
-          
-          if (errorMessage.includes('404') || errorMessage.includes('RESOURCE_NOT_FOUND')) {
-            console.log('ℹ️ PayPal 404 errors are normal - expired orders cleaned up automatically');
-          } else {
-            logError(verifyError, 'PayPal verification', { userId: user.id });
-          }
-        }
-      }, 100); // Minimal delay - almost immediate
-
     } catch (error) {
-      logError(error, 'Loading activity history', { userId: user?.id });
-      const friendlyMessage = getUserFriendlyError(error, 'loading activity history');
-      Alert.alert('Unable to Load Activities', friendlyMessage);
+      console.error('Error loading activities:', error);
+      logError(error, 'Loading activity history', { userId: user.id });
     } finally {
       setLoading(false);
-      setRefreshing(false);
       setBackgroundLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      }
     }
   };
 

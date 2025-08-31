@@ -7,6 +7,7 @@ import {
   getCurrentUser 
 } from '../lib/firebase';
 import { cache, CACHE_CONFIGS } from '../utils/universalCache';
+import { getTodayDateString, getLocalDateString, getDateStringDaysAgo } from '../utils/dateUtils';
 
 export interface WellnessEntry {
   id: string;
@@ -235,7 +236,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
 
         return {
           entries: updatedEntries,
-          todayEntry: updatedEntries.find(entry => entry.date === new Date().toISOString().split('T')[0]) || null,
+          todayEntry: updatedEntries.find(entry => entry.date === getTodayDateString()) || null,
         };
       });
       
@@ -258,20 +259,18 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
 
   calculateStats: () => {
     const { entries } = get();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateString();
     const sortedEntries = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Calculate current streak
     let currentStreak = 0;
-    let currentDate = new Date();
     
     for (let i = 0; i < 30; i++) { // Check last 30 days
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = getDateStringDaysAgo(i);
       const entry = entries.find(e => e.date === dateStr);
       
       if (entry) {
         currentStreak++;
-        currentDate.setDate(currentDate.getDate() - 1);
       } else {
         break;
       }
@@ -300,9 +299,8 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const averageScore = entries.length > 0 ? totalScore / entries.length : 0;
 
     // Weekly average (last 7 days)
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weeklyEntries = entries.filter(entry => new Date(entry.date) >= weekAgo);
+    const weekAgoDateStr = getDateStringDaysAgo(7);
+    const weeklyEntries = entries.filter(entry => entry.date >= weekAgoDateStr);
     const weeklyScore = weeklyEntries.reduce((sum, entry) => sum + entry.wellnessScore, 0);
     const weeklyAverage = weeklyEntries.length > 0 ? weeklyScore / weeklyEntries.length : 0;
 
@@ -320,16 +318,14 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
 
   getWeeklyEntries: () => {
     const { entries } = get();
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    return entries.filter(entry => new Date(entry.date) >= weekAgo);
+    const weekAgoDateStr = getDateStringDaysAgo(7);
+    return entries.filter(entry => entry.date >= weekAgoDateStr);
   },
 
   getMonthlyEntries: () => {
     const { entries } = get();
-    const monthAgo = new Date();
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
-    return entries.filter(entry => new Date(entry.date) >= monthAgo);
+    const monthAgoDateStr = getDateStringDaysAgo(30);
+    return entries.filter(entry => entry.date >= monthAgoDateStr);
   },
 
   loadEntries: async (studentId?: string) => {
@@ -350,7 +346,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           // Convert Firebase entries to local format
           const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
             id: entry.id || '',
-            date: entry.date || entry.created_at.toDate().toISOString().split('T')[0], // Use stored date or fallback to created_at
+            date: entry.date || getLocalDateString(entry.created_at.toDate()), // Use stored date or fallback to created_at
             mood: entry.mood,
             sleep: entry.sleep_hours,
             exercise: entry.exercise_minutes,
@@ -360,7 +356,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
             academic: entry.academic,
             notes: entry.notes,
             wellnessScore: calculateWellnessScore({
-              date: entry.date || entry.created_at.toDate().toISOString().split('T')[0],
+              date: entry.date || getLocalDateString(entry.created_at.toDate()),
               mood: entry.mood,
               sleep: entry.sleep_hours,
               exercise: entry.exercise_minutes,
@@ -372,7 +368,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
             }),
           }));
 
-          const today = new Date().toISOString().split('T')[0];
+          const today = getTodayDateString();
           const todayEntry = entries.find(entry => entry.date === today) || null;
           
           return { entries, todayEntry };

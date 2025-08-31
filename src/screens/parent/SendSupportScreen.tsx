@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Image
+  Image,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -259,7 +261,11 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
   return (
     <View style={styles.container}>
       <StatusHeader title="Send Support" />
-      <ScrollView 
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView 
         style={[styles.scrollContainer, { paddingTop: 50 }]}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
@@ -478,6 +484,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -486,6 +493,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollContainer: {
     flex: 1,

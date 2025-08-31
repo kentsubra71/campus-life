@@ -15,6 +15,7 @@ import { StudentDashboardScreenProps } from '../../types/navigation';
 import { handleAsyncError, AppError } from '../../utils/errorHandling';
 import { ReceivedPaymentsSummary } from '../../components/ReceivedPaymentsSummary';
 import { theme } from '../../styles/theme';
+import { formatTimeAgo } from '../../utils/dateUtils';
 import { commonStyles } from '../../styles/components';
 import { useDataSync } from '../../hooks/useRefreshOnFocus';
 import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
@@ -177,17 +178,6 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     }
   }, []);
 
-  const formatTimeAgo = (timestamp: Date) => {
-    const now = new Date();
-    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
-    const diff = now.getTime() - date.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(hours / 24);
-    
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    return 'Just now';
-  };
 
   const getMoodLevel = useMemo(() => {
     // Use today's entry mood if available, otherwise fallback to stored mood

@@ -6,9 +6,11 @@ import {
   getUserTotalPoints, 
   getCurrentUser,
   getMessagesForUser,
-  getMessagesSentByUser 
+  getMessagesSentByUser,
+  markMessageAsRead 
 } from '../lib/firebase';
 import { cache, CACHE_CONFIGS } from '../utils/universalCache';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SupportMessage {
   id: string;
@@ -61,7 +63,7 @@ interface ConnectionState {
   claimReward: (id: string) => Promise<void>;
   addExperience: (amount: number) => void;
   updateMood: (mood: 'great' | 'good' | 'okay' | 'struggling') => void;
-  markMessageRead: (id: string) => void;
+  markMessageRead: (id: string) => Promise<void>;
   requestSupport: () => void;
   acknowledgeSupport: (id: string) => void;
   loadUserProgress: () => Promise<void>;
@@ -142,6 +144,11 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       
       console.log('📥 Messages fetched:', firebaseMessages.length);
       
+      // Get locally stored read message IDs
+      const readMessagesKey = `read_messages_${user.uid}`;
+      const localReadMessages = await AsyncStorage.getItem(readMessagesKey);
+      const localReadIds = localReadMessages ? JSON.parse(localReadMessages) : [];
+      
       // Convert Firebase messages to our SupportMessage format
       const supportMessages = firebaseMessages.map(msg => ({
         id: msg.id,
@@ -151,7 +158,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
         to: msg.to_user_id,
         familyId: msg.family_id,
         timestamp: msg.created_at.toDate(),
-        read: msg.read || false
+        read: msg.read || localReadIds.includes(msg.id) // Use Firebase read state OR local storage
       }));
       
       // Sort by timestamp (newest first)
@@ -299,12 +306,36 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     });
   },
   
-  markMessageRead: (id: string) => {
+  markMessageRead: async (id: string) => {
     const current = get();
+    const user = getCurrentUser();
+    if (!user) return;
+    
+    // Update local state immediately for responsive UI
     const updatedMessages = current.supportMessages.map(msg => 
       msg.id === id ? { ...msg, read: true } : msg
     );
     set({ supportMessages: updatedMessages });
+    
+    try {
+      // Persist read state to Firebase
+      await markMessageAsRead(id);
+      
+      // Also store in AsyncStorage for local persistence
+      const readMessagesKey = `read_messages_${user.uid}`;
+      const existingReadMessages = await AsyncStorage.getItem(readMessagesKey);
+      const readMessageIds = existingReadMessages ? JSON.parse(existingReadMessages) : [];
+      
+      if (!readMessageIds.includes(id)) {
+        readMessageIds.push(id);
+        await AsyncStorage.setItem(readMessagesKey, JSON.stringify(readMessageIds));
+      }
+      
+      // Update cache to reflect the read status
+      await cache.invalidate(CACHE_CONFIGS.MESSAGE_THREADS, user.uid);
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+    }
   },
 
   requestSupport: async () => {

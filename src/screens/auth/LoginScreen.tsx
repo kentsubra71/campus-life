@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
@@ -57,7 +58,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Text style={styles.logo}>👋</Text>
+              <Image source={require('../../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
             </View>
             <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>Sign in to continue your wellness journey</Text>
@@ -164,7 +165,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   logo: {
-    fontSize: 28,
+    width: 40,
+    height: 40,
   },
   title: {
     fontSize: 28,

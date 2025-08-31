@@ -67,11 +67,11 @@ export const StudentNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="Rewards"
+        name="Activity"
         component={RewardsStack}
         options={{
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="card-giftcard" color={color} size={24} />
+            <MaterialIcons name="history" color={color} size={24} />
           ),
         }}
       />

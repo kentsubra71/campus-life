@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { theme } from '../../styles/theme';
+import { formatDateForDisplay } from '../../utils/dateUtils';
 import { commonStyles } from '../../styles/components';
 import {
   View,
@@ -34,11 +35,10 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
+    return formatDateForDisplay(dateString, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
     });
   };
 

@@ -7,7 +7,10 @@ import {
   TextInput, 
   Alert,
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
@@ -77,7 +80,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
 
     if (result.success) {
       Alert.alert(
-        'Welcome to the Family! 🎉',
+        'Welcome to the Family!',
         'You\'ve successfully joined your family\'s CampusLife account. You can now track your wellness and stay connected with your family.',
         [
           { 
@@ -96,11 +99,15 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
 
   return (
     <View style={styles.container}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+          showsVerticalScrollIndicator={false}
+        >
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity 
@@ -111,7 +118,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           </TouchableOpacity>
           
           <View style={styles.logoContainer}>
-            <Text style={styles.logo}>🎓</Text>
+            <Image source={require('../../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
           </View>
           <Text style={styles.title}>Join Your Family</Text>
           <Text style={styles.subtitle}>Connect with your family's CampusLife account</Text>
@@ -213,19 +220,27 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           <Text style={styles.benefitsTitle}>What you'll get:</Text>
           <View style={styles.benefitsList}>
             <View style={styles.benefit}>
-              <Text style={styles.benefitIcon}>🎯</Text>
+              <View style={styles.benefitIcon}>
+                <Text style={styles.benefitIconText}>T</Text>
+              </View>
               <Text style={styles.benefitText}>Track your wellness journey</Text>
             </View>
             <View style={styles.benefit}>
-              <Text style={styles.benefitIcon}>💙</Text>
+              <View style={styles.benefitIcon}>
+                <Text style={styles.benefitIconText}>S</Text>
+              </View>
               <Text style={styles.benefitText}>Receive family support & encouragement</Text>
             </View>
             <View style={styles.benefit}>
-              <Text style={styles.benefitIcon}>🆘</Text>
+              <View style={styles.benefitIcon}>
+                <Text style={styles.benefitIconText}>H</Text>
+              </View>
               <Text style={styles.benefitText}>Request help when you need it</Text>
             </View>
             <View style={styles.benefit}>
-              <Text style={styles.benefitIcon}>🎉</Text>
+              <View style={styles.benefitIcon}>
+                <Text style={styles.benefitIconText}>A</Text>
+              </View>
               <Text style={styles.benefitText}>Share your achievements</Text>
             </View>
           </View>
@@ -243,6 +258,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -251,6 +267,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -292,7 +311,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   logo: {
-    fontSize: 28,
+    width: 40,
+    height: 40,
   },
   title: {
     fontSize: 28,
@@ -417,8 +437,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   benefitIcon: {
-    fontSize: 20,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.success,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
+  },
+  benefitIconText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   benefitText: {
     fontSize: 15,

@@ -43,9 +43,9 @@ const ParentMainTabs = () => {
         name="Dashboard" 
         component={ParentDashboardScreen}
         options={{
-          tabBarLabel: 'Home',
+          tabBarLabel: 'Dashboard',
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="home" color={color} size={24} />
+            <MaterialIcons name="dashboard" color={color} size={24} />
           ),
         }}
       />

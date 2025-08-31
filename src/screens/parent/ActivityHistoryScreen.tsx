@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, getItemRequestsForParent } from '../../lib/firebase';
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
 import { StatusHeader } from '../../components/StatusHeader';
@@ -25,6 +25,9 @@ import {
   isPaymentTimedOut 
 } from '../../utils/paymentTimeout';
 import { cache, CACHE_CONFIGS } from '../../utils/universalCache';
+import { MoneySentSummary } from '../../components/MoneySentSummary';
+import { MessagesSummary } from '../../components/MessagesSummary';
+import { ItemsSummary } from '../../components/ItemsSummary';
 
 interface ActivityItem {
   id: string;
@@ -52,26 +55,45 @@ interface ActivityHistoryScreenProps {
   navigation: NavigationProp<ParentStackParamList>;
 }
 
-type FilterPeriod = 'all' | '7days' | '30days' | '90days';
-type FilterType = 'all' | 'payments' | 'messages' | 'requests';
+type FilterPeriod = 'day' | 'week' | 'month' | 'all';
+type FilterType = 'all' | 'payments' | 'messages' | 'items';
 
 export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [filteredActivities, setFilteredActivities] = useState<ActivityItem[]>([]);
+  const [displayedActivities, setDisplayedActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [backgroundLoading, setBackgroundLoading] = useState(false);
-  const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('30days');
+  const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('month');
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [itemsPerPage] = useState(10);
   const [newActivityIds, setNewActivityIds] = useState<string[]>([]);
   const [usingCache, setUsingCache] = useState(false);
   const [lastCacheLoad, setLastCacheLoad] = useState<Date | null>(null);
   const animatedValues = useRef<{ [key: string]: Animated.Value }>({});
+  const scrollViewRef = useRef<ScrollView>(null);
+  const allActivityRef = useRef<View>(null);
 
   useEffect(() => {
     loadActivities();
   }, []);
+
+  const scrollToAllActivity = (filterType?: FilterType) => {
+    if (allActivityRef.current && scrollViewRef.current) {
+      allActivityRef.current.measureLayout(
+        scrollViewRef.current as any,
+        (x, y) => {
+          scrollViewRef.current?.scrollTo({ y: y - 100, animated: true });
+        }
+      );
+    }
+    if (filterType && filterType !== 'all') {
+      setFilterType(filterType);
+    }
+  };
 
   const loadActivities = async (isRefresh = false, forceRefresh = false) => {
     if (!user) return;
@@ -139,7 +161,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         allActivities.push({
           id: doc.id,
           type: 'payment',
-          timestamp: payment.created_at.toDate(),
+          timestamp: payment.created_at && payment.created_at.toDate ? payment.created_at.toDate() : new Date(),
           amount: payment.intent_cents / 100,
           provider: payment.provider,
           status: payment.status,
@@ -181,7 +203,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           allActivities.push({
             id: doc.id,
             type: 'message',
-            timestamp: message.created_at.toDate(),
+            timestamp: message.created_at && message.created_at.toDate ? message.created_at.toDate() : new Date(),
             status: message.read ? 'read' : 'sent',
             message_content: message.content,
             message_type: message.type || 'message',
@@ -194,17 +216,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
       // Load item requests
       try {
-        const requestsQuery = query(
-          collection(db, 'item_requests'),
-          where('parent_id', '==', user.id),
-          orderBy('created_at', 'desc')
-        );
-        const requestsSnapshot = await getDocs(requestsQuery);
+        const requests = await getItemRequestsForParent(user.id);
         
-        console.log(`📦 Found ${requestsSnapshot.size} item requests`);
+        console.log(`📦 Found ${requests.length} item requests`);
         
-        for (const doc of requestsSnapshot.docs) {
-          const request = doc.data();
+        for (const request of requests) {
           const studentId = request.student_id;
           
           let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
@@ -219,9 +235,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           }
 
           allActivities.push({
-            id: doc.id,
+            id: request.id,
             type: 'item_request',
-            timestamp: request.created_at.toDate(),
+            timestamp: request.created_at && request.created_at.toDate ? request.created_at.toDate() : new Date(),
             status: request.status || 'pending',
             item_name: request.item_name,
             item_price: request.item_price,
@@ -235,7 +251,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       }
 
       // Sort all activities by timestamp (newest first)
-      allActivities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      allActivities.sort((a, b) => {
+        const aTime = a.timestamp && a.timestamp.getTime ? a.timestamp.getTime() : 0;
+        const bTime = b.timestamp && b.timestamp.getTime ? b.timestamp.getTime() : 0;
+        return bTime - aTime;
+      });
 
       // Mark new activities for animation
       const existingIds = new Set(activities.map(a => a.id));
@@ -272,13 +292,19 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
   const onRefresh = () => {
     setRefreshing(true);
+    setCurrentPage(0); // Reset to first page on refresh
     loadActivities(true);
   };
 
-  // Filter activities when period or type changes
+  // Filter activities when period, type, or activities change
   useEffect(() => {
     filterActivities();
   }, [activities, filterPeriod, filterType]);
+
+  // Update displayed activities when filtered activities or page changes
+  useEffect(() => {
+    updateDisplayedActivities();
+  }, [filteredActivities, currentPage]);
 
   const filterActivities = () => {
     let filtered = [...activities];
@@ -286,30 +312,61 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     // Filter by time period
     if (filterPeriod !== 'all') {
       const now = new Date();
-      const daysBack = filterPeriod === '7days' ? 7 : filterPeriod === '30days' ? 30 : 90;
-      const cutoffDate = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+      let daysBack: number;
       
-      filtered = filtered.filter(activity => activity.timestamp >= cutoffDate);
+      switch (filterPeriod) {
+        case 'day': daysBack = 1; break;
+        case 'week': daysBack = 7; break;
+        case 'month': daysBack = 30; break;
+        default: daysBack = 0;
+      }
+      
+      if (daysBack > 0) {
+        const cutoffDate = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+        filtered = filtered.filter(activity => activity.timestamp >= cutoffDate);
+      }
     }
 
     // Filter by type
     if (filterType !== 'all') {
-      if (filterType === 'requests') {
+      if (filterType === 'items') {
         filtered = filtered.filter(activity => activity.type === 'item_request');
-      } else {
-        filtered = filtered.filter(activity => activity.type === filterType.slice(0, -1)); // Remove 's' from 'payments'/'messages'
+      } else if (filterType === 'payments') {
+        filtered = filtered.filter(activity => activity.type === 'payment');
+      } else if (filterType === 'messages') {
+        filtered = filtered.filter(activity => activity.type === 'message');
       }
     }
 
     setFilteredActivities(filtered);
+    setCurrentPage(0); // Reset to first page when filters change
+  };
+
+  const updateDisplayedActivities = () => {
+    const startIndex = currentPage * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    setDisplayedActivities(filteredActivities.slice(startIndex, endIndex));
+  };
+
+  const nextPage = () => {
+    const maxPages = Math.ceil(filteredActivities.length / itemsPerPage);
+    if (currentPage < maxPages - 1) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const previousPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+    }
   };
 
   const getPeriodLabel = (period: FilterPeriod) => {
     switch (period) {
+      case 'day': return 'Past Day';
+      case 'week': return 'Past Week';
+      case 'month': return 'Past Month';
       case 'all': return 'All Time';
-      case '7days': return 'Last 7 Days';
-      case '30days': return 'Last 30 Days';
-      case '90days': return 'Last 90 Days';
       default: return 'All Time';
     }
   };
@@ -319,7 +376,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       case 'all': return 'All Activities';
       case 'payments': return 'Payments Only';
       case 'messages': return 'Messages Only';
-      case 'requests': return 'Item Requests';
+      case 'items': return 'Item Requests';
       default: return 'All Activities';
     }
   };
@@ -384,6 +441,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
   const formatTime = (date: Date) => {
     const now = new Date();
+    if (!date || !date.getTime) {
+      return 'Recently';
+    }
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     
@@ -480,7 +540,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             )}
             
             {/* Timeout Warning and Cancel Button for Processing Payments */}
-            {(item.status === 'initiated' || item.status === 'pending' || item.status === 'processing') && (
+            {(item.status === 'initiated' || item.status === 'pending' || item.status === 'processing') && item.timestamp && (
               (() => {
                 const isTimedOut = isPaymentTimedOut(item.timestamp, item.provider || '');
                 const isNearTimeout = !isTimedOut && isPaymentNearTimeout(item.timestamp, item.provider || '');
@@ -564,12 +624,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         <Text style={styles.title}>Activity History</Text>
         <Text style={styles.subtitle}>Payments and messages sent</Text>
         
-        {/* Filter Controls */}
+        {/* Time Period Filter */}
         <View style={styles.filterContainer}>
           <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>Time:</Text>
+            <Text style={styles.filterLabel}>Time Period:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
-              {(['all', '7days', '30days', '90days'] as FilterPeriod[]).map((period) => (
+              {(['day', 'week', 'month', 'all'] as FilterPeriod[]).map((period) => (
                 <TouchableOpacity
                   key={period}
                   style={[
@@ -588,33 +648,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
               ))}
             </ScrollView>
           </View>
-          
-          <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>Type:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
-              {(['all', 'payments', 'messages', 'requests'] as FilterType[]).map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.filterButton,
-                    filterType === type && styles.filterButtonActive
-                  ]}
-                  onPress={() => setFilterType(type)}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    filterType === type && styles.filterButtonTextActive
-                  ]}>
-                    {getTypeLabel(type)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
         </View>
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
@@ -624,6 +662,34 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           />
         }
       >
+        {/* Quick Stats */}
+        <View style={styles.quickStats}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activities?.length || 0}</Text>
+            <Text style={styles.statLabel}>Total Activity</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activities?.filter(a => a.type === 'payment').length || 0}</Text>
+            <Text style={styles.statLabel}>Payments</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activities?.filter(a => a.type === 'item_request').length || 0}</Text>
+            <Text style={styles.statLabel}>Requests</Text>
+          </View>
+        </View>
+        
+        {/* Summary Sections */}
+        <MoneySentSummary onViewAll={() => scrollToAllActivity('payments')} />
+        <MessagesSummary onViewAll={() => scrollToAllActivity('messages')} userType="parent" />
+        <ItemsSummary onViewAll={() => scrollToAllActivity('items')} userType="parent" />
+        
+        {/* Activity List Header */}
+        <View ref={allActivityRef} style={styles.activityListHeader}>
+          <Text style={styles.activityListTitle}>All Activity</Text>
+        </View>
+        
         {loading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Loading activity...</Text>
@@ -637,13 +703,40 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           </View>
         ) : (
           <View style={styles.activitiesContainer}>
+            {/* Results Header with Activity Type Filter */}
             <View style={styles.resultsHeader}>
-              <Text style={styles.resultsCount}>
-                {filteredActivities.length} of {activities.length} activities
-              </Text>
-              <Text style={styles.resultsFilter}>
-                {getPeriodLabel(filterPeriod)} • {getTypeLabel(filterType)}
-              </Text>
+              <View style={styles.resultsLeft}>
+                <Text style={styles.resultsCount}>
+                  Showing {currentPage * itemsPerPage + 1}-{Math.min((currentPage + 1) * itemsPerPage, filteredActivities.length)} of {filteredActivities.length}
+                </Text>
+                <Text style={styles.resultsFilter}>
+                  {getPeriodLabel(filterPeriod)}
+                </Text>
+              </View>
+              
+              <View style={styles.activityTypeFilter}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.compactFilterScrollView}>
+                  {(['all', 'payments', 'messages', 'items'] as FilterType[]).map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.compactFilterButton,
+                        filterType === type && styles.compactFilterButtonActive
+                      ]}
+                      onPress={() => setFilterType(type)}
+                    >
+                      <Text style={[
+                        styles.compactFilterButtonText,
+                        filterType === type && styles.compactFilterButtonTextActive
+                      ]}>
+                        {type === 'all' ? 'All' : 
+                         type === 'payments' ? 'Payments' :
+                         type === 'messages' ? 'Messages' : 'Items'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
             </View>
             
             {filteredActivities.length === 0 ? (
@@ -654,7 +747,38 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                 </Text>
               </View>
             ) : (
-              filteredActivities.map(renderActivityItem)
+              <>
+                {displayedActivities.map(renderActivityItem)}
+                
+                {/* Pagination Controls */}
+                {filteredActivities.length > itemsPerPage && (
+                  <View style={styles.paginationContainer}>
+                    <TouchableOpacity
+                      style={[styles.paginationButton, currentPage === 0 && styles.paginationButtonDisabled]}
+                      onPress={previousPage}
+                      disabled={currentPage === 0}
+                    >
+                      <Text style={[styles.paginationButtonText, currentPage === 0 && styles.paginationButtonTextDisabled]}>
+                        Previous
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    <Text style={styles.paginationInfo}>
+                      Page {currentPage + 1} of {Math.ceil(filteredActivities.length / itemsPerPage)}
+                    </Text>
+                    
+                    <TouchableOpacity
+                      style={[styles.paginationButton, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonDisabled]}
+                      onPress={nextPage}
+                      disabled={currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1}
+                    >
+                      <Text style={[styles.paginationButtonText, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonTextDisabled]}>
+                        Next
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}
@@ -688,6 +812,51 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: theme.colors.textPrimary,
     marginBottom: 8,
+  },
+  activityListHeader: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    marginTop: 8,
+  },
+  activityListTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  quickStats: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundCard,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 24,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: theme.colors.border,
+    marginHorizontal: 16,
   },
   headerLoader: {
     marginLeft: 12,
@@ -887,7 +1056,7 @@ const styles = StyleSheet.create({
   resultsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
@@ -936,5 +1105,74 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textTertiary,
     lineHeight: 18,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  paginationButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: theme.colors.primary,
+    minWidth: 80,
+  },
+  paginationButtonDisabled: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  paginationButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
+    textAlign: 'center',
+  },
+  paginationButtonTextDisabled: {
+    color: theme.colors.textSecondary,
+  },
+  paginationInfo: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textPrimary,
+  },
+  resultsLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  activityTypeFilter: {
+    flexShrink: 0,
+    maxWidth: 200,
+  },
+  compactFilterScrollView: {
+    flexGrow: 0,
+  },
+  compactFilterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginLeft: 6,
+    borderRadius: 16,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  compactFilterButtonActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  compactFilterButtonText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+  },
+  compactFilterButtonTextActive: {
+    color: 'white',
+    fontWeight: '600',
   },
 });

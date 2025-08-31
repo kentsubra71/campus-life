@@ -9,14 +9,17 @@ import {
   ScrollView,
   ActivityIndicator
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '../../stores/authStore';
+import { theme } from '../../styles/theme';
 
 interface ParentRegisterScreenProps {
   navigation: any;
 }
 
 export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { createFamily, isLoading } = useAuthStore();
   const [formData, setFormData] = useState({
     name: '',
@@ -92,223 +95,291 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Create Family Account</Text>
-        <Text style={styles.subtitle}>Set up your family's CampusLife connection</Text>
-      </View>
-
-      <View style={styles.form}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Your Name</Text>
-          <TextInput
-            style={[styles.input, errors.name ? styles.inputError : null]}
-            placeholder="Enter your full name"
-            placeholderTextColor="#6b7280"
-            value={formData.name}
-            onChangeText={(text) => setFormData({...formData, name: text})}
-            autoCapitalize="words"
-          />
-          {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email Address</Text>
-          <TextInput
-            style={[styles.input, errors.email ? styles.inputError : null]}
-            placeholder="your@email.com"
-            placeholderTextColor="#6b7280"
-            value={formData.email}
-            onChangeText={(text) => setFormData({...formData, email: text})}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Family Name</Text>
-          <TextInput
-            style={[styles.input, errors.familyName ? styles.inputError : null]}
-            placeholder="The Johnson Family"
-            placeholderTextColor="#6b7280"
-            value={formData.familyName}
-            onChangeText={(text) => setFormData({...formData, familyName: text})}
-            autoCapitalize="words"
-          />
-          {errors.familyName && <Text style={styles.errorText}>{errors.familyName}</Text>}
-          <Text style={styles.helpText}>This will be shown to all family members</Text>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={[styles.input, errors.password ? styles.inputError : null]}
-            placeholder="Create a secure password"
-            placeholderTextColor="#6b7280"
-            value={formData.password}
-            onChangeText={(text) => setFormData({...formData, password: text})}
-            secureTextEntry
-          />
-          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Confirm Password</Text>
-          <TextInput
-            style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
-            placeholder="Confirm your password"
-            placeholderTextColor="#6b7280"
-            value={formData.confirmPassword}
-            onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
-            secureTextEntry
-          />
-          {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
-        </View>
-      </View>
-
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>What happens next?</Text>
-        <Text style={styles.infoText}>
-          1. We'll create your family account{'\n'}
-          2. You'll receive an invite code{'\n'}
-          3. Share the code with your college student{'\n'}
-          4. They can join using the student registration
-        </Text>
-      </View>
-
-      <TouchableOpacity 
-        style={[styles.registerButton, isLoading && styles.registerButtonDisabled]}
-        onPress={handleRegister}
-        disabled={isLoading}
+    <View style={styles.container}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+        showsVerticalScrollIndicator={false}
       >
-        {isLoading ? (
-          <ActivityIndicator size="small" color="#ffffff" />
-        ) : (
-          <Text style={styles.registerButtonText}>Create Family Account</Text>
-        )}
-      </TouchableOpacity>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.logoContainer}>
+            <Text style={styles.logo}>👨‍👩‍👧‍👦</Text>
+          </View>
+          <Text style={styles.title}>Create Family Account</Text>
+          <Text style={styles.subtitle}>Set up your CampusLife family connection</Text>
+        </View>
 
-      <TouchableOpacity 
-        style={styles.loginLink}
-        onPress={() => navigation.navigate('Login')}
-      >
-        <Text style={styles.loginLinkText}>Already have an account? Sign In</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        {/* Info Card */}
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>What happens next?</Text>
+          <Text style={styles.infoText}>
+            1. We'll create your family account{'\n'}
+            2. You'll get an invite code{'\n'}
+            3. Share it with your college student{'\n'}
+            4. They can join and you're connected!
+          </Text>
+        </View>
+
+        {/* Form */}
+        <View style={styles.form}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Your Name</Text>
+            <TextInput
+              style={[styles.input, errors.name ? styles.inputError : null]}
+              placeholder="Enter your full name"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={formData.name}
+              onChangeText={(text) => setFormData({...formData, name: text})}
+              autoCapitalize="words"
+            />
+            {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Email Address</Text>
+            <TextInput
+              style={[styles.input, errors.email ? styles.inputError : null]}
+              placeholder="your@email.com"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={formData.email}
+              onChangeText={(text) => setFormData({...formData, email: text})}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Family Name</Text>
+            <TextInput
+              style={[styles.input, errors.familyName ? styles.inputError : null]}
+              placeholder="The Smith Family"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={formData.familyName}
+              onChangeText={(text) => setFormData({...formData, familyName: text})}
+              autoCapitalize="words"
+            />
+            {errors.familyName && <Text style={styles.errorText}>{errors.familyName}</Text>}
+            <Text style={styles.helpText}>This will be shown to all family members</Text>
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={[styles.input, errors.password ? styles.inputError : null]}
+              placeholder="Create a secure password"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={formData.password}
+              onChangeText={(text) => setFormData({...formData, password: text})}
+              secureTextEntry
+            />
+            {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Confirm Password</Text>
+            <TextInput
+              style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
+              placeholder="Confirm your password"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={formData.confirmPassword}
+              onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
+              secureTextEntry
+            />
+            {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.createButton, isLoading && styles.createButtonDisabled]}
+            onPress={handleRegister}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.createButtonText}>Create Family Account</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={styles.signInButton}
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={styles.signInText}>
+              Already have an account? <Text style={styles.signInLink}>Sign in</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
-    padding: 24,
+    flexGrow: 1,
+    paddingHorizontal: 24,
     paddingTop: 60,
   },
+  
+  // Header
   header: {
+    alignItems: 'center',
     marginBottom: 32,
   },
   backButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 0,
+    marginBottom: 24,
+  },
+  backButtonText: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '600',
-    marginBottom: 16,
+  },
+  logoContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: theme.colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  logo: {
+    fontSize: 28,
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
-    letterSpacing: -0.5,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
   },
-  form: {
-    gap: 20,
-    marginBottom: 24,
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#f9fafb',
-  },
-  input: {
-    backgroundColor: '#1f2937',
-    borderWidth: 1,
-    borderColor: '#374151',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    color: '#f9fafb',
-  },
-  inputError: {
-    borderColor: '#dc2626',
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#dc2626',
-    marginTop: 4,
-  },
-  helpText: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 4,
-  },
+  
+  // Info Card
   infoCard: {
-    backgroundColor: '#1e40af',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 16,
     padding: 20,
-    borderRadius: 12,
-    marginBottom: 24,
+    marginBottom: 32,
   },
   infoTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#ffffff',
     marginBottom: 12,
   },
   infoText: {
-    fontSize: 14,
-    color: '#dbeafe',
-    lineHeight: 20,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 22,
   },
-  registerButton: {
-    backgroundColor: 'theme.colors.primary',
-    padding: 18,
+  
+  // Form
+  form: {
+    marginBottom: 32,
+  },
+  inputContainer: {
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+  },
+  inputError: {
+    borderColor: theme.colors.error,
+  },
+  errorText: {
+    fontSize: 14,
+    color: theme.colors.error,
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  helpText: {
+    fontSize: 14,
+    color: theme.colors.textTertiary,
+    marginTop: 6,
+  },
+  createButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    marginTop: 8,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  registerButtonDisabled: {
-    backgroundColor: '#4b5563',
+  createButtonDisabled: {
+    backgroundColor: theme.colors.textSecondary,
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  registerButtonText: {
+  createButtonText: {
     fontSize: 18,
     fontWeight: '700',
     color: '#ffffff',
   },
-  loginLink: {
+  
+  // Footer
+  footer: {
     alignItems: 'center',
-    paddingVertical: 16,
   },
-  loginLinkText: {
+  signInButton: {
+    paddingVertical: 12,
+  },
+  signInText: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+  },
+  signInLink: {
+    color: theme.colors.primary,
     fontWeight: '600',
   },
 });

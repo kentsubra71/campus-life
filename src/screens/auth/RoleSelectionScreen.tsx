@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
-import { commonStyles } from '../../styles/components';
-
 import { NavigationProp } from '@react-navigation/native';
 
 type AuthStackParamList = {
@@ -19,36 +18,44 @@ interface RoleSelectionScreenProps {
 }
 
 export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  
   return (
     <View style={styles.container}>
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>CampusLife</Text>
-          <Text style={styles.subtitle}>Connect • Care • Thrive</Text>
+        {/* Hero Section */}
+        <View style={styles.hero}>
+          <View style={styles.logoContainer}>
+            <Text style={styles.logo}>👨‍👩‍👧‍👦</Text>
+          </View>
+          <Text style={styles.appName}>CampusLife</Text>
+          <Text style={styles.tagline}>Stay close when you're far apart</Text>
         </View>
 
-        {/* Role Selection */}
-        <View style={styles.roleSelection}>
-          <Text style={styles.sectionTitle}>Get Started</Text>
+        {/* Role Cards */}
+        <View style={styles.roleSection}>
+          <Text style={styles.roleTitle}>Choose your role</Text>
           
           {/* Parent Card */}
           <TouchableOpacity 
             style={[styles.roleCard, styles.parentCard]}
             onPress={() => navigation.navigate('ParentRegister')}
           >
-            <View style={styles.cardHeader}>
-              <View style={styles.iconContainer}>
-                <Text style={styles.cardIcon}>👨‍👩‍👧‍👦</Text>
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Parent</Text>
-                <Text style={styles.cardSubtitle}>Create family account</Text>
-              </View>
+            <View style={styles.cardIcon}>
+              <Text style={styles.cardEmoji}>👨‍👩‍👧‍👦</Text>
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>I'm a Parent</Text>
+              <Text style={styles.cardDescription}>
+                Create a family account and invite your college student
+              </Text>
+            </View>
+            <View style={styles.cardArrow}>
+              <Text style={styles.arrowText}>→</Text>
             </View>
           </TouchableOpacity>
 
@@ -57,34 +64,58 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
             style={[styles.roleCard, styles.studentCard]}
             onPress={() => navigation.navigate('StudentRegister')}
           >
-            <View style={styles.cardHeader}>
-              <View style={styles.iconContainer}>
-                <Text style={styles.cardIcon}>🎓</Text>
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Student</Text>
-                <Text style={styles.cardSubtitle}>Join with invite code</Text>
-              </View>
+            <View style={styles.cardIcon}>
+              <Text style={styles.cardEmoji}>🎓</Text>
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>I'm a Student</Text>
+              <Text style={styles.cardDescription}>
+                Join your family's account with an invite code
+              </Text>
+            </View>
+            <View style={styles.cardArrow}>
+              <Text style={styles.arrowText}>→</Text>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Features */}
-        <View style={styles.features}>
-          <Text style={styles.featuresTitle}>What makes us different</Text>
+        {/* Features Preview */}
+        <View style={styles.featuresSection}>
+          <Text style={styles.featuresTitle}>Why families love CampusLife</Text>
+          
           <View style={styles.featuresList}>
-            <Text style={styles.feature}>🌟 Wellness tracking & support</Text>
-            <Text style={styles.feature}>💬 Meaningful family connection</Text>
-            <Text style={styles.feature}>🎯 Care beyond transactions</Text>
+            <View style={styles.feature}>
+              <Text style={styles.featureIcon}>🌟</Text>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Wellness Connection</Text>
+                <Text style={styles.featureText}>Track mood and wellness together</Text>
+              </View>
+            </View>
+            
+            <View style={styles.feature}>
+              <Text style={styles.featureIcon}>💙</Text>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Meaningful Support</Text>
+                <Text style={styles.featureText}>Send love and help when needed</Text>
+              </View>
+            </View>
+            
+            <View style={styles.feature}>
+              <Text style={styles.featureIcon}>✨</Text>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Stay Connected</Text>
+                <Text style={styles.featureText}>Bridge distance with care, not just money</Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* Login Link */}
+        {/* Sign In Link */}
         <TouchableOpacity 
-          style={styles.loginButton}
+          style={styles.signInLink}
           onPress={() => navigation.navigate('Login')}
         >
-          <Text style={styles.loginButtonText}>Already have an account? Sign in</Text>
+          <Text style={styles.signInText}>Already have an account? Sign in</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -101,87 +132,165 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    padding: theme.spacing.xxl,
-    paddingTop: theme.spacing.massive,
-    paddingBottom: theme.spacing.xxxl,
+    paddingHorizontal: 24,
+    paddingTop: 60,
   },
-  header: {
+  
+  // Hero Section
+  hero: {
     alignItems: 'center',
-    marginBottom: theme.spacing.huge,
+    marginBottom: 48,
   },
-  title: {
-    ...theme.typography.titleLarge,
-    marginBottom: theme.spacing.sm,
+  logoContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  subtitle: {
-    fontSize: 16,
-    color: theme.colors.primary,
-    fontWeight: '500',
-    letterSpacing: 1,
+  logo: {
+    fontSize: 36,
   },
-  roleSelection: {
-    marginBottom: theme.spacing.xxxl,
-  },
-  sectionTitle: {
-    ...theme.typography.subtitleLarge,
-    marginBottom: theme.spacing.xl,
+  appName: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
     textAlign: 'center',
   },
+  tagline: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  
+  // Role Selection
+  roleSection: {
+    marginBottom: 40,
+  },
+  roleTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
   roleCard: {
-    ...commonStyles.cardElevated,
-    marginBottom: theme.spacing.lg,
-  },
-  parentCard: {
-    ...commonStyles.parentCard,
-  },
-  studentCard: {
-    ...commonStyles.studentCard,
-  },
-  cardHeader: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  iconContainer: {
-    ...commonStyles.iconContainer,
+  parentCard: {
+    borderColor: theme.colors.primary,
+    backgroundColor: `${theme.colors.primary}08`,
+  },
+  studentCard: {
+    borderColor: theme.colors.success,
+    backgroundColor: `${theme.colors.success}08`,
   },
   cardIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardEmoji: {
     fontSize: 28,
   },
   cardContent: {
     flex: 1,
   },
   cardTitle: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '700',
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.xs,
+    marginBottom: 4,
   },
-  cardSubtitle: {
+  cardDescription: {
     fontSize: 14,
-    color: theme.colors.textMuted,
-    fontWeight: '500',
+    color: theme.colors.textSecondary,
+    lineHeight: 20,
   },
-  features: {
-    ...commonStyles.featureCard,
-    marginBottom: theme.spacing.xxl,
+  cardArrow: {
+    marginLeft: 12,
+  },
+  arrowText: {
+    fontSize: 24,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
+  },
+  
+  // Features
+  featuresSection: {
+    marginBottom: 32,
   },
   featuresTitle: {
-    ...theme.typography.bodyLarge,
-    marginBottom: theme.spacing.md,
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
     textAlign: 'center',
+    marginBottom: 24,
   },
   featuresList: {
-    gap: theme.spacing.sm,
+    gap: 20,
   },
   feature: {
-    ...theme.typography.bodySmall,
-    color: theme.colors.textTertiary,
-    textAlign: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  loginButton: {
-    ...commonStyles.linkButton,
+  featureIcon: {
+    fontSize: 24,
+    marginRight: 16,
   },
-  loginButtonText: {
-    ...commonStyles.linkButtonText,
+  featureContent: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 2,
+  },
+  featureText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
+  },
+  
+  // Sign In Link
+  signInLink: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  signInText: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 });

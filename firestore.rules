@@ -161,5 +161,11 @@ service cloud.firestore {
       allow update: if request.auth != null && 
         resource.data.parentId == request.auth.uid;
     }
+
+    // User progress - users can read/write their own progress
+    match /user_progress/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }

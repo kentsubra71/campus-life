@@ -96,7 +96,7 @@ export const ReceivedPaymentsSummary: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>💰 Money Received</Text>
+        <Text style={styles.title}>Money Received</Text>
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -105,9 +105,8 @@ export const ReceivedPaymentsSummary: React.FC = () => {
   if (summary.recentCount === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>💰 Money Received</Text>
+        <Text style={styles.title}>Money Received</Text>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyEmoji}>💸</Text>
           <Text style={styles.emptyTitle}>No payments yet</Text>
           <Text style={styles.emptyText}>
             When your parents send you money, it will appear here
@@ -119,7 +118,7 @@ export const ReceivedPaymentsSummary: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>💰 Money Received</Text>
+      <Text style={styles.title}>Money Received</Text>
       
       <View style={styles.summaryGrid}>
         <View style={styles.summaryCard}>
@@ -168,10 +167,6 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     padding: 32,
-  },
-  emptyEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
   },
   emptyTitle: {
     fontSize: 18,

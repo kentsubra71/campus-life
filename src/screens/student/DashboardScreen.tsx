@@ -218,231 +218,261 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
-        {/* Header */}
+        {/* Modern Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Good morning, {user?.name || 'Student'}!</Text>
-            <Text style={styles.subtitle}>Stay close when you're far apart</Text>
-          </View>
+          <Text style={styles.greeting}>Good morning!</Text>
+          <Text style={styles.title}>{user?.name?.split(' ')[0] || 'Student'}</Text>
+          <Text style={styles.pullHint}>Stay close when you're far apart</Text>
         </View>
 
-      {/* Support Messages - Now Priority #1 */}
-      {supportMessages.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Messages from Family</Text>
-            {supportMessages.filter(m => !m.read).length > 0 && (
-              <Text style={styles.newMessagesBadge}>
-                {supportMessages.filter(m => !m.read).length} new
+        {/* Current Status */}
+        <View style={styles.statusSection}>
+          <View style={styles.statusHeader}>
+            <Text style={styles.statusTitle}>
+              {todayEntry 
+                ? `You're feeling ${getMoodLevel.toLowerCase()}` 
+                : 'Ready to start your day?'}
+            </Text>
+            <View style={[styles.statusBadge, { 
+              backgroundColor: todayEntry ? theme.colors.success : theme.colors.warning 
+            }]}>
+              <Text style={styles.statusBadgeText}>
+                {todayEntry ? 'LOGGED' : 'NO DATA'}
               </Text>
-            )}
-          </View>
-          {supportMessages.slice(0, 3).map((message) => (
-            <TouchableOpacity 
-              key={message.id} 
-              style={[styles.messageCard, !message.read && styles.unreadMessage]}
-              onPress={() => markMessageRead(message.id)}
-            >
-              <View style={styles.messageTypeContainer}>
-                <Text style={styles.messageType}>{getMessageType(message.type)}</Text>
-              </View>
-              <View style={styles.messageContent}>
-                <Text style={styles.messageText}>{message.content}</Text>
-                <Text style={styles.messageTime}>{formatTimeAgo(message.timestamp)}</Text>
-              </View>
-              {!message.read && <View style={styles.unreadDot} />}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* Dashboard Stats */}
-      <View style={styles.connectionCard}>
-        <Text style={styles.connectionTitle}>Dashboard</Text>
-        <View style={styles.connectionStats}>
-          <TouchableOpacity 
-            style={styles.stat}
-            onPress={() => navigation.navigate('WellnessLog')}
-          >
-            <Text style={styles.statNumber}>{getMoodLevel}</Text>
-            <Text style={styles.statLabel}>Today's Mood</Text>
-          </TouchableOpacity>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>{supportMessages.filter(m => !m.read).length}</Text>
-            <Text style={styles.statLabel}>New Messages</Text>
-          </View>
-        </View>
-        
-        <View style={styles.supportButtonsRow}>
-          <TouchableOpacity 
-            style={styles.supportButton}
-            onPress={() => requestSupport()}
-          >
-            <Text style={styles.supportButtonText}>Request Support</Text>
-            <Text style={styles.supportButtonSubtext}>
-              {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
-                ? 'Your family has been notified and will reach out soon' 
-                : 'Let your family know you could use some help'}
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.itemRequestButton}
-            onPress={() => navigation.navigate('ItemRequest')}
-          >
-            <Text style={styles.itemRequestButtonText}>Request Item</Text>
-            <Text style={styles.itemRequestButtonSubtext}>
-              Ask for something you need
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Level & Experience */}
-      <View style={styles.levelCard}>
-        <View style={styles.levelHeader}>
-          <Text style={styles.levelTitle}>{getLevelTitle(level)}</Text>
-          <Text style={styles.levelNumber}>Level {level}</Text>
-        </View>
-        <View style={styles.experienceBar}>
-          <View 
-            style={[
-              styles.experienceFill, 
-              { width: `${((experience % 200) / 200) * 100}%` }
-            ]} 
-          />
-        </View>
-        <Text style={styles.experienceText}>{experience % 200} / 200 XP</Text>
-        <Text style={styles.totalEarned}>Family Love: {supportMessages.length + Math.floor(totalEarned/5)} moments</Text>
-      </View>
-
-      {/* Wellness Score */}
-      <TouchableOpacity 
-        style={styles.scoreCard}
-        onPress={() => navigation.navigate('WellnessLog')}
-      >
-        <Text style={styles.scoreTitle}>Today's Wellness Score</Text>
-        <View style={styles.scoreContainer}>
-          <Text style={styles.scoreValue}>
-            {todayEntry ? Math.round(todayEntry.wellnessScore * 10) / 10 : '--'}
-          </Text>
-          <Text style={styles.scoreMax}>/ 10</Text>
-        </View>
-        <Text style={styles.scoreMessage}>
-          {todayEntry ? 
-            (todayEntry.wellnessScore >= 8 ? 'Excellent progress!' : 
-             todayEntry.wellnessScore >= 6 ? 'Good work!' : 'Keep going!') :
-            'Tap to log your wellness today'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Wellness Actions */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Wellness Tracking</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('WellnessHistory')}>
-            <Text style={styles.viewAllText}>View History</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <TouchableOpacity 
-          style={styles.wellnessActionCard}
-          onPress={() => navigation.navigate('WellnessLog')}
-        >
-          <Text style={styles.wellnessActionTitle}>
-            {todayEntry ? 'Update Today\'s Log' : 'Log Today\'s Wellness'}
-          </Text>
-          <Text style={styles.wellnessActionSubtitle}>
-            {todayEntry ? 'Update your daily wellness entry' : 'Start tracking your daily wellness'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {stats.totalEntries === 0 ? '--' : stats.currentStreak}
-            </Text>
-            <Text style={styles.statLabel}>
-              {stats.totalEntries === 0 ? 'Start Logging' : 'Day Streak'}
-            </Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {stats.totalEntries === 0 ? '--' : stats.averageScore.toFixed(1)}
-            </Text>
-            <Text style={styles.statLabel}>
-              {stats.totalEntries === 0 ? 'To See Score' : 'Avg Score'}
-            </Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.totalEntries}</Text>
-            <Text style={styles.statLabel}>Total Entries</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Care Boosts - De-emphasized, moved to bottom */}
-      {activeRewards.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.rewardsHeader}>
-            <Text style={styles.smallSectionTitle}>Occasional Care Boosts</Text>
-            <View style={styles.rewardsTotalContainer}>
-              <Text style={styles.rewardsSmallTotal}>
-                {activeRewards.length}
-              </Text>
-              <Text style={styles.rewardsTotalLabel}>available</Text>
             </View>
           </View>
-          <Text style={styles.rewardsSubtext}>
-            Small surprises from family when you're doing great
+          <Text style={styles.statusSubtitle}>
+            {todayEntry 
+              ? `Wellness score: ${Math.round(todayEntry.wellnessScore * 10) / 10}/10 — ${todayEntry.wellnessScore >= 8 ? 'Great work!' : todayEntry.wellnessScore >= 6 ? 'Keep it up!' : 'Every step counts'}`
+              : 'Track your mood, sleep, meals, and exercise to see how you\'re doing'
+            }
           </Text>
-          
-          {activeRewards.map((reward) => (
-            <TouchableOpacity 
-              key={reward.id} 
-              style={styles.smallRewardCard}
-              onPress={() => claimReward(reward.id)}
-            >
-              <View style={styles.rewardHeader}>
-                <View style={styles.rewardInfo}>
-                  <View style={styles.rewardCategoryContainer}>
-                    <Text style={styles.rewardCategory}>{getCategoryName(reward.category)}</Text>
-                  </View>
-                  <View style={styles.rewardText}>
-                    <Text style={styles.smallRewardTitle}>{reward.title}</Text>
-                    <Text style={styles.smallRewardDescription}>{reward.description}</Text>
-                  </View>
-                </View>
-                <View style={styles.rewardAmount}>
-                  <Text style={styles.smallAmountText}>${reward.amount}</Text>
-                  <View style={[styles.typeBadge, { backgroundColor: getTypeColor(reward.type) }]}>
-                    <Text style={styles.typeText}>{reward.type}</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.rewardProgress}>
-                <Text style={styles.progressText}>
-                  Progress: {reward.progress}/{reward.maxProgress}
+          <TouchableOpacity 
+            style={styles.statusAction}
+            onPress={() => navigation.navigate('WellnessLog')}
+          >
+            <Text style={styles.statusActionText}>
+              {todayEntry ? 'Update today\'s wellness' : 'Log your wellness'} →
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Support Messages - Priority #1 */}
+        {supportMessages.length > 0 && (
+          <View style={styles.messagesSection}>
+            <View style={styles.messagesHeader}>
+              <Text style={styles.sectionTitle}>Messages from Family</Text>
+              {supportMessages.filter(m => !m.read).length > 0 && (
+                <Text style={styles.newMessagesBadge}>
+                  {supportMessages.filter(m => !m.read).length} new
                 </Text>
-                <View style={styles.progressBar}>
-                  <View 
-                    style={[
-                      styles.progressFill, 
-                      { width: `${(reward.progress / reward.maxProgress) * 100}%` }
-                    ]} 
-                  />
+              )}
+            </View>
+            
+            {supportMessages.slice(0, 3).map((message) => (
+              <TouchableOpacity 
+                key={message.id} 
+                style={[styles.messageCard, !message.read && styles.unreadMessage]}
+                onPress={() => markMessageRead(message.id)}
+              >
+                <View style={styles.messageTypeContainer}>
+                  <Text style={styles.messageType}>{getMessageType(message.type)}</Text>
                 </View>
+                <View style={styles.messageContent}>
+                  <Text style={styles.messageText}>{message.content}</Text>
+                  <Text style={styles.messageTime}>{formatTimeAgo(message.timestamp)}</Text>
+                </View>
+                {!message.read && <View style={styles.unreadDot} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Key Metrics */}
+        <View style={styles.metricsSection}>
+          <View style={styles.metricItem}>
+            <View style={styles.metricHeader}>
+              <Text style={styles.metricLabel}>Wellness Streak</Text>
+              <Text style={styles.metricValue}>
+                {stats.totalEntries === 0 ? '--' : stats.currentStreak}
+              </Text>
+            </View>
+            <Text style={[styles.metricTag, { color: theme.colors.success }]}>
+              {stats.totalEntries === 0 ? 'Start logging to build a streak!' : 'days in a row'}
+            </Text>
+          </View>
+          
+          <View style={styles.metricItem}>
+            <View style={styles.metricHeader}>
+              <Text style={styles.metricLabel}>Family Connection</Text>
+              <Text style={styles.metricValue}>
+                {supportMessages.length + Math.floor(totalEarned/5)}
+              </Text>
+            </View>
+            <Text style={[styles.metricTag, { color: theme.colors.primary }]}>
+              moments of love received
+            </Text>
+          </View>
+
+          {/* Progress Display */}
+          <View style={styles.budgetItem}>
+            <View style={styles.budgetHeader}>
+              <Text style={styles.metricLabel}>Progress Level</Text>
+              <Text style={styles.budgetRemaining}>{getLevelTitle(level)} {level}</Text>
+            </View>
+            <View style={styles.budgetBarContainer}>
+              <View style={styles.budgetBar}>
+                <View 
+                  style={[styles.budgetFill, { 
+                    width: `${Math.max(5, ((experience % 200) / 200) * 100)}%` 
+                  }]} 
+                />
+              </View>
+              <Text style={styles.budgetText}>
+                {experience % 200} / 200 XP to next level
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          
+          {/* Primary Action */}
+          <TouchableOpacity 
+            style={styles.primaryAction}
+            onPress={() => navigation.navigate('WellnessLog')}
+          >
+            <View style={styles.primaryActionContent}>
+              <View style={styles.primaryActionIcon}>
+                <View style={styles.primaryActionIndicator} />
+              </View>
+              <View style={styles.primaryActionText}>
+                <Text style={styles.primaryActionTitle}>
+                  {todayEntry ? 'Update Wellness Log' : 'Log Today\'s Wellness'}
+                </Text>
+                <Text style={styles.primaryActionSubtitle}>
+                  Track your mood, sleep, meals, and exercise
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+          
+          {/* Secondary Actions */}
+          <View style={styles.secondaryActions}>
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => requestSupport()}
+            >
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Request Support</Text>
+                <Text style={styles.actionSubtitle}>
+                  {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+                    ? 'Family notified' 
+                    : 'Let your family know you need help'}
+                </Text>
+              </View>
+              <View style={styles.actionBadge}>
+                <Text style={styles.actionBadgeText}>Send</Text>
               </View>
             </TouchableOpacity>
-          ))}
+            
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => navigation.navigate('ItemRequest')}
+            >
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Request Item</Text>
+                <Text style={styles.actionSubtitle}>Ask for something you need</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => navigation.navigate('WellnessHistory')}
+            >
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Wellness History</Text>
+                <Text style={styles.actionSubtitle}>View your past entries</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
 
+        {/* Recent Activity */}
+        <View style={styles.recentSection}>
+          <Text style={styles.sectionTitle}>Your Activity</Text>
+          
+          {todayEntry && (
+            <TouchableOpacity 
+              style={styles.activityItem}
+              onPress={() => navigation.navigate('WellnessLog')}
+            >
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Today's Wellness</Text>
+                <Text style={styles.activitySubtitle}>
+                  Score: {Math.round(todayEntry.wellnessScore * 10) / 10}/10
+                </Text>
+              </View>
+              <Text style={[styles.activityScore, {
+                color: todayEntry.wellnessScore > 7 ? theme.colors.success : 
+                       todayEntry.wellnessScore < 5 ? theme.colors.warning : theme.colors.primary
+              }]}>
+                {Math.round(todayEntry.wellnessScore * 10) / 10}/10
+              </Text>
+            </TouchableOpacity>
+          )}
+          
+          {stats.totalEntries > 0 && (
+            <TouchableOpacity 
+              style={styles.activityItem}
+              onPress={() => navigation.navigate('WellnessHistory')}
+            >
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Wellness Summary</Text>
+                <Text style={styles.activitySubtitle}>
+                  {stats.totalEntries} entries • {stats.averageScore.toFixed(1)} avg score
+                </Text>
+              </View>
+              <Text style={styles.activityAction}>View All</Text>
+            </TouchableOpacity>
+          )}
 
-      {/* Received Payments Summary */}
-      <ReceivedPaymentsSummary />
+          {/* Care Boosts - Simplified */}
+          {activeRewards.length > 0 && (
+            <TouchableOpacity 
+              style={styles.activityItem}
+              onPress={() => claimReward(activeRewards[0].id)}
+            >
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Care Boost Available</Text>
+                <Text style={styles.activitySubtitle}>
+                  ${activeRewards[0].amount} • {getCategoryName(activeRewards[0].category)}
+                </Text>
+              </View>
+              <Text style={styles.activityAction}>Claim</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Show helpful message if no activity */}
+          {!todayEntry && stats.totalEntries === 0 && activeRewards.length === 0 && (
+            <View style={styles.activityItem}>
+              <View style={styles.activityContent}>
+                <Text style={styles.activityTitle}>Get started!</Text>
+                <Text style={styles.activitySubtitle}>Log your wellness to begin tracking progress</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Received Payments Summary */}
+        <ReceivedPaymentsSummary />
       </ScrollView>
     </View>
   );
@@ -471,85 +501,111 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingHorizontal: 24,
   },
+  greeting: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
   title: {
     fontSize: 28,
     fontWeight: '800',
     color: theme.colors.textPrimary,
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    lineHeight: 22,
+  pullHint: {
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+    marginTop: 4,
   },
-  connectionCard: {
-    backgroundColor: theme.colors.backgroundCard,
-    margin: 24,
-    padding: 24,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+  
+  // Status Section - No Card
+  statusSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    marginBottom: 16,
   },
-  connectionTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: theme.colors.textPrimary,
-    marginBottom: 20,
-  },
-  connectionStats: {
+  statusHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  stat: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: theme.colors.textPrimary,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginTop: 6,
-    fontWeight: '500',
-  },
-  statHint: {
-    fontSize: 10,
-    color: theme.colors.primary,
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
+  statusTitle: {
+    fontSize: 20,
     fontWeight: '700',
     color: theme.colors.textPrimary,
-    marginBottom: 16,
+    flex: 1,
+    marginRight: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.backgroundSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statusSubtitle: {
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  statusAction: {
+    alignSelf: 'flex-start',
+  },
+  statusActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+
+  // Urgent Section for Messages
+  urgentSection: {
+    paddingHorizontal: 24,
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 12,
+  },
+  newMessagesBadge: {
+    fontSize: 12,
+    color: theme.colors.backgroundSecondary,
+    fontWeight: '600',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  
+  // Messages Section
+  messagesSection: {
+    paddingHorizontal: 24,
+    marginBottom: 20,
+  },
+  messagesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   messageCard: {
     backgroundColor: theme.colors.backgroundSecondary,
-    padding: 18,
+    padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  unreadMessage: {
-    borderLeftWidth: 4,
-    borderLeftColor: 'theme.colors.primary',
   },
   messageTypeContainer: {
     backgroundColor: theme.colors.primary,
@@ -563,7 +619,7 @@ const styles = StyleSheet.create({
   messageType: {
     fontSize: 10,
     fontWeight: '600',
-    color: 'white',
+    color: theme.colors.backgroundSecondary,
     textTransform: 'uppercase',
   },
   messageContent: {
@@ -579,263 +635,85 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textSecondary,
   },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.primary,
+  
+  // Metrics Section - Mixed Layout
+  metricsSection: {
+    paddingHorizontal: 24,
+    gap: 12,
+    marginBottom: 20,
   },
-  levelCard: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    margin: 20,
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+  metricItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  levelHeader: {
+  metricHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  levelTitle: {
-    fontSize: 20,
+  metricLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+  },
+  metricValue: {
+    fontSize: 18,
     fontWeight: '700',
     color: theme.colors.textPrimary,
   },
-  levelNumber: {
-    fontSize: 16,
+  metricTag: {
+    fontSize: 12,
     fontWeight: '600',
-    color: theme.colors.textSecondary,
-  },
-  experienceBar: {
-    height: 8,
-    backgroundColor: theme.colors.backgroundTertiary,
-    borderRadius: 4,
-    marginBottom: 8,
-  },
-  experienceFill: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
-    borderRadius: 4,
-  },
-  experienceText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  totalEarned: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.success,
-    textAlign: 'center',
-    marginTop: 8,
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  scoreCard: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    margin: 20,
-    padding: 24,
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+  
+  // Budget Item - Inline Style (for XP bar)
+  budgetItem: {
+    paddingVertical: 12,
   },
-  scoreTitle: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginBottom: 12,
-    fontWeight: '500',
-  },
-  scoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
-  },
-  scoreValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: theme.colors.success,
-  },
-  scoreMax: {
-    fontSize: 20,
-    color: theme.colors.textSecondary,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  scoreMessage: {
-    fontSize: 16,
-    color: theme.colors.primary,
-    marginTop: 12,
-    fontWeight: '600',
-  },
-  card: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
-  },
-  cardValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.textPrimary,
-    marginTop: 4,
-  },
-  cardStreak: {
-    fontSize: 12,
-    color: theme.colors.warning,
-    marginTop: 4,
-  },
-  rewardsHeader: {
+  budgetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  rewardsTotalContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  rewardsTotal: {
+  budgetRemaining: {
     fontSize: 16,
-    color: theme.colors.success,
     fontWeight: '700',
-  },
-  rewardsTotalLabel: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  rewardCard: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  rewardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  rewardInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  rewardCategoryContainer: {
-    backgroundColor: theme.colors.success,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginRight: 12,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  rewardCategory: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: 'white',
-    textTransform: 'uppercase',
-  },
-  rewardText: {
-    flex: 1,
-  },
-  rewardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'theme.colors.backgroundSecondary',
-  },
-  rewardDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginTop: 4,
-  },
-  rewardAmount: {
-    alignItems: 'flex-end',
-  },
-  amountText: {
-    fontSize: 18,
-    fontWeight: 'bold',
     color: theme.colors.success,
-    marginBottom: 4,
   },
-  typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+  budgetBarContainer: {
+    gap: 6,
   },
-  typeText: {
-    fontSize: 10,
-    color: 'white',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  rewardProgress: {
-    marginTop: 8,
-  },
-  progressText: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  progressBar: {
-    height: 4,
+  budgetBar: {
+    height: 6,
     backgroundColor: theme.colors.backgroundTertiary,
-    borderRadius: 2,
+    borderRadius: 3,
   },
-  progressFill: {
+  budgetFill: {
     height: '100%',
     backgroundColor: theme.colors.primary,
-    borderRadius: 2,
+    borderRadius: 3,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+  budgetText: {
+    fontSize: 12,
+    color: theme.colors.textTertiary,
   },
-  viewAllText: {
-    fontSize: 14,
-    color: theme.colors.primary,
-    fontWeight: '600',
+  
+  // Actions Section
+  actionsSection: {
+    paddingHorizontal: 24,
+    marginBottom: 20,
   },
-  wellnessActionCard: {
+  
+  // Primary Action - Prominent
+  primaryAction: {
     backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 16,
     padding: 20,
-    borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -845,151 +723,127 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  wellnessActionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 6,
-  },
-  wellnessActionSubtitle: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    fontWeight: '500',
-  },
-  statsRow: {
+  primaryActionContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statCard: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    padding: 16,
-    borderRadius: 8,
     alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
   },
-  newMessagesBadge: {
-    fontSize: 12,
-    color: theme.colors.primary,
-    fontWeight: '600',
+  primaryActionIcon: {
+    marginRight: 16,
+  },
+  primaryActionIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
   },
-  smallSectionTitle: {
-    fontSize: 16,
+  primaryActionText: {
+    flex: 1,
+  },
+  primaryActionTitle: {
+    fontSize: 17,
     fontWeight: '600',
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
+    color: theme.colors.textPrimary,
+    marginBottom: 2,
   },
-  rewardsSmallTotal: {
+  primaryActionSubtitle: {
     fontSize: 14,
     color: theme.colors.textSecondary,
-    fontWeight: '600',
   },
-  rewardsSubtext: {
+  
+  // Secondary Actions - List Style
+  secondaryActions: {
+    gap: 1,
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 1,
+  },
+  actionSubtitle: {
     fontSize: 13,
     color: theme.colors.textSecondary,
-    marginBottom: 12,
-    fontStyle: 'italic',
   },
-  smallRewardCard: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    padding: 16,
+  actionBadge: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  smallRewardTitle: {
-    fontSize: 14,
+  actionBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.backgroundSecondary,
+    textTransform: 'uppercase',
+  },
+  actionArrow: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
+  },
+  
+  // Recent Activity
+  recentSection: {
+    paddingHorizontal: 24,
+    marginTop: 24,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  activityScore: {
+    fontSize: 16,
+    fontWeight: '700',
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 15,
     fontWeight: '600',
     color: theme.colors.textPrimary,
+    marginBottom: 1,
   },
-  smallRewardDescription: {
-    fontSize: 12,
+  activitySubtitle: {
+    fontSize: 13,
     color: theme.colors.textSecondary,
-    marginTop: 2,
   },
-  smallAmountText: {
+  activityAction: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.colors.success,
-    marginBottom: 4,
+    color: theme.colors.primary,
   },
-  supportButtonsRow: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 16,
-    gap: 12,
+  activityTime: {
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    minWidth: 50,
+    textAlign: 'right',
   },
-  supportButton: {
+  unreadMessage: {
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: theme.colors.primary,
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  itemRequestButton: {
-    backgroundColor: theme.colors.success,
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  supportButtonSent: {
-    backgroundColor: theme.colors.success,
-  },
-  supportButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.colors.backgroundSecondary,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  supportButtonTextSent: {
-    color: theme.colors.backgroundSecondary,
-  },
-  supportButtonSubtext: {
-    fontSize: 11,
-    color: theme.colors.backgroundSecondary,
-    textAlign: 'center',
-    lineHeight: 14,
-  },
-  itemRequestButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.colors.backgroundSecondary,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  itemRequestButtonSubtext: {
-    fontSize: 11,
-    color: theme.colors.backgroundSecondary,
-    textAlign: 'center',
-    lineHeight: 14,
+    marginLeft: 8,
   },
 }); 

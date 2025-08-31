@@ -718,3 +718,117 @@ export const markMessageAsRead = async (messageId: string): Promise<{ success: b
     return { success: false, error: error.message };
   }
 };
+
+// Item Request functions
+export interface ItemRequest {
+  id: string;
+  student_id: string;
+  parent_id: string;
+  item_name: string;
+  item_price?: number;
+  item_description?: string;
+  reason?: string;
+  status: 'pending' | 'approved' | 'declined';
+  created_at: any;
+  response_at?: any;
+}
+
+export const getItemRequestsForParent = async (parentId: string, limitCount: number = 50): Promise<ItemRequest[]> => {
+  try {
+    const q = query(
+      collection(db, 'item_requests'),
+      where('parent_id', '==', parentId),
+      orderBy('created_at', 'desc'),
+      limit(limitCount)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as ItemRequest));
+  } catch (error: any) {
+    // If orderBy fails due to missing index, fallback to client-side sorting
+    if (error.code === 'failed-precondition') {
+      console.log('Firestore index missing for item requests, using fallback query');
+      try {
+        const fallbackQuery = query(
+          collection(db, 'item_requests'),
+          where('parent_id', '==', parentId)
+        );
+        const querySnapshot = await getDocs(fallbackQuery);
+        const requests: ItemRequest[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          requests.push({ id: doc.id, ...doc.data() } as ItemRequest);
+        });
+        
+        return requests
+          .sort((a, b) => b.created_at.seconds - a.created_at.seconds)
+          .slice(0, limitCount);
+      } catch (fallbackError: any) {
+        console.error('Item requests fallback query failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
+    
+    // Handle permissions or other errors gracefully
+    if (error.code === 'permission-denied' || error.code === 'not-found') {
+      console.log('No permission or item requests not found, returning empty array');
+      return [];
+    }
+    
+    console.error('Error getting item requests for parent:', error);
+    throw error;
+  }
+};
+
+export const getItemRequestsForStudent = async (studentId: string, limitCount: number = 50): Promise<ItemRequest[]> => {
+  try {
+    const q = query(
+      collection(db, 'item_requests'),
+      where('student_id', '==', studentId),
+      orderBy('created_at', 'desc'),
+      limit(limitCount)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as ItemRequest));
+  } catch (error: any) {
+    // If orderBy fails due to missing index, fallback to client-side sorting
+    if (error.code === 'failed-precondition') {
+      console.log('Firestore index missing for student item requests, using fallback query');
+      try {
+        const fallbackQuery = query(
+          collection(db, 'item_requests'),
+          where('student_id', '==', studentId)
+        );
+        const querySnapshot = await getDocs(fallbackQuery);
+        const requests: ItemRequest[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          requests.push({ id: doc.id, ...doc.data() } as ItemRequest);
+        });
+        
+        return requests
+          .sort((a, b) => b.created_at.seconds - a.created_at.seconds)
+          .slice(0, limitCount);
+      } catch (fallbackError: any) {
+        console.error('Student item requests fallback query failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
+    
+    // Handle permissions or other errors gracefully  
+    if (error.code === 'permission-denied' || error.code === 'not-found') {
+      console.log('No permission or student item requests not found, returning empty array');
+      return [];
+    }
+    
+    console.error('Error getting item requests for student:', error);
+    throw error;
+  }
+};

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { NavigationProp } from '@react-navigation/native';
@@ -30,7 +30,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
         {/* Hero Section */}
         <View style={styles.hero}>
           <View style={styles.logoContainer}>
-            <Text style={styles.logo}>👨‍👩‍👧‍👦</Text>
+            <Image source={require('../../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
           </View>
           <Text style={styles.appName}>CampusLife</Text>
           <Text style={styles.tagline}>Stay close when you're far apart</Text>
@@ -46,7 +46,9 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
             onPress={() => navigation.navigate('ParentRegister')}
           >
             <View style={styles.cardIcon}>
-              <Text style={styles.cardEmoji}>👨‍👩‍👧‍👦</Text>
+              <View style={styles.parentIconBackground}>
+                <Text style={styles.cardIconText}>P</Text>
+              </View>
             </View>
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>I'm a Parent</Text>
@@ -65,7 +67,9 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
             onPress={() => navigation.navigate('StudentRegister')}
           >
             <View style={styles.cardIcon}>
-              <Text style={styles.cardEmoji}>🎓</Text>
+              <View style={styles.studentIconBackground}>
+                <Text style={styles.cardIconText}>S</Text>
+              </View>
             </View>
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>I'm a Student</Text>
@@ -85,7 +89,9 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
           
           <View style={styles.featuresList}>
             <View style={styles.feature}>
-              <Text style={styles.featureIcon}>🌟</Text>
+              <View style={styles.featureIcon}>
+                <Text style={styles.featureIconText}>W</Text>
+              </View>
               <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>Wellness Connection</Text>
                 <Text style={styles.featureText}>Track mood and wellness together</Text>
@@ -93,7 +99,9 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
             </View>
             
             <View style={styles.feature}>
-              <Text style={styles.featureIcon}>💙</Text>
+              <View style={styles.featureIcon}>
+                <Text style={styles.featureIconText}>S</Text>
+              </View>
               <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>Meaningful Support</Text>
                 <Text style={styles.featureText}>Send love and help when needed</Text>
@@ -101,7 +109,9 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
             </View>
             
             <View style={styles.feature}>
-              <Text style={styles.featureIcon}>✨</Text>
+              <View style={styles.featureIcon}>
+                <Text style={styles.featureIconText}>C</Text>
+              </View>
               <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>Stay Connected</Text>
                 <Text style={styles.featureText}>Bridge distance with care, not just money</Text>
@@ -156,7 +166,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   logo: {
-    fontSize: 36,
+    width: 48,
+    height: 48,
   },
   appName: {
     fontSize: 32,
@@ -190,8 +201,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -199,12 +208,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   parentCard: {
-    borderColor: theme.colors.primary,
-    backgroundColor: `${theme.colors.primary}08`,
+    backgroundColor: theme.colors.backgroundSecondary,
   },
   studentCard: {
-    borderColor: theme.colors.success,
-    backgroundColor: `${theme.colors.success}08`,
+    backgroundColor: theme.colors.backgroundSecondary,
   },
   cardIcon: {
     width: 56,
@@ -220,8 +227,26 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  cardEmoji: {
-    fontSize: 28,
+  parentIconBackground: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  studentIconBackground: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardIconText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   cardContent: {
     flex: 1,
@@ -265,8 +290,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   featureIcon: {
-    fontSize: 24,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 16,
+  },
+  featureIconText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   featureContent: {
     flex: 1,

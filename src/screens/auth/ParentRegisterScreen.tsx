@@ -7,7 +7,10 @@ import {
   TextInput, 
   Alert,
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -77,7 +80,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
       await Clipboard.setStringAsync(result.inviteCode!);
       
       Alert.alert(
-        'Family Created! 🎉',
+        'Family Created!',
         `Welcome to CampusLife! Your family invite code is:\n\n${result.inviteCode}\n\nThis code has been copied to your clipboard. Share it with your college student so they can join your family account.`,
         [
           { 
@@ -96,11 +99,15 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
 
   return (
     <View style={styles.container}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+          showsVerticalScrollIndicator={false}
+        >
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity 
@@ -111,7 +118,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           </TouchableOpacity>
           
           <View style={styles.logoContainer}>
-            <Text style={styles.logo}>👨‍👩‍👧‍👦</Text>
+            <Image source={require('../../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
           </View>
           <Text style={styles.title}>Create Family Account</Text>
           <Text style={styles.subtitle}>Set up your CampusLife family connection</Text>
@@ -222,6 +229,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -230,6 +238,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -271,7 +282,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   logo: {
-    fontSize: 28,
+    width: 40,
+    height: 40,
   },
   title: {
     fontSize: 28,

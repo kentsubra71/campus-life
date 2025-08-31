@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Linking
+  Linking,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { createPaymentIntent, getCurrentSpendingCaps, SUBSCRIPTION_TIERS, getPaymentProviders } from '../../lib/payments';
@@ -276,7 +278,11 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollContainer}>
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView style={styles.scrollContainer}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -445,6 +451,7 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -453,6 +460,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollContainer: {
     flex: 1,

@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { showMessage } from 'react-native-flash-message';
@@ -61,7 +63,11 @@ const ItemRequestScreen: React.FC<ItemRequestScreenProps> = ({ navigation }) => 
   return (
     <View style={styles.container}>
       <StatusHeader title="Request Item" />
-      <ScrollView
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
         style={[styles.scrollContainer, { paddingTop: 50 }]}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
@@ -162,6 +168,7 @@ const ItemRequestScreen: React.FC<ItemRequestScreenProps> = ({ navigation }) => 
           </Text>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -170,6 +177,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollContainer: {
     flex: 1,

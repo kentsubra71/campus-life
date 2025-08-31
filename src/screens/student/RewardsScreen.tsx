@@ -12,6 +12,8 @@ import { useRewardsStore } from '../../stores/rewardsStore';
 import { showMessage } from 'react-native-flash-message';
 import { theme } from '../../styles/theme';
 import { MoneyCompactSummary } from '../../components/MoneyCompactSummary';
+import { MessagesSummary } from '../../components/MessagesSummary';
+import { ItemsSummary } from '../../components/ItemsSummary';
 
 interface RewardsScreenProps {
   navigation: any;
@@ -66,12 +68,24 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
   };
 
+  const handleMarkMessageRead = async (messageId: string) => {
+    try {
+      await markMessageRead(messageId);
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+      showMessage({
+        message: 'Failed to mark message as read',
+        type: 'warning',
+      });
+    }
+  };
+
   const renderSupportMessage = (message: any) => {
     return (
       <TouchableOpacity
         key={message.id}
         style={[styles.activityItem, !message.read && styles.unreadMessage]}
-        onPress={() => !message.read && markMessageRead(message.id)}
+        onPress={() => !message.read && handleMarkMessageRead(message.id)}
       >
         <View style={styles.activityContent}>
           <Text style={styles.activityTitle}>{message.content}</Text>
@@ -100,8 +114,26 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
         {/* Modern Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>Hi there!</Text>
-          <Text style={styles.title}>Your Progress</Text>
-          <Text style={styles.subtitle}>Money, level, and family support</Text>
+          <Text style={styles.title}>Your Activity</Text>
+          <Text style={styles.subtitle}>Money, messages, and family support</Text>
+        </View>
+
+        {/* Quick Stats */}
+        <View style={styles.quickStats}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>${(monthlyEarned / 100).toFixed(0)}</Text>
+            <Text style={styles.statLabel}>This Month</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>Level {level}</Text>
+            <Text style={styles.statLabel}>Current Level</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{unreadCount}</Text>
+            <Text style={styles.statLabel}>New Messages</Text>
+          </View>
         </View>
 
         {/* Current Status - No Card */}
@@ -162,6 +194,12 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
         {/* Money Received Section */}
         <MoneyCompactSummary onViewAll={() => navigation.navigate('PaymentHistory')} />
 
+        {/* Messages Summary */}
+        <MessagesSummary onViewAll={() => {}} userType="student" />
+
+        {/* Items Summary */}
+        <ItemsSummary onViewAll={() => {}} userType="student" />
+
         {/* Family Support Messages */}
         <View style={styles.messagesSection}>
           <View style={styles.messagesSectionHeader}>
@@ -181,6 +219,15 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
           ) : (
             supportMessages.map(renderSupportMessage)
           )}
+        </View>
+
+        {/* All Activity Section */}
+        <View style={styles.allActivitySection}>
+          <Text style={styles.sectionTitle}>All Activity</Text>
+          <Text style={styles.comingSoonText}>Coming Soon</Text>
+          <Text style={styles.comingSoonSubtext}>
+            Your complete payment and message history will be available here
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -216,6 +263,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.textSecondary,
     lineHeight: 22,
+  },
+  quickStats: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundCard,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: theme.colors.border,
+    marginHorizontal: 16,
   },
   statusSection: {
     paddingVertical: 16,
@@ -369,5 +448,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
     textAlign: 'center',
+  },
+  allActivitySection: {
+    marginBottom: 30,
+  },
+  comingSoonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  comingSoonSubtext: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 }); 

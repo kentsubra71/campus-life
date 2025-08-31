@@ -8,11 +8,14 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { showMessage } from 'react-native-flash-message';
 import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
+import { getTodayDateString, formatDateForDisplay } from '../../utils/dateUtils';
 
 interface WellnessLogScreenProps {
   navigation: any;
@@ -33,7 +36,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateString();
     const existingEntry = getEntryByDate(today);
     
     if (existingEntry) {
@@ -52,7 +55,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   }, []);
 
   const handleSave = async () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateString();
     
     try {
       if (isEditing && todayEntry) {
@@ -93,6 +96,16 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     }
   };
 
+  const getMetricIcon = (label: string) => {
+    if (label.includes('Sleep')) return 'S';
+    if (label.includes('Exercise')) return 'E';
+    if (label.includes('Nutrition')) return 'N';
+    if (label.includes('Water')) return 'W';
+    if (label.includes('Social')) return 'So';
+    if (label.includes('Academic')) return 'A';
+    return 'M';
+  };
+
   const renderSlider = (
     label: string,
     value: number,
@@ -105,7 +118,10 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     return (
       <View style={styles.metricItem}>
         <View style={styles.metricHeader}>
-          <Text style={styles.metricLabel}>{label}</Text>
+          <View style={styles.metricLabelContainer}>
+            <Text style={styles.metricIcon}>{getMetricIcon(label)}</Text>
+            <Text style={styles.metricLabel}>{label}</Text>
+          </View>
           <Text style={styles.metricValue}>{value} {unit}</Text>
         </View>
         
@@ -120,6 +136,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             minimumTrackTintColor={theme.colors.primary}
             maximumTrackTintColor={theme.colors.backgroundTertiary}
             thumbTintColor={theme.colors.primary}
+            thumbStyle={styles.sliderThumb}
+            trackStyle={styles.sliderTrack}
           />
         </View>
         
@@ -129,6 +147,14 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         </View>
       </View>
     );
+  };
+
+  const getMoodColor = (moodValue: number) => {
+    if (moodValue <= 3) return '#ef4444'; // Red for low mood
+    if (moodValue <= 5) return '#f97316'; // Orange for okay mood  
+    if (moodValue <= 7) return '#eab308'; // Yellow for decent mood
+    if (moodValue <= 9) return '#22c55e'; // Green for good mood
+    return '#10b981'; // Emerald for amazing mood
   };
 
   const renderMoodSlider = () => {
@@ -141,14 +167,17 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
       if (moodValue <= 5) return 'Okay, could be better';
       if (moodValue <= 7) return 'Pretty good';
       if (moodValue <= 9) return 'Great day';
-      return 'Amazing day';
+      return 'Amazing day!';
     };
     
     return (
       <View style={styles.metricItem}>
         <View style={styles.metricHeader}>
-          <Text style={styles.metricLabel}>How are you feeling today?</Text>
-          <Text style={styles.metricValue}>{formData.mood}/10</Text>
+          <View style={styles.metricLabelContainer}>
+            <Text style={styles.metricIcon}>M</Text>
+            <Text style={styles.metricLabel}>How are you feeling today?</Text>
+          </View>
+          <Text style={[styles.metricValue, { color: getMoodColor(formData.mood) }]}>{formData.mood}/10</Text>
         </View>
         
         <View style={styles.sliderWrapper}>
@@ -159,9 +188,11 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={formData.mood}
             onValueChange={handleMoodChange}
             step={1}
-            minimumTrackTintColor={theme.colors.primary}
+            minimumTrackTintColor={getMoodColor(formData.mood)}
             maximumTrackTintColor={theme.colors.backgroundTertiary}
-            thumbTintColor={theme.colors.primary}
+            thumbTintColor={getMoodColor(formData.mood)}
+            thumbStyle={[styles.sliderThumb, styles.moodSliderThumb]}
+            trackStyle={styles.sliderTrack}
           />
         </View>
         
@@ -189,15 +220,15 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.dateSection}>
           <Text style={styles.greeting}>Today</Text>
           <Text style={styles.dateText}>
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
+            {formatDateForDisplay(getTodayDateString())}
           </Text>
           <Text style={styles.subtitle}>Track your daily wellness</Text>
         </View>
@@ -312,7 +343,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         </View>
 
         <View style={styles.bottomPadding} />
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -321,6 +353,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -386,8 +421,16 @@ const styles = StyleSheet.create({
   
   // Score Section 
   scoreSection: {
-    paddingVertical: 16,
-    marginBottom: 20,
+    backgroundColor: theme.colors.backgroundCard,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    marginBottom: 24,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   scoreHeader: {
     flexDirection: 'row',
@@ -404,13 +447,18 @@ const styles = StyleSheet.create({
   },
   scoreBadge: {
     backgroundColor: theme.colors.success,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: theme.colors.success,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   scoreValue: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: theme.colors.backgroundSecondary,
   },
   scoreSubtitle: {
@@ -431,15 +479,39 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   metricItem: {
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.backgroundCard,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   metricHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  metricLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  metricIcon: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.primary,
+    backgroundColor: theme.colors.backgroundSecondary,
+    width: 24,
+    height: 24,
+    textAlign: 'center',
+    lineHeight: 24,
+    borderRadius: 12,
+    marginRight: 8,
   },
   metricLabel: {
     fontSize: 15,
@@ -460,6 +532,29 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 40,
   },
+  sliderThumb: {
+    backgroundColor: theme.colors.primary,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  moodSliderThumb: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  sliderTrack: {
+    height: 6,
+    borderRadius: 3,
+  },
   sliderLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -471,10 +566,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   moodDescription: {
-    marginTop: 10,
-    fontSize: 14,
-    color: theme.colors.textSecondary,
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
     textAlign: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
   },
   
   // Notes Section

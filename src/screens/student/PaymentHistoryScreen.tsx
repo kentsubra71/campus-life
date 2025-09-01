@@ -373,17 +373,17 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
         {/* Quick Stats */}
         <View style={styles.quickStats}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activities.filter(a => 'intent_cents' in a).length}</Text>
+            <Text style={[styles.statValue, { color: '#10b981' }]}>{activities.filter(a => 'intent_cents' in a).length}</Text>
             <Text style={styles.statLabel}>Payments</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activities.filter(a => 'content' in a).length}</Text>
+            <Text style={[styles.statValue, { color: '#3b82f6' }]}>{activities.filter(a => 'content' in a).length}</Text>
             <Text style={styles.statLabel}>Messages</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activities.filter(a => 'intent_cents' in a && a.item_context).length}</Text>
+            <Text style={[styles.statValue, { color: '#f59e0b' }]}>{activities.filter(a => 'intent_cents' in a && a.item_context).length}</Text>
             <Text style={styles.statLabel}>Items</Text>
           </View>
         </View>

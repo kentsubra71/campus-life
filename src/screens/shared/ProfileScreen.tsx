@@ -756,9 +756,9 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
+    borderRadius: 8,
+    padding: 20,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
@@ -864,9 +864,9 @@ const styles = StyleSheet.create({
   },
   familyCard: {
     backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
+    borderRadius: 8,
+    padding: 20,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
@@ -946,7 +946,7 @@ const styles = StyleSheet.create({
   signOutButton: {
     backgroundColor: theme.colors.error,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 8,
     alignItems: 'center',
   },
   signOutButtonText: {
@@ -959,7 +959,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#dc2626',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 8,
     alignItems: 'center',
   },
   deleteAccountButtonText: {

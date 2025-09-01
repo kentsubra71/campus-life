@@ -260,16 +260,11 @@ const styles = StyleSheet.create({
   // Primary Action - Prominent
   primaryAction: {
     backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 8,
+    padding: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
   primaryActionContent: {
     flexDirection: 'row',

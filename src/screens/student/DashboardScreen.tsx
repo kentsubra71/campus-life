@@ -588,14 +588,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   messageCard: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   messageTypeContainer: {
     backgroundColor: theme.colors.primary,
@@ -702,16 +700,11 @@ const styles = StyleSheet.create({
   // Primary Action - Prominent
   primaryAction: {
     backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 8,
+    padding: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
   primaryActionContent: {
     flexDirection: 'row',

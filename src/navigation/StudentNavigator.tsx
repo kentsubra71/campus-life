@@ -26,11 +26,11 @@ const DashboardStack = () => {
   );
 };
 
-const RewardsStack = () => {
+const ActivityStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="RewardsMain" component={RewardsScreen} />
       <Stack.Screen name="PaymentHistory" component={PaymentHistoryScreen} />
+      <Stack.Screen name="RewardsMain" component={RewardsScreen} />
     </Stack.Navigator>
   );
 };
@@ -68,7 +68,7 @@ export const StudentNavigator = () => {
       />
       <Tab.Screen
         name="Activity"
-        component={RewardsStack}
+        component={ActivityStack}
         options={{
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="history" color={color} size={24} />

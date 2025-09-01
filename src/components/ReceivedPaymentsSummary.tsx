@@ -118,29 +118,16 @@ export const ReceivedPaymentsSummary: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Money Received</Text>
-      
-      <View style={styles.summaryGrid}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryAmount}>
-            ${(summary.thisWeek / 100).toFixed(2)}
-          </Text>
-          <Text style={styles.summaryLabel}>This Week</Text>
-        </View>
-        
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryAmount}>
+      <View style={styles.summaryItem}>
+        <View style={styles.summaryHeader}>
+          <Text style={styles.summaryTitle}>Money Received</Text>
+          <Text style={styles.summaryTotal}>
             ${(summary.thisMonth / 100).toFixed(2)}
           </Text>
-          <Text style={styles.summaryLabel}>This Month</Text>
         </View>
-      </View>
-      
-      <View style={styles.singleCard}>
-        <Text style={styles.summaryAmount}>
-          {summary.recentCount}
+        <Text style={styles.summarySubtitle}>
+          ${(summary.thisWeek / 100).toFixed(2)} this week • {summary.recentCount} payments total
         </Text>
-        <Text style={styles.summaryLabel}>Recent Payments</Text>
       </View>
     </View>
   );
@@ -148,16 +135,7 @@ export const ReceivedPaymentsSummary: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.backgroundCard,
-    borderRadius: 12,
-    margin: 16,
-    padding: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 16,
+    paddingHorizontal: 24,
   },
   loadingText: {
     color: theme.colors.textSecondary,
@@ -166,53 +144,44 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-    padding: 32,
+    paddingVertical: 20,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 18,
   },
-  summaryGrid: {
+  summaryItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  summaryHeader: {
     flexDirection: 'row',
-    marginBottom: 12,
-    gap: 12,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 8,
-    padding: 16,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  singleCard: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginTop: 12,
-  },
-  summaryAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#10b981',
     marginBottom: 4,
   },
-  summaryLabel: {
-    fontSize: 12,
+  summaryTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  summaryTotal: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  summarySubtitle: {
+    fontSize: 13,
     color: theme.colors.textSecondary,
-    textAlign: 'center',
-    fontWeight: '500',
+    lineHeight: 16,
   },
 });

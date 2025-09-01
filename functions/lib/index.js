@@ -114,28 +114,11 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
             idempotency_key: `paypal_${orderId}_${Date.now()}`
         };
         const paymentRef = await db.collection('payments').add(paymentData);
-        // Update the PayPal order with custom return URLs that include our payment ID
-        const updateData = {
-            op: 'replace',
-            path: '/application_context/return_url',
-            value: `https://campus-life-verification.vercel.app/api/paypal-success?paymentId=${paymentRef.id}`
-        };
-        try {
-            await axios_1.default.patch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderId}`, [updateData], {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            debugLog('createPayPalOrder', 'Updated return URL with payment ID', { paymentId: paymentRef.id });
-        }
-        catch (patchError) {
-            debugLog('createPayPalOrder', 'Failed to update return URL, using default', patchError);
-        }
         debugLog('createPayPalOrder', 'Payment record created', { paymentId: paymentRef.id });
         return {
             success: true,
             transactionId: paymentRef.id,
+            paymentId: paymentRef.id,
             orderId,
             approvalUrl
         };

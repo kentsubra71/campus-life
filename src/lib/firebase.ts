@@ -832,3 +832,109 @@ export const getItemRequestsForStudent = async (studentId: string, limitCount: n
     throw error;
   }
 };
+
+// Create a new item request
+export const createItemRequest = async (request: {
+  student_id: string;
+  parent_id: string;
+  item_name: string;
+  item_price?: number;
+  item_description?: string;
+  reason?: string;
+}): Promise<{ id: string; error?: string }> => {
+  try {
+    // Debug logging
+    console.log('Creating item request with data:', {
+      student_id: request.student_id,
+      parent_id: request.parent_id,
+      item_name: request.item_name
+    });
+    
+    const itemRequest: any = {
+      student_id: request.student_id,
+      parent_id: request.parent_id,
+      item_name: request.item_name,
+      reason: request.reason,
+      status: 'pending' as const,
+      created_at: Timestamp.now(),
+    };
+    
+    // Only add optional fields if they have values
+    if (request.item_price !== undefined) {
+      itemRequest.item_price = request.item_price;
+    }
+    if (request.item_description !== undefined && request.item_description.trim() !== '') {
+      itemRequest.item_description = request.item_description;
+    }
+    
+    const docRef = await addDoc(collection(db, 'item_requests'), itemRequest);
+    console.log('Item request created with ID:', docRef.id);
+    return { id: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating item request:', error);
+    return { id: '', error: error.message };
+  }
+};
+
+// Update item request status (approve/decline)
+export const updateItemRequestStatus = async (
+  requestId: string, 
+  status: 'approved' | 'declined',
+  responseNote?: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    await updateDoc(doc(db, 'item_requests', requestId), {
+      status,
+      response_at: Timestamp.now(),
+      response_note: responseNote,
+      updated_at: Timestamp.now()
+    });
+    
+    console.log(`Item request ${requestId} updated to ${status}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating item request:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Send item (create payment with item context)
+export const sendItemAsPayment = async (request: {
+  item_request_id: string;
+  parent_id: string;
+  student_id: string;
+  amount_cents: number;
+  provider: string;
+  item_name: string;
+  item_description?: string;
+  note?: string;
+}): Promise<{ id: string; error?: string }> => {
+  try {
+    const payment = {
+      parent_id: request.parent_id,
+      student_id: request.student_id,
+      intent_cents: request.amount_cents,
+      provider: request.provider,
+      status: 'initiated',
+      item_context: {
+        item_request_id: request.item_request_id,
+        item_name: request.item_name,
+        item_description: request.item_description,
+      },
+      note: request.note || `Item: ${request.item_name}`,
+      created_at: Timestamp.now(),
+      type: 'item_purchase'
+    };
+    
+    const docRef = await addDoc(collection(db, 'payments'), payment);
+    
+    // Update the item request to approved status
+    await updateItemRequestStatus(request.item_request_id, 'approved', 'Payment sent');
+    
+    console.log('Item payment created with ID:', docRef.id);
+    return { id: docRef.id };
+  } catch (error: any) {
+    console.error('Error sending item as payment:', error);
+    return { id: '', error: error.message };
+  }
+};

@@ -75,9 +75,17 @@ export const createPayPalOrder = functions
     }
 
     const studentData = studentDoc.data()!;
+    debugLog('createPayPalOrder', 'Student data retrieved', { 
+      hasPaypalEmail: !!studentData.paypal_email,
+      hasEmail: !!studentData.email,
+      paypalEmail: studentData.paypal_email || '[not set]',
+      email: studentData.email || '[not set]'
+    });
+    
     const recipientEmail = studentData.paypal_email || studentData.email;
 
     if (!recipientEmail) {
+      debugLog('createPayPalOrder', 'No email found for student', studentData);
       throw new functions.https.HttpsError('failed-precondition', 'Student PayPal email not found');
     }
 
@@ -613,6 +621,14 @@ export const sendEmail = functions
     if (!apiKey) {
       throw new functions.https.HttpsError('failed-precondition', 'Email service not configured');
     }
+    
+    // Clean the API key of any potential invisible characters
+    const cleanApiKey = apiKey.trim().replace(/[\r\n\t]/g, '');
+    debugLog('sendEmail', 'API key validation', { 
+      hasKey: !!cleanApiKey, 
+      keyLength: cleanApiKey.length,
+      keyStart: cleanApiKey.substring(0, 5)
+    });
 
     // Email templates
     const templates = {
@@ -714,7 +730,7 @@ export const sendEmail = functions
       html: template.html
     }, {
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${cleanApiKey}`,
         'Content-Type': 'application/json',
       },
     });

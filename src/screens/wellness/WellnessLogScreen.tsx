@@ -84,7 +84,12 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         });
       }
       
-      navigation.goBack();
+      // Use canGoBack() to check if we can go back, otherwise navigate to Dashboard
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Dashboard');
+      }
     } catch (error) {
       showMessage({
         message: 'Error',
@@ -211,7 +216,13 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('Dashboard');
+          }
+        }} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Daily Wellness</Text>

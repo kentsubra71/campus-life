@@ -449,10 +449,10 @@ export const joinFamily = async (inviteCode: string, studentId: string): Promise
     
     // Add student to family
     const updatedStudentIds = [...familyData.studentIds, studentId];
-    await setDoc(doc(db, 'families', familyDoc.id), {
+    await updateDoc(doc(db, 'families', familyDoc.id), {
       studentIds: updatedStudentIds,
       updated_at: Timestamp.now()
-    }, { merge: true });
+    });
     
     // Update the student's profile with the family ID
     await updateUserProfile(studentId, { family_id: familyDoc.id });

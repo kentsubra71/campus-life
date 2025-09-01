@@ -222,13 +222,18 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
         </View>
 
         {/* All Activity Section */}
-        <View style={styles.allActivitySection}>
-          <Text style={styles.sectionTitle}>All Activity</Text>
-          <Text style={styles.comingSoonText}>Coming Soon</Text>
-          <Text style={styles.comingSoonSubtext}>
-            Your complete payment and message history will be available here
+        <TouchableOpacity 
+          style={styles.allActivitySection}
+          onPress={() => navigation.navigate('PaymentHistory')}
+        >
+          <View style={styles.allActivityHeader}>
+            <Text style={styles.sectionTitle}>All Activity</Text>
+            <Text style={styles.viewAllText}>View All →</Text>
+          </View>
+          <Text style={styles.allActivitySubtext}>
+            Your complete payment and message history
           </Text>
-        </View>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -450,19 +455,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   allActivitySection: {
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
     marginBottom: 30,
   },
-  comingSoonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
+  allActivityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
-  comingSoonSubtext: {
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  allActivitySubtext: {
     fontSize: 14,
     color: theme.colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 18,
   },
 }); 

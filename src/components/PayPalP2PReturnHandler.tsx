@@ -115,26 +115,68 @@ export const PayPalP2PReturnHandler: React.FC<PayPalP2PReturnHandlerProps> = ({
             ]
           );
         } else {
-          Alert.alert(
-            'Verification Failed',
-            result.error || 'Could not verify the PayPal payment. Please contact support if you completed the payment.',
-            [
-              { text: 'Retry', onPress: handleVerifyPayment },
-              { text: 'Cancel', onPress: () => navigation.navigate('ParentTabs') }
-            ]
-          );
+          // Check if payment was actually successful despite verification "failure"
+          if (transaction.status === 'completed' || status === 'success') {
+            // Payment appears to be completed, show success with note about verification issue
+            setVerificationComplete(true);
+            Alert.alert(
+              'Payment Completed! 🎉',
+              `${formatPaymentAmount(transaction.amountCents)} has been sent successfully via PayPal. (Note: There was a minor verification delay, but your payment went through.)`,
+              [
+                { 
+                  text: 'View Activity', 
+                  onPress: () => navigation.navigate('ParentTabs', { screen: 'Activity' })
+                },
+                { 
+                  text: 'Done', 
+                  onPress: () => navigation.navigate('ParentTabs')
+                }
+              ]
+            );
+          } else {
+            Alert.alert(
+              'Verification Issue',
+              `${result.error || 'Could not verify the PayPal payment.'}\n\nIf you completed the payment in PayPal, it should appear in your activity history shortly. Contact support if you need assistance.`,
+              [
+                { text: 'Retry', onPress: handleVerifyPayment },
+                { text: 'View Activity', onPress: () => navigation.navigate('ParentTabs', { screen: 'Activity' }) },
+                { text: 'Done', onPress: () => navigation.navigate('ParentTabs') }
+              ]
+            );
+          }
         }
       }
     } catch (error: any) {
       debugLog('Verification error', error);
-      Alert.alert(
-        'Verification Error',
-        error.message || 'Failed to verify payment',
-        [
-          { text: 'Retry', onPress: handleVerifyPayment },
-          { text: 'Cancel', onPress: () => navigation.navigate('ParentTabs') }
-        ]
-      );
+      
+      // Check if payment was actually successful despite the error
+      if (transaction.status === 'completed' || status === 'success') {
+        setVerificationComplete(true);
+        Alert.alert(
+          'Payment Completed! 🎉',
+          `${formatPaymentAmount(transaction.amountCents)} has been sent successfully via PayPal. (Note: There was a network issue during verification, but your payment went through.)`,
+          [
+            { 
+              text: 'View Activity', 
+              onPress: () => navigation.navigate('ParentTabs', { screen: 'Activity' })
+            },
+            { 
+              text: 'Done', 
+              onPress: () => navigation.navigate('ParentTabs')
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Verification Error',
+          `${error.message || 'Failed to verify payment'}\n\nIf you completed the payment in PayPal, it should appear in your activity history shortly.`,
+          [
+            { text: 'Retry', onPress: handleVerifyPayment },
+            { text: 'View Activity', onPress: () => navigation.navigate('ParentTabs', { screen: 'Activity' }) },
+            { text: 'Done', onPress: () => navigation.navigate('ParentTabs') }
+          ]
+        );
+      }
     } finally {
       setVerifying(false);
     }

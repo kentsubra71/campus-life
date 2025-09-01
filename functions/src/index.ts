@@ -596,14 +596,18 @@ function checkNotificationTypeEnabled(type: string, preferences: any): boolean {
 export const sendEmail = functions
   .runWith({ secrets: [RESEND_API_KEY] })
   .https.onCall(async (data, context) => {
-  debugLog('sendEmail', 'Function called', { userId: context.auth?.uid, data: { ...data, verificationUrl: '[REDACTED]' } });
+  debugLog('sendEmail', 'Function called', { 
+    userId: context.auth?.uid, 
+    hasAuth: !!context.auth,
+    data: { ...data, verificationUrl: '[REDACTED]' } 
+  });
   
-  // Verify authentication
-  if (!context.auth) {
+  const { to, type, emailData } = data;
+
+  // Allow unauthenticated calls for password reset emails only
+  if (!context.auth && type !== 'password_reset') {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
   }
-
-  const { to, type, emailData } = data;
 
   // Validate input
   if (!to || !type || !emailData) {
@@ -611,7 +615,7 @@ export const sendEmail = functions
   }
 
   // Validate email type
-  if (!['email_verification', 'password_reset'].includes(type)) {
+  if (!['email_verification', 'password_reset', 'invitation', 'welcome'].includes(type)) {
     throw new functions.https.HttpsError('invalid-argument', 'Invalid email type');
   }
 
@@ -715,6 +719,121 @@ export const sendEmail = functions
             </body>
           </html>
         `
+      },
+      invitation: {
+        subject: `${emailData.parentName} invited you to join ${emailData.familyName} on Campus Life`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Family Invitation - Campus Life</title>
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: #ffffff; border-radius: 12px; padding: 40px; border: 1px solid #e2e8f0;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                  <div style="width: 64px; height: 64px; background: #60a5fa; border-radius: 12px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 24px;">CL</div>
+                  <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Campus Life</h1>
+                  <p style="color: #64748b; margin: 10px 0 0 0; font-size: 16px;">Connecting families through wellness</p>
+                </div>
+                
+                <h2 style="color: #1e293b; font-size: 20px; font-weight: 700; margin-bottom: 16px;">Hi ${emailData.recipientName},</h2>
+                
+                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                  <strong>${emailData.parentName}</strong> has invited you to join the <strong>${emailData.familyName}</strong> family on Campus Life!
+                </p>
+                
+                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                  Campus Life helps families stay connected during the college years through:
+                </p>
+                
+                <ul style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                  <li>🌟 Wellness tracking and support</li>
+                  <li>💬 Easy communication</li>
+                  <li>❤️ Family encouragement tools</li>
+                </ul>
+                
+                <div style="background: #f1f5f9; padding: 24px; border-radius: 8px; margin: 24px 0; text-align: center;">
+                  <p style="color: #475569; margin: 0 0 16px 0; font-size: 16px;">Your invite code:</p>
+                  <div style="background: #white; border: 2px solid #3b82f6; padding: 16px; border-radius: 8px; font-family: 'Monaco', 'Menlo', monospace; font-size: 24px; font-weight: 700; color: #1e293b; letter-spacing: 2px;">${emailData.inviteCode}</div>
+                </div>
+                
+                <p style="color: #475569; font-size: 16px; margin-bottom: 32px;">
+                  To join, download the Campus Life app and use the invite code above when creating your student account.
+                </p>
+                
+                <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
+                  <p>Campus Life<br>
+                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                </div>
+              </div>
+            </body>
+          </html>
+        `
+      },
+      welcome: {
+        subject: `Welcome to Campus Life, ${emailData.recipientName}!`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Welcome to Campus Life</title>
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: #ffffff; border-radius: 12px; padding: 40px; border: 1px solid #e2e8f0;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                  <div style="width: 64px; height: 64px; background: #60a5fa; border-radius: 12px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 24px;">CL</div>
+                  <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Campus Life</h1>
+                  <p style="color: #64748b; margin: 10px 0 0 0; font-size: 16px;">Connecting families through wellness</p>
+                </div>
+                
+                <h2 style="color: #1e293b; font-size: 20px; font-weight: 700; margin-bottom: 16px;">Welcome, ${emailData.recipientName}!</h2>
+                
+                ${emailData.role === 'parent' ? `
+                  <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                    You've successfully created the <strong>${emailData.familyName}</strong> family account on Campus Life.
+                  </p>
+                  
+                  <div style="background: #f1f5f9; padding: 24px; border-radius: 8px; margin: 24px 0; text-align: center;">
+                    <p style="color: #475569; margin: 0 0 16px 0; font-size: 16px;">Your family invite code:</p>
+                    <div style="background: #white; border: 2px solid #3b82f6; padding: 16px; border-radius: 8px; font-family: 'Monaco', 'Menlo', monospace; font-size: 24px; font-weight: 700; color: #1e293b; letter-spacing: 2px;">${emailData.inviteCode}</div>
+                  </div>
+                  
+                  <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                    Share this code with your college student so they can join your family account and start their wellness journey with you.
+                  </p>
+                ` : `
+                  <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                    You've successfully joined the <strong>${emailData.familyName}</strong> family on Campus Life!
+                  </p>
+                `}
+                
+                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                  Campus Life helps ${emailData.role === 'parent' ? 'families stay connected during the college years' : 'you stay connected with your family during college'} through:
+                </p>
+                
+                <ul style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                  <li>🌟 Wellness tracking tools</li>
+                  <li>💬 Easy family communication</li>
+                  <li>❤️ Support and encouragement features</li>
+                  ${emailData.role === 'student' ? '<li>📊 Progress sharing with family</li>' : '<li>📊 Wellness insights and reports</li>'}
+                </ul>
+                
+                <p style="color: #475569; font-size: 16px; margin-bottom: 32px;">
+                  ${emailData.role === 'parent' ? 'Start by inviting your student to join your family account!' : 'Start by exploring the app and logging your first wellness entry!'}
+                </p>
+                
+                <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
+                  <p>Campus Life<br>
+                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                </div>
+              </div>
+            </body>
+          </html>
+        `
       }
     };
 
@@ -753,5 +872,208 @@ export const sendEmail = functions
     
     const errorMessage = error.response?.data?.message || error.message || 'Failed to send email';
     throw new functions.https.HttpsError('internal', `Email service error: ${errorMessage}`);
+  }
+});
+
+// Reset Password using Firebase Admin SDK
+export const resetPassword = functions.https.onCall(async (data, context) => {
+  debugLog('resetPassword', 'Function called', { userId: context.auth?.uid, data: { token: '[REDACTED]' } });
+  
+  // Verify authentication
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const { token, newPassword } = data;
+
+  // Validate input
+  if (!token || !newPassword) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing token or password');
+  }
+
+  // Validate password strength
+  if (newPassword.length < 8) {
+    throw new functions.https.HttpsError('invalid-argument', 'Password must be at least 8 characters long');
+  }
+
+  try {
+    // Get the verification token from Firestore
+    const tokenDoc = await db.collection('verification_tokens').doc(token).get();
+    
+    if (!tokenDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Invalid reset token');
+    }
+
+    const tokenData = tokenDoc.data()!;
+    
+    // Check if token is valid and not expired
+    if (tokenData.used || tokenData.type !== 'password_reset') {
+      throw new functions.https.HttpsError('invalid-argument', 'Invalid or used reset token');
+    }
+
+    if (tokenData.expires_at.toDate() < new Date()) {
+      throw new functions.https.HttpsError('invalid-argument', 'Reset token has expired');
+    }
+
+    debugLog('resetPassword', 'Token verified, updating password', { userId: tokenData.user_id });
+
+    // Update user password using Firebase Admin Auth
+    await admin.auth().updateUser(tokenData.user_id, {
+      password: newPassword
+    });
+
+    // Mark token as used
+    await db.collection('verification_tokens').doc(token).update({
+      used: true,
+      used_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Clear any pending password reset flags from user document
+    await db.collection('users').doc(tokenData.user_id).update({
+      password_reset_pending: false,
+      password_reset_token: null,
+      password_reset_requested_at: null,
+      updated_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    debugLog('resetPassword', 'Password reset completed successfully', { userId: tokenData.user_id });
+
+    return {
+      success: true,
+      message: 'Password reset successfully'
+    };
+  } catch (error: any) {
+    debugLog('resetPassword', 'Error resetting password', error);
+    
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    
+    throw new functions.https.HttpsError('internal', `Failed to reset password: ${error.message}`);
+  }
+});
+
+// Send Password Reset Email via HTTP (unauthenticated endpoint)
+export const sendPasswordResetEmailHttp = functions
+  .runWith({ secrets: [RESEND_API_KEY] })
+  .https.onRequest(async (req, res) => {
+  // Set CORS headers
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+    return;
+  }
+
+  const { to, emailData } = req.body;
+  
+  debugLog('sendPasswordResetEmail', 'HTTP request received', { 
+    to: to || 'missing',
+    hasEmailData: !!emailData
+  });
+
+  // Validate input
+  if (!to || !emailData) {
+    res.status(400).json({ success: false, error: 'Missing required email data' });
+    return;
+  }
+
+  try {
+    const apiKey = RESEND_API_KEY.value();
+    
+    if (!apiKey) {
+      throw new functions.https.HttpsError('failed-precondition', 'Email service not configured');
+    }
+    
+    // Clean the API key of any potential invisible characters
+    const cleanApiKey = apiKey.trim().replace(/[\r\n\t]/g, '');
+    debugLog('sendPasswordResetEmail', 'API key validation', { 
+      hasKey: !!cleanApiKey, 
+      keyLength: cleanApiKey.length,
+      keyStart: cleanApiKey.substring(0, 5)
+    });
+
+    // Password reset email template
+    const template = {
+      subject: 'Reset your Campus Life password',
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Reset Password - Campus Life</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: #ffffff; border-radius: 12px; padding: 40px; border: 1px solid #e2e8f0;">
+              <div style="text-align: center; margin-bottom: 30px;">
+                <div style="width: 64px; height: 64px; background: #60a5fa; border-radius: 12px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 24px;">CL</div>
+                <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Campus Life</h1>
+                <p style="color: #64748b; margin: 10px 0 0 0; font-size: 16px;">Connecting families through wellness</p>
+              </div>
+              
+              <h2 style="color: #1e293b; font-size: 20px; font-weight: 700; margin-bottom: 16px;">Hi ${emailData.name},</h2>
+              
+              <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                We received a request to reset your Campus Life password. Click the button below to create a new password.
+              </p>
+              
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${emailData.verificationUrl}" style="background: #dc2626; color: white; padding: 16px 24px; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px; display: inline-block;">Reset Password</a>
+              </div>
+              
+              <p style="color: #64748b; font-size: 14px; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+                If you didn't request this password reset, you can safely ignore this email.<br>
+                This reset link will expire in 24 hours for security.
+              </p>
+              
+              <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
+                <p>Campus Life<br>
+                <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `
+    };
+    
+    debugLog('sendPasswordResetEmail', 'Sending email via Resend', { to, subject: template.subject });
+
+    // Send email using Resend API
+    const response = await axios.post('https://api.resend.com/emails', {
+      from: 'Campus Life <noreply@ronaldli.ca>',
+      to: [to],
+      subject: template.subject,
+      html: template.html
+    }, {
+      headers: {
+        'Authorization': `Bearer ${cleanApiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    debugLog('sendPasswordResetEmail', 'Email sent successfully', { messageId: response.data.id });
+
+    res.status(200).json({
+      success: true,
+      messageId: response.data.id,
+      to
+    });
+  } catch (error: any) {
+    debugLog('sendPasswordResetEmail', 'Error sending email', error.response?.data || error.message);
+    
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to send email';
+    res.status(500).json({
+      success: false,
+      error: `Email service error: ${errorMessage}`
+    });
   }
 });

@@ -157,7 +157,7 @@ export const ForgotPasswordScreen: React.FC<AuthScreenProps<'ForgotPassword'>> =
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'theme.colors.background',
+    backgroundColor: theme.colors.background,
   },
   keyboardContainer: {
     flex: 1,
@@ -174,13 +174,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     textAlign: 'center',
     marginBottom: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 20,
@@ -189,23 +189,23 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   input: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderRadius: 12,
     fontSize: 16,
-    color: 'theme.colors.textPrimary',
+    color: theme.colors.textPrimary,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
     marginBottom: 24,
   },
   resetButton: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: 'theme.colors.primary',
+    shadowColor: theme.colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -226,17 +226,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   backButtonText: {
-    color: 'theme.colors.textSecondary',
+    color: theme.colors.textSecondary,
     fontSize: 16,
     fontWeight: '500',
   },
   instructionsContainer: {
-    backgroundColor: 'theme.colors.backgroundSecondary',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 12,
     padding: 24,
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: 'theme.colors.border',
+    borderColor: theme.colors.border,
   },
   instructionText: {
     color: '#d1d5db',
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   resendText: {
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontSize: 14,
     fontWeight: '500',
   },

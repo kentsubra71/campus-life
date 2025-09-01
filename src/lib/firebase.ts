@@ -90,7 +90,7 @@ export interface Family {
 }
 
 // Auth functions
-export const signUpUser = async (email: string, password: string, fullName: string, userType: 'student' | 'parent') => {
+export const signUpUser = async (email: string, password: string, fullName: string, userType: 'student' | 'parent', sendVerificationEmail: boolean = true) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -130,25 +130,56 @@ export const signUpUser = async (email: string, password: string, fullName: stri
       });
     }
 
-    // Use custom email verification system (future-proof)
+    // Only send verification email if requested (allows deferring until all steps succeed)
+    let emailSent = false;
+    let verificationToken = '';
+    
+    if (sendVerificationEmail) {
+      // Use custom email verification system (future-proof)
+      const { createVerificationToken, sendVerificationEmail: sendEmail } = await import('./emailVerification');
+      
+      const tokenResult = await createVerificationToken(user.uid, email, 'email_verification');
+      if (tokenResult.error) {
+        console.error('Failed to create verification token:', tokenResult.error);
+        return { user, error: null, emailSent: false };
+      }
+      
+      const emailResult = await sendEmail(email, fullName, tokenResult.token, 'email_verification');
+      emailSent = emailResult.success;
+      verificationToken = tokenResult.token;
+    }
+    
+    return { 
+      user, 
+      error: null, 
+      emailSent,
+      verificationToken 
+    };
+  } catch (error: any) {
+    return { user: null, error: error.message, emailSent: false };
+  }
+};
+
+export const sendUserVerificationEmail = async (userId: string, email: string, fullName: string) => {
+  try {
+    // Use custom email verification system
     const { createVerificationToken, sendVerificationEmail } = await import('./emailVerification');
     
-    const tokenResult = await createVerificationToken(user.uid, email, 'email_verification');
+    const tokenResult = await createVerificationToken(userId, email, 'email_verification');
     if (tokenResult.error) {
       console.error('Failed to create verification token:', tokenResult.error);
-      return { user, error: null, emailSent: false };
+      return { success: false, error: tokenResult.error };
     }
     
     const emailResult = await sendVerificationEmail(email, fullName, tokenResult.token, 'email_verification');
     
     return { 
-      user, 
-      error: null, 
-      emailSent: emailResult.success,
+      success: emailResult.success, 
+      error: emailResult.error,
       verificationToken: tokenResult.token 
     };
   } catch (error: any) {
-    return { user: null, error: error.message, emailSent: false };
+    return { success: false, error: error.message };
   }
 };
 

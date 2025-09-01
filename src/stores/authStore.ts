@@ -132,6 +132,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Initialize collections after successful login
       initializeCollections().catch(console.error);
       
+      // Preload cache for better performance
+      const { CachePreloader } = await import('../utils/cachePreloader');
+      CachePreloader.preloadUserData(user.id).catch(console.error);
+      
+      if (user.role === 'student') {
+        CachePreloader.preloadStudentData(user.id).catch(console.error);
+      } else if (user.role === 'parent') {
+        CachePreloader.preloadParentData(user.id).catch(console.error);
+      }
+      
       // Initialize push notifications for the user
       pushNotificationService.initialize(user.id).then(async () => {
         try {
@@ -218,6 +228,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Initialize collections after successful registration
       initializeCollections().catch(console.error);
       
+      // Preload cache for better performance
+      const { CachePreloader } = await import('../utils/cachePreloader');
+      CachePreloader.preloadUserData(user.id).catch(console.error);
+      
+      if (user.role === 'student') {
+        CachePreloader.preloadStudentData(user.id).catch(console.error);
+      } else if (user.role === 'parent') {
+        CachePreloader.preloadParentData(user.id).catch(console.error);
+      }
+      
       // Initialize push notifications for the user
       pushNotificationService.initialize(user.id).then(async () => {
         try {
@@ -251,12 +271,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      // First register the parent
+      // First register the parent (without sending verification email yet)
       const { user: firebaseUser, error } = await signUpUser(
         parentData.email,
         parentData.password,
         parentData.name,
-        parentData.role
+        parentData.role,
+        false // Don't send verification email yet
       );
       
       if (error || !firebaseUser) {
@@ -274,6 +295,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false });
         return { success: false, error: familyError || 'Failed to create family' };
       }
+      
+      // Now that all steps succeeded, send verification and welcome emails
+      const { sendUserVerificationEmail } = await import('../lib/firebase');
+      const { sendWelcomeEmail } = await import('../lib/emailInvitation');
+      
+      await sendUserVerificationEmail(firebaseUser.uid, parentData.email, parentData.name);
+      await sendWelcomeEmail(parentData.email, parentData.name, 'parent', parentData.familyName, inviteCode);
       
       // Get the updated profile with family ID
       const profile = await getUserProfile(firebaseUser.uid);
@@ -347,12 +375,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     
     try {
-      // First register the student
+      // First register the student (without sending verification email yet)
       const { user: firebaseUser, error } = await signUpUser(
         studentData.email,
         studentData.password,
         studentData.name,
-        studentData.role
+        studentData.role,
+        false // Don't send verification email yet
       );
       
       if (error || !firebaseUser) {
@@ -371,6 +400,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: false, error: familyError || 'Failed to join family' };
       }
       
+      // Now that all steps succeeded, send verification and welcome emails
+      const { sendUserVerificationEmail } = await import('../lib/firebase');
+      const { sendWelcomeEmail } = await import('../lib/emailInvitation');
+      
+      await sendUserVerificationEmail(firebaseUser.uid, studentData.email, studentData.name);
+      
       // Get the updated profile with family ID
       const profile = await getUserProfile(firebaseUser.uid);
       if (!profile) {
@@ -384,6 +419,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false });
         return { success: false, error: 'Failed to get family data' };
       }
+      
+      // Send welcome email with family name
+      await sendWelcomeEmail(studentData.email, studentData.name, 'student', familyData.name);
       
       const user: User = {
         id: profile.id,

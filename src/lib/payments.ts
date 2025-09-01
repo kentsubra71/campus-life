@@ -225,6 +225,16 @@ export const createPaymentIntent = async (
       return { success: false, error: 'User not authenticated' };
     }
 
+    // Check if user's email is verified
+    const { getUserProfile } = await import('./firebase');
+    const userProfile = await getUserProfile(user.uid);
+    if (!userProfile?.email_verified) {
+      return { 
+        success: false, 
+        error: 'Email verification required. Please verify your email address before sending money.' 
+      };
+    }
+
     // Try to get active subscription, but continue without it for MVP
     let subscription = await getActiveSubscription(user.uid);
     if (!subscription) {
@@ -271,6 +281,24 @@ export const createPaymentIntent = async (
     // Build provider redirect URL
     const { redirectUrl, manual } = await buildProviderUrl(provider, amountCents, studentData, note, docRef.id);
 
+    // Send payment notification to student
+    try {
+      const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+      
+      const notification = {
+        ...NotificationTemplates.paymentReceived(
+          `$${(amountCents / 100).toFixed(2)}`,
+          userProfile?.full_name || 'Family'
+        ),
+        userId: studentId
+      };
+      
+      await pushNotificationService.sendPushNotification(notification);
+      console.log('💰 Payment notification sent to student');
+    } catch (notifError) {
+      console.error('Failed to send payment notification:', notifError);
+    }
+
     return {
       success: true,
       paymentId: docRef.id,
@@ -309,6 +337,24 @@ export const confirmPayment = async (
         status: 'confirmed_by_parent',
         confirmed_at: Timestamp.now()
       });
+
+      // Send payment status notification
+      try {
+        const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+        
+        const notification = {
+          ...NotificationTemplates.paymentStatus(
+            'confirmed',
+            `$${(payment.intent_cents / 100).toFixed(2)}`
+          ),
+          userId: payment.student_id
+        };
+        
+        await pushNotificationService.sendPushNotification(notification);
+        console.log('📧 Payment confirmation notification sent');
+      } catch (notifError) {
+        console.error('Failed to send payment status notification:', notifError);
+      }
       
       return { success: true };
     }

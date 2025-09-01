@@ -139,6 +139,36 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       
       // Clear cache so fresh data is loaded next time
       await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+
+      // Send notification to parents
+      try {
+        const { useAuthStore } = await import('./authStore');
+        const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+        
+        const { getFamilyMembers, user: currentUser } = useAuthStore.getState();
+        if (currentUser?.role === 'student') {
+          const familyMembers = await getFamilyMembers();
+          const studentName = currentUser.name || 'Student';
+          
+          // Get mood string for notification
+          const moodLabels = ['Terrible', 'Very Bad', 'Bad', 'Poor', 'Okay', 'Fair', 'Good', 'Very Good', 'Great', 'Excellent'];
+          const moodText = moodLabels[Math.max(0, Math.min(9, entryData.mood - 1))] || 'okay';
+          
+          // Send to all parents
+          for (const parent of familyMembers.parents) {
+            const notification = {
+              ...NotificationTemplates.studentWellnessLogged(studentName, wellnessScore, moodText),
+              userId: parent.id
+            };
+            
+            await pushNotificationService.sendPushNotification(notification);
+          }
+          
+          console.log('📊 Wellness notification sent to parents');
+        }
+      } catch (notifError) {
+        console.error('Failed to send wellness notification:', notifError);
+      }
       
       // Award XP for logging wellness entry
       try {

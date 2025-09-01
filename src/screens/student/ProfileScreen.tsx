@@ -159,6 +159,152 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }, 2000);
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all associated data. This action cannot be undone.\n\nAre you absolutely sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete Account', 
+          style: 'destructive',
+          onPress: () => confirmDeleteAccount()
+        }
+      ]
+    );
+  };
+
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      'Final Confirmation',
+      'This will delete all your wellness data, messages, rewards, and payment history. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete Everything', 
+          style: 'destructive',
+          onPress: () => performDeleteAccount()
+        }
+      ]
+    );
+  };
+
+  const performDeleteAccount = async () => {
+    if (!user) return;
+
+    try {
+      // Import Firebase auth functions
+      const { getCurrentUser } = await import('../../lib/firebase');
+      const { deleteUser } = await import('firebase/auth');
+      const { doc, collection, query, where, getDocs, writeBatch } = await import('firebase/firestore');
+      const { db } = await import('../../lib/firebase');
+
+      const currentUser = getCurrentUser();
+      if (!currentUser) {
+        Alert.alert('Error', 'No authenticated user found');
+        return;
+      }
+
+      // Show loading message
+      showMessage({
+        message: 'Deleting Account',
+        description: 'Please wait while we delete your account and data...',
+        type: 'info',
+        backgroundColor: theme.colors.backgroundCard,
+        color: theme.colors.textPrimary,
+        duration: 5000,
+      });
+
+      // Delete user's data from Firestore collections
+      const batch = writeBatch(db);
+
+      // Delete from users collection
+      batch.delete(doc(db, 'users', user.id));
+
+      // Delete from profiles collection
+      batch.delete(doc(db, 'profiles', user.id));
+
+      // Delete wellness entries
+      const wellnessQuery = query(collection(db, 'wellness_entries'), where('user_id', '==', user.id));
+      const wellnessSnapshot = await getDocs(wellnessQuery);
+      wellnessSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete rewards
+      const rewardsQuery = query(collection(db, 'rewards'), where('user_id', '==', user.id));
+      const rewardsSnapshot = await getDocs(rewardsQuery);
+      rewardsSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete messages sent by user
+      const messagesQuery = query(collection(db, 'messages'), where('from_user_id', '==', user.id));
+      const messagesSnapshot = await getDocs(messagesQuery);
+      messagesSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete payments where user is student
+      const paymentsQuery = query(collection(db, 'payments'), where('student_id', '==', user.id));
+      const paymentsSnapshot = await getDocs(paymentsQuery);
+      paymentsSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete item requests where user is student
+      const itemRequestsQuery = query(collection(db, 'item_requests'), where('student_id', '==', user.id));
+      const itemRequestsSnapshot = await getDocs(itemRequestsQuery);
+      itemRequestsSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete transactions where user is student
+      const transactionsQuery = query(collection(db, 'transactions'), where('studentId', '==', user.id));
+      const transactionsSnapshot = await getDocs(transactionsQuery);
+      transactionsSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete user progress
+      batch.delete(doc(db, 'user_progress', user.id));
+
+      // Commit all Firestore deletions
+      await batch.commit();
+
+      // Delete Firebase Auth user (this will also sign them out)
+      await deleteUser(currentUser);
+
+      showMessage({
+        message: 'Account Deleted',
+        description: 'Your account and all data have been permanently deleted.',
+        type: 'success',
+        backgroundColor: theme.colors.success,
+        color: theme.colors.backgroundCard,
+        duration: 3000,
+      });
+
+      // Logout will be handled automatically by auth state change
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      
+      let errorMessage = 'Failed to delete account. Please try again.';
+      
+      if (error.code === 'auth/requires-recent-login') {
+        errorMessage = 'For security reasons, you need to sign in again before deleting your account. Please sign out and sign back in, then try again.';
+      }
+
+      showMessage({
+        message: 'Error',
+        description: errorMessage,
+        type: 'danger',
+        backgroundColor: theme.colors.backgroundCard,
+        color: theme.colors.textPrimary,
+        duration: 5000,
+      });
+    }
+  };
+
   const renderProfileField = (
     label: string,
     value: string,
@@ -372,6 +518,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             onPress={confirmSignOut}
           >
             <Text style={[styles.actionButtonText, styles.signOutText]}>Sign Out</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.deleteAccountButton]}
+            onPress={handleDeleteAccount}
+          >
+            <Text style={[styles.actionButtonText, styles.deleteAccountText]}>Delete Account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -615,5 +768,14 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     color: theme.colors.error,
+  },
+  deleteAccountButton: {
+    borderColor: '#dc2626',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+  },
+  deleteAccountText: {
+    color: '#dc2626',
+    fontWeight: '700',
   },
 }); 

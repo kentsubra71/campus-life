@@ -576,6 +576,15 @@ export interface Payment {
 // Message functions
 export const sendMessage = async (messageData: Omit<Message, 'id' | 'created_at'>): Promise<{ success: boolean; error?: string; messageId?: string }> => {
   try {
+    // Check if sender's email is verified
+    const senderProfile = await getUserProfile(messageData.from_user_id);
+    if (!senderProfile?.email_verified) {
+      return { 
+        success: false, 
+        error: 'Email verification required. Please verify your email address before sending messages.' 
+      };
+    }
+
     const message = {
       ...messageData,
       created_at: Timestamp.now(),
@@ -843,6 +852,15 @@ export const createItemRequest = async (request: {
   reason?: string;
 }): Promise<{ id: string; error?: string }> => {
   try {
+    // Check if student's email is verified
+    const studentProfile = await getUserProfile(request.student_id);
+    if (!studentProfile?.email_verified) {
+      return { 
+        id: '', 
+        error: 'Email verification required. Please verify your email address before making requests.' 
+      };
+    }
+
     // Debug logging
     console.log('Creating item request with data:', {
       student_id: request.student_id,

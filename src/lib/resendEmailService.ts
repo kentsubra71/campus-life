@@ -1,7 +1,8 @@
-import { emailTemplates } from './emailTemplates';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from './firebase';
 
-const RESEND_API_KEY = process.env.EXPO_PUBLIC_RESEND_API_KEY;
-const FROM_EMAIL = 'Campus Life <noreply@ronaldli.ca>'; // Using verified domain
+// Initialize Firebase Functions
+const functions = getFunctions(app);
 
 export interface EmailData {
   to: string;
@@ -13,20 +14,14 @@ export interface EmailData {
   };
 }
 
-// Send email using Resend API
+// Send email using secure Cloud Function (API key is now server-side)
 export const sendEmailWithResend = async (emailData: EmailData): Promise<{
   success: boolean;
   messageId?: string;
   error?: string;
 }> => {
   try {
-    // Check if API key is loaded
-    if (!RESEND_API_KEY) {
-      console.error('❌ Resend API key not found in environment variables');
-      return { success: false, error: 'Resend API key not configured' };
-    }
-    
-    console.log('🔑 Using API key:', RESEND_API_KEY.substring(0, 10) + '...');
+    console.log('📧 Sending email via secure Cloud Function:', { to: emailData.to, type: emailData.type });
     
     const { to, type, data } = emailData;
     

@@ -8,7 +8,9 @@ import {
   Text, 
   StyleSheet,
   TouchableOpacity,
-  Alert
+  Alert,
+  TextInput,
+  ActivityIndicator
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,6 +52,11 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   const [refreshing, setRefreshing] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [selectedStudentIndex, setSelectedStudentIndex] = useState(0);
+  
+  // Email invitation state
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [loadingInvite, setLoadingInvite] = useState(false);
 
   // Helper functions
   const getTimeOfDay = () => {
@@ -234,6 +241,77 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     }
   };
 
+  const handleSendEmailInvite = async () => {
+    if (!user || !family || !inviteEmail.trim() || !inviteName.trim()) return;
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inviteEmail)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+    
+    if (inviteName.trim().length < 2) {
+      Alert.alert('Invalid Name', 'Please enter a valid name (at least 2 characters).');
+      return;
+    }
+    
+    setLoadingInvite(true);
+    try {
+      const { sendInvitationEmail } = await import('../../lib/emailInvitation');
+      const result = await sendInvitationEmail(
+        inviteEmail,
+        inviteName,
+        user.name,
+        family.name,
+        family.inviteCode
+      );
+      
+      if (result.success) {
+        Alert.alert(
+          'Invitation Sent! 📧', 
+          `An invitation email has been sent to ${inviteName} at ${inviteEmail}. They can use the invite code ${family.inviteCode} to join your family.`
+        );
+        setInviteEmail('');
+        setInviteName('');
+      } else {
+        // Show error with manual sharing option
+        Alert.alert(
+          'Email Service Unavailable',
+          result.error || 'Failed to send invitation email.',
+          [
+            { 
+              text: 'Share Manually', 
+              onPress: () => {
+                // Copy invite code and show sharing instructions
+                const message = `Hi ${inviteName}! I've invited you to join our family on CampusLife. Download the app and use invite code: ${family.inviteCode}`;
+                Alert.alert(
+                  'Share This Message',
+                  message,
+                  [
+                    { 
+                      text: 'Copy Message', 
+                      onPress: async () => {
+                        await Clipboard.setStringAsync(message);
+                        Alert.alert('Copied!', 'Message copied to clipboard. You can now paste it in any messaging app.');
+                      }
+                    },
+                    { text: 'Cancel' }
+                  ]
+                );
+              }
+            },
+            { text: 'OK' }
+          ]
+        );
+      }
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to send invitation email. Please try sharing the invite code manually.');
+    } finally {
+      setLoadingInvite(false);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -278,6 +356,48 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             <Text style={styles.inviteCodeLarge}>{family?.inviteCode}</Text>
             <Text style={styles.inviteHint}>📋 Tap to copy and share</Text>
           </TouchableOpacity>
+
+          {/* Email Invitation Card */}
+          <View style={styles.emailInviteCard}>
+            <Text style={styles.emailInviteTitle}>📧 Send Email Invitation</Text>
+            <Text style={styles.emailInviteSubtitle}>Or send the invite directly to your student's email</Text>
+            
+            <View style={styles.emailInputContainer}>
+              <TextInput
+                style={styles.emailInput}
+                placeholder="Student's name"
+                value={inviteName}
+                onChangeText={setInviteName}
+                editable={!loadingInvite}
+                placeholderTextColor="#9ca3af"
+              />
+              <TextInput
+                style={styles.emailInput}
+                placeholder="Student's email address"
+                value={inviteEmail}
+                onChangeText={setInviteEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!loadingInvite}
+                placeholderTextColor="#9ca3af"
+              />
+              
+              <TouchableOpacity 
+                style={[
+                  styles.sendInviteButton,
+                  (!inviteEmail || !inviteName || loadingInvite) && styles.sendInviteButtonDisabled
+                ]}
+                onPress={handleSendEmailInvite}
+                disabled={!inviteEmail || !inviteName || loadingInvite}
+              >
+                {loadingInvite ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.sendInviteButtonText}>Send Invite Email</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
 
           {/* Instructions */}
           <View style={styles.instructionsCard}>
@@ -1188,5 +1308,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textTertiary,
     marginTop: 4,
+  },
+  
+  // Email Invitation Styles
+  emailInviteCard: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 24,
+    marginBottom: 20,
+  },
+  emailInviteTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  emailInviteSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  emailInputContainer: {
+    gap: 12,
+  },
+  emailInput: {
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  sendInviteButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  sendInviteButtonDisabled: {
+    backgroundColor: theme.colors.textTertiary,
+    opacity: 0.6,
+  },
+  sendInviteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.backgroundSecondary,
   },
 });

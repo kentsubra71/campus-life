@@ -26,6 +26,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
   const { login, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -82,15 +83,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
 
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor={theme.colors.textTertiary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-              />
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Enter your password"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <TouchableOpacity
@@ -204,6 +213,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.textPrimary,
     fontWeight: '500',
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+    paddingRight: 50, // Make room for the eye button
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 4,
+  },
+  eyeIcon: {
+    fontSize: 16,
   },
   forgotPassword: {
     alignSelf: 'flex-end',

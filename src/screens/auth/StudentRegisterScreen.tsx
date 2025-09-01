@@ -30,6 +30,9 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
     inviteCode: '',
   });
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
@@ -46,8 +49,8 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
     }
 
     if (formData.password !== formData.confirmPassword) {
@@ -58,6 +61,10 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
       newErrors.inviteCode = 'Family invite code is required';
     } else if (formData.inviteCode.length < 6) {
       newErrors.inviteCode = 'Invite code should be at least 6 characters';
+    }
+
+    if (!acceptedPrivacy) {
+      newErrors.privacy = 'You must accept the Privacy Policy to continue';
     }
 
     setErrors(newErrors);
@@ -176,29 +183,70 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={[styles.input, errors.password ? styles.inputError : null]}
-              placeholder="Create a secure password"
-              placeholderTextColor={theme.colors.textTertiary}
-              value={formData.password}
-              onChangeText={(text) => setFormData({...formData, password: text})}
-              secureTextEntry
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.passwordInput, errors.password ? styles.inputError : null]}
+                placeholder="Create a secure password"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={formData.password}
+                onChangeText={(text) => setFormData({...formData, password: text})}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+              </TouchableOpacity>
+            </View>
             {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
           </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Confirm Password</Text>
-            <TextInput
-              style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
-              placeholder="Confirm your password"
-              placeholderTextColor={theme.colors.textTertiary}
-              value={formData.confirmPassword}
-              onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
-              secureTextEntry
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.passwordInput, errors.confirmPassword ? styles.inputError : null]}
+                placeholder="Confirm your password"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={formData.confirmPassword}
+                onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
+                secureTextEntry={!showConfirmPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                <Text style={styles.eyeIcon}>{showConfirmPassword ? '👁️' : '👁️‍🗨️'}</Text>
+              </TouchableOpacity>
+            </View>
             {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
           </View>
+
+          {/* Privacy Policy Checkbox */}
+          <View style={styles.privacyContainer}>
+            <TouchableOpacity 
+              style={styles.checkboxContainer}
+              onPress={() => setAcceptedPrivacy(!acceptedPrivacy)}
+            >
+              <View style={[styles.checkbox, acceptedPrivacy && styles.checkboxChecked]}>
+                {acceptedPrivacy && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+            </TouchableOpacity>
+            <View style={styles.privacyTextContainer}>
+              <Text style={styles.privacyText}>
+                I agree to the{' '}
+                <Text 
+                  style={styles.privacyLink}
+                  onPress={() => navigation.navigate('PrivacyPolicy')}
+                >
+                  Privacy Policy
+                </Text>
+                {' '}and Terms of Service
+              </Text>
+            </View>
+          </View>
+          {errors.privacy && <Text style={styles.errorText}>{errors.privacy}</Text>}
 
           <TouchableOpacity 
             style={[styles.joinButton, isLoading && styles.joinButtonDisabled]}
@@ -364,6 +412,71 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.textPrimary,
     fontWeight: '500',
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+    paddingRight: 50, // Make room for the eye button
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 4,
+  },
+  eyeIcon: {
+    fontSize: 16,
+  },
+  privacyContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  checkboxContainer: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.backgroundSecondary,
+  },
+  checkboxChecked: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  checkmark: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  privacyTextContainer: {
+    flex: 1,
+  },
+  privacyText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    lineHeight: 20,
+  },
+  privacyLink: {
+    color: theme.colors.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   inviteInput: {
     fontSize: 18,

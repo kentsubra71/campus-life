@@ -3,7 +3,6 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { doc, updateDoc, collection, addDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -114,6 +113,9 @@ class PushNotificationService {
    */
   private async saveTokenToFirebase(userId: string, token: string): Promise<void> {
     try {
+      // Ensure Firebase is initialized by importing it dynamically
+      const { db: firebaseDb } = await import('../lib/firebase');
+      
       const deviceId = Constants.deviceId || 'unknown';
       
       const tokenData: Omit<PushNotificationToken, 'id'> = {
@@ -139,7 +141,7 @@ class PushNotificationService {
 
       console.log('💾 Setting notification preferences for user:', userId, defaultPreferences);
 
-      await updateDoc(doc(db, 'users', userId), {
+      await updateDoc(doc(firebaseDb, 'users', userId), {
         pushToken: token,
         pushTokenUpdatedAt: Timestamp.now(),
         deviceInfo: {
@@ -150,7 +152,7 @@ class PushNotificationService {
       });
 
       // Also store in dedicated push_tokens collection for easier querying
-      await addDoc(collection(db, 'push_tokens'), {
+      await addDoc(collection(firebaseDb, 'push_tokens'), {
         ...tokenData,
         createdAt: Timestamp.fromDate(tokenData.createdAt),
         lastUpdated: Timestamp.fromDate(tokenData.lastUpdated)

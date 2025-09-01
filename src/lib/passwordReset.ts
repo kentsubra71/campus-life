@@ -1,6 +1,6 @@
 import { auth, db } from './firebase';
 import { doc, getDoc, updateDoc, query, collection, where, getDocs, Timestamp } from 'firebase/firestore';
-import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
+import { updatePassword, reauthenticateWithCredential, EmailAuthProvider, signInAnonymously } from 'firebase/auth';
 import { createVerificationToken, sendVerificationEmail, verifyToken } from './emailVerification';
 
 // Request password reset
@@ -79,29 +79,67 @@ export const resetPasswordWithToken = async (
   error?: string;
 }> => {
   try {
-    // Verify the token first
-    const tokenResult = await verifyPasswordResetToken(token);
+    // Import Firebase functions dynamically
+    const { functions } = await import('./firebase');
+    const { httpsCallable } = await import('firebase/functions');
     
-    if (!tokenResult.valid) {
-      return { success: false, error: tokenResult.error };
+    // Call the Cloud Function to reset the password
+    const resetPasswordFunction = httpsCallable(functions, 'resetPassword');
+    const result = await resetPasswordFunction({ token, newPassword });
+    
+    const data = result.data as any;
+    
+    if (data.success) {
+      return { success: true };
+    } else {
+      return { success: false, error: data.message || 'Failed to reset password' };
+    }
+  } catch (error: any) {
+    console.error('Reset password error:', error);
+    
+    // Handle specific Firebase function errors
+    if (error.code === 'functions/not-found') {
+      return { 
+        success: false, 
+        error: 'Password reset service is currently unavailable. Please try again later.' 
+      };
     }
     
-    // Note: Firebase doesn't allow password updates without authentication
-    // This would require a custom backend with Firebase Admin SDK
-    // For now, we'll store the reset request and handle it when user logs in
+    if (error.code === 'functions/invalid-argument') {
+      return { success: false, error: error.message };
+    }
     
-    await updateDoc(doc(db, 'users', tokenResult.userId!), {
-      password_reset_pending: true,
-      password_reset_token: token,
-      password_reset_requested_at: Timestamp.now()
-    });
+    if (error.code === 'functions/unauthenticated') {
+      // For password reset, we need to temporarily authenticate
+      // Let's try to sign in the user with a temporary method
+      try {
+        const tokenResult = await verifyPasswordResetToken(token);
+        
+        if (!tokenResult.valid) {
+          return { success: false, error: tokenResult.error };
+        }
+        
+        // Import signInAnonymously temporarily for the password reset
+        const { signInAnonymously } = await import('firebase/auth');
+        await signInAnonymously(auth);
+        
+        // Retry the function call
+        const retryResult = await resetPasswordFunction({ token, newPassword });
+        const retryData = retryResult.data as any;
+        
+        // Sign out the anonymous user
+        await auth.signOut();
+        
+        return retryData.success 
+          ? { success: true } 
+          : { success: false, error: retryData.message || 'Failed to reset password' };
+          
+      } catch (retryError) {
+        return { success: false, error: 'Unable to complete password reset. Please try again.' };
+      }
+    }
     
-    return { 
-      success: true, 
-      error: 'Password reset approved. Please sign in with your new password.' 
-    };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || 'Failed to reset password' };
   }
 };
 

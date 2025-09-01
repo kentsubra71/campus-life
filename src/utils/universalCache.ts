@@ -22,6 +22,9 @@ export const CACHE_CONFIGS = {
   MESSAGE_THREADS: { expiryMinutes: 10, key: 'message_threads', version: 1 },
   SPENDING_CAPS: { expiryMinutes: 30, key: 'spending_caps', version: 1 },
   USER_PREFERENCES: { expiryMinutes: 120, key: 'user_preferences', version: 1 },
+  USER_PROFILE: { expiryMinutes: 240, key: 'user_profile', version: 1 }, // 4 hours
+  EMAIL_VERIFICATION_STATUS: { expiryMinutes: 60, key: 'email_verification', version: 1 },
+  FAMILY_DATA: { expiryMinutes: 180, key: 'family_data', version: 1 }, // 3 hours
 } as const;
 
 /**
@@ -174,6 +177,78 @@ class UniversalCacheManager {
       }
     } catch (error) {
       console.error(`❌ Error clearing all caches:`, error);
+    }
+  }
+
+  /**
+   * Get cached data or fetch fresh data and cache it
+   */
+  async getOrFetch<T>(
+    config: CacheConfig, 
+    fetchFunction: () => Promise<T>, 
+    userId?: string
+  ): Promise<T> {
+    try {
+      // First try to get from cache
+      const cachedData = await this.get<T>(config, userId);
+      if (cachedData) {
+        // Start background refresh if cache is older than half its expiry time
+        const cacheKey = this.getCacheKey(config, userId);
+        const cachedStr = await AsyncStorage.getItem(cacheKey);
+        if (cachedStr) {
+          const cached: CachedData<T> = JSON.parse(cachedStr);
+          const age = (new Date().getTime() - new Date(cached.timestamp).getTime()) / (1000 * 60);
+          const halfExpiry = config.expiryMinutes / 2;
+          
+          if (age > halfExpiry) {
+            // Background refresh
+            fetchFunction().then(freshData => {
+              this.set(config, freshData, userId);
+              console.log(`🔄 Background refreshed cache for ${config.key}`);
+            }).catch(error => {
+              console.error(`❌ Background refresh failed for ${config.key}:`, error);
+            });
+          }
+        }
+        
+        return cachedData;
+      }
+
+      // Cache miss, fetch fresh data
+      const freshData = await fetchFunction();
+      await this.set(config, freshData, userId);
+      return freshData;
+    } catch (error) {
+      console.error(`❌ Error in getOrFetch for ${config.key}:`, error);
+      // Fallback to direct fetch
+      return await fetchFunction();
+    }
+  }
+
+  /**
+   * Prefetch data for better performance
+   */
+  async prefetch<T>(
+    config: CacheConfig, 
+    fetchFunction: () => Promise<T>, 
+    userId?: string,
+    force: boolean = false
+  ): Promise<void> {
+    try {
+      if (!force) {
+        const existingData = await this.get<T>(config, userId);
+        if (existingData) {
+          console.log(`📦 Skipping prefetch for ${config.key} - already cached`);
+          return;
+        }
+      }
+
+      console.log(`🚀 Prefetching data for ${config.key}...`);
+      const data = await fetchFunction();
+      await this.set(config, data, userId);
+      console.log(`✅ Prefetched data for ${config.key}`);
+    } catch (error) {
+      console.error(`❌ Error prefetching ${config.key}:`, error);
     }
   }
 

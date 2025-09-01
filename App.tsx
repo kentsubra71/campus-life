@@ -20,6 +20,7 @@ import { StudentRegisterScreen } from './src/screens/auth/StudentRegisterScreen'
 import { LoginScreen } from './src/screens/auth/LoginScreen';
 import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/auth/ResetPasswordScreen';
+import { PrivacyPolicyScreen } from './src/screens/shared/PrivacyPolicyScreen';
 
 const Stack = createStackNavigator<AuthStackParamList>();
 
@@ -235,6 +236,7 @@ export default function App() {
       <Stack.Screen name="StudentRegister" component={StudentRegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
     </Stack.Navigator>
   );
 

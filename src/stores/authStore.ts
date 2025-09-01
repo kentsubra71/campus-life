@@ -133,12 +133,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       initializeCollections().catch(console.error);
       
       // Initialize push notifications for the user
-      pushNotificationService.initialize(user.id).then(() => {
-        // Schedule wellness reminders for students
-        if (user.role === 'student') {
-          pushNotificationService.scheduleDailyWellnessReminder(user.id).catch(error => {
-            console.error('Failed to schedule wellness reminders:', error);
-          });
+      pushNotificationService.initialize(user.id).then(async () => {
+        try {
+          // Schedule wellness reminders for students
+          if (user.role === 'student') {
+            await pushNotificationService.scheduleDailyWellnessReminder(user.id);
+          }
+          
+          // Schedule daily and weekly summaries for all users
+          await pushNotificationService.scheduleDailySummary(user.id);
+          await pushNotificationService.scheduleWeeklySummary(user.id);
+          
+          console.log('✅ All notification schedules initialized');
+        } catch (error) {
+          console.error('Failed to schedule notifications:', error);
         }
       }).catch(error => {
         console.error('Failed to initialize push notifications:', error);
@@ -211,12 +219,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       initializeCollections().catch(console.error);
       
       // Initialize push notifications for the user
-      pushNotificationService.initialize(user.id).then(() => {
-        // Schedule wellness reminders for students
-        if (user.role === 'student') {
-          pushNotificationService.scheduleDailyWellnessReminder(user.id).catch(error => {
-            console.error('Failed to schedule wellness reminders:', error);
-          });
+      pushNotificationService.initialize(user.id).then(async () => {
+        try {
+          // Schedule wellness reminders for students
+          if (user.role === 'student') {
+            await pushNotificationService.scheduleDailyWellnessReminder(user.id);
+          }
+          
+          // Schedule daily and weekly summaries for all users
+          await pushNotificationService.scheduleDailySummary(user.id);
+          await pushNotificationService.scheduleWeeklySummary(user.id);
+          
+          console.log('✅ All notification schedules initialized');
+        } catch (error) {
+          console.error('Failed to schedule notifications:', error);
         }
       }).catch(error => {
         console.error('Failed to initialize push notifications:', error);
@@ -299,12 +315,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       
       // Initialize push notifications for the user
-      pushNotificationService.initialize(user.id).then(() => {
-        // Schedule wellness reminders for students
-        if (user.role === 'student') {
-          pushNotificationService.scheduleDailyWellnessReminder(user.id).catch(error => {
-            console.error('Failed to schedule wellness reminders:', error);
-          });
+      pushNotificationService.initialize(user.id).then(async () => {
+        try {
+          // Schedule wellness reminders for students
+          if (user.role === 'student') {
+            await pushNotificationService.scheduleDailyWellnessReminder(user.id);
+          }
+          
+          // Schedule daily and weekly summaries for all users
+          await pushNotificationService.scheduleDailySummary(user.id);
+          await pushNotificationService.scheduleWeeklySummary(user.id);
+          
+          console.log('✅ All notification schedules initialized');
+        } catch (error) {
+          console.error('Failed to schedule notifications:', error);
         }
       }).catch(error => {
         console.error('Failed to initialize push notifications:', error);
@@ -387,12 +411,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       
       // Initialize push notifications for the user
-      pushNotificationService.initialize(user.id).then(() => {
-        // Schedule wellness reminders for students
-        if (user.role === 'student') {
-          pushNotificationService.scheduleDailyWellnessReminder(user.id).catch(error => {
-            console.error('Failed to schedule wellness reminders:', error);
-          });
+      pushNotificationService.initialize(user.id).then(async () => {
+        try {
+          // Schedule wellness reminders for students
+          if (user.role === 'student') {
+            await pushNotificationService.scheduleDailyWellnessReminder(user.id);
+          }
+          
+          // Schedule daily and weekly summaries for all users
+          await pushNotificationService.scheduleDailySummary(user.id);
+          await pushNotificationService.scheduleWeeklySummary(user.id);
+          
+          console.log('✅ All notification schedules initialized');
+        } catch (error) {
+          console.error('Failed to schedule notifications:', error);
         }
       }).catch(error => {
         console.error('Failed to initialize push notifications:', error);

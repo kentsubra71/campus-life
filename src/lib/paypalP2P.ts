@@ -68,6 +68,20 @@ export const createPayPalP2POrder = async (
   debugLog('createPayPalP2POrder', 'Creating PayPal order', { studentId, amountCents, note });
   
   try {
+    // Check if user's email is verified
+    const { getCurrentUser, getUserProfile } = await import('./firebase');
+    const user = getCurrentUser();
+    if (!user) {
+      return { success: false, error: 'User not authenticated' };
+    }
+    
+    const userProfile = await getUserProfile(user.uid);
+    if (!userProfile?.email_verified) {
+      return { 
+        success: false, 
+        error: 'Email verification required. Please verify your email address before sending money.' 
+      };
+    }
     const createOrder = httpsCallable(functions, 'createPayPalOrder');
     const result = await createOrder({
       studentId,

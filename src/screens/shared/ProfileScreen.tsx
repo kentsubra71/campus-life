@@ -8,7 +8,8 @@ import {
   Alert,
   TextInput,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Switch
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +17,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { StatusHeader } from '../../components/StatusHeader';
 import { theme } from '../../styles/theme';
 import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
+import { pushNotificationService } from '../../services/pushNotificationService';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -28,10 +30,91 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [editName, setEditName] = useState(user?.name || '');
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    enabled: true,
+    supportMessages: true,
+    paymentUpdates: true,
+    wellnessReminders: true,
+    careRequests: true,
+    weeklyReports: true,
+    dailySummaries: true,
+    studentWellnessLogged: true,
+  });
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
 
   useEffect(() => {
     loadFamilyMembers();
+    loadNotificationPreferences();
   }, []);
+
+  const loadNotificationPreferences = async () => {
+    if (!user) return;
+    
+    try {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('../../lib/firebase');
+      
+      const userDoc = await getDoc(doc(db, 'users', user.id));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.notificationPreferences) {
+          setNotificationPreferences({
+            ...notificationPreferences,
+            ...userData.notificationPreferences,
+            // Add new preferences with defaults if they don't exist
+            dailySummaries: userData.notificationPreferences.dailySummaries ?? true,
+            studentWellnessLogged: userData.notificationPreferences.studentWellnessLogged ?? true,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load notification preferences:', error);
+    }
+  };
+
+  const saveNotificationPreferences = async (newPreferences: typeof notificationPreferences) => {
+    if (!user) return;
+    
+    setLoadingNotifications(true);
+    try {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const { db } = await import('../../lib/firebase');
+      
+      await updateDoc(doc(db, 'users', user.id), {
+        notificationPreferences: newPreferences
+      });
+      
+      setNotificationPreferences(newPreferences);
+      
+      // Re-initialize push notifications with new preferences
+      if (newPreferences.enabled) {
+        await pushNotificationService.initialize(user.id);
+        
+        // Schedule notifications based on preferences
+        if (newPreferences.wellnessReminders && user.role === 'student') {
+          await pushNotificationService.scheduleDailyWellnessReminder(user.id);
+        }
+        
+        if (newPreferences.dailySummaries) {
+          await pushNotificationService.scheduleDailySummary(user.id);
+        }
+        
+        if (newPreferences.weeklyReports) {
+          await pushNotificationService.scheduleWeeklySummary(user.id);
+        }
+      } else {
+        // Cancel all notifications if disabled
+        await pushNotificationService.cancelScheduledNotifications();
+      }
+      
+      Alert.alert('Success', 'Notification preferences updated successfully');
+    } catch (error) {
+      console.error('Failed to save notification preferences:', error);
+      Alert.alert('Error', 'Failed to update notification preferences');
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
 
   const loadFamilyMembers = async () => {
     if (!user) return;
@@ -94,6 +177,178 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }
       ]
     );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all associated data. This action cannot be undone.\n\nAre you absolutely sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete Account', 
+          style: 'destructive',
+          onPress: () => confirmDeleteAccount()
+        }
+      ]
+    );
+  };
+
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      'Final Confirmation',
+      'Type "DELETE" below to confirm account deletion:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Confirm Deletion', 
+          style: 'destructive',
+          onPress: () => performDeleteAccount()
+        }
+      ]
+    );
+  };
+
+  const performDeleteAccount = async () => {
+    if (!user) return;
+
+    try {
+      // Import Firebase auth functions
+      const { getCurrentUser, signOutUser } = await import('../../lib/firebase');
+      const { deleteUser } = await import('firebase/auth');
+      const { doc, deleteDoc, collection, query, where, getDocs, writeBatch } = await import('firebase/firestore');
+      const { db } = await import('../../lib/firebase');
+
+      const currentUser = getCurrentUser();
+      if (!currentUser) {
+        Alert.alert('Error', 'No authenticated user found');
+        return;
+      }
+
+      // Show loading state
+      Alert.alert('Deleting Account', 'Please wait while we delete your account and data...');
+
+      // Delete user's data from Firestore collections
+      const batch = writeBatch(db);
+
+      // Delete from users collection
+      batch.delete(doc(db, 'users', user.id));
+
+      // Delete from profiles collection if it exists
+      try {
+        batch.delete(doc(db, 'profiles', user.id));
+      } catch (error) {
+        // Profile might not exist, continue
+      }
+
+      // Delete wellness entries
+      const wellnessQuery = query(collection(db, 'wellness_entries'), where('user_id', '==', user.id));
+      const wellnessSnapshot = await getDocs(wellnessQuery);
+      wellnessSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete rewards
+      const rewardsQuery = query(collection(db, 'rewards'), where('user_id', '==', user.id));
+      const rewardsSnapshot = await getDocs(rewardsQuery);
+      rewardsSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete messages sent by user
+      const messagesQuery = query(collection(db, 'messages'), where('from_user_id', '==', user.id));
+      const messagesSnapshot = await getDocs(messagesQuery);
+      messagesSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete payments (parent or student)
+      const paymentsParentQuery = query(collection(db, 'payments'), where('parent_id', '==', user.id));
+      const paymentsParentSnapshot = await getDocs(paymentsParentQuery);
+      paymentsParentSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      const paymentsStudentQuery = query(collection(db, 'payments'), where('student_id', '==', user.id));
+      const paymentsStudentSnapshot = await getDocs(paymentsStudentQuery);
+      paymentsStudentSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete item requests
+      const itemRequestsStudentQuery = query(collection(db, 'item_requests'), where('student_id', '==', user.id));
+      const itemRequestsStudentSnapshot = await getDocs(itemRequestsStudentQuery);
+      itemRequestsStudentSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      const itemRequestsParentQuery = query(collection(db, 'item_requests'), where('parent_id', '==', user.id));
+      const itemRequestsParentSnapshot = await getDocs(itemRequestsParentQuery);
+      itemRequestsParentSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete subscriptions
+      const subscriptionsQuery = query(collection(db, 'subscriptions'), where('user_id', '==', user.id));
+      const subscriptionsSnapshot = await getDocs(subscriptionsQuery);
+      subscriptionsSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete monthly spend records
+      const monthlySpendQuery = query(collection(db, 'monthly_spend'), where('parent_id', '==', user.id));
+      const monthlySpendSnapshot = await getDocs(monthlySpendQuery);
+      monthlySpendSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete transactions
+      const transactionsParentQuery = query(collection(db, 'transactions'), where('parentId', '==', user.id));
+      const transactionsParentSnapshot = await getDocs(transactionsParentQuery);
+      transactionsParentSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      const transactionsStudentQuery = query(collection(db, 'transactions'), where('studentId', '==', user.id));
+      const transactionsStudentSnapshot = await getDocs(transactionsStudentQuery);
+      transactionsStudentSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete user progress
+      try {
+        batch.delete(doc(db, 'user_progress', user.id));
+      } catch (error) {
+        // Might not exist, continue
+      }
+
+      // Commit all Firestore deletions
+      await batch.commit();
+
+      // Clear local cache
+      await cache.clearAll();
+
+      // Delete Firebase Auth user (this will also sign them out)
+      await deleteUser(currentUser);
+
+      Alert.alert(
+        'Account Deleted',
+        'Your account and all associated data have been permanently deleted.',
+        [{ text: 'OK' }]
+      );
+
+      // Logout will be handled automatically by auth state change
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      
+      let errorMessage = 'Failed to delete account. Please try again.';
+      
+      if (error.code === 'auth/requires-recent-login') {
+        errorMessage = 'For security reasons, you need to sign in again before deleting your account. Please sign out and sign back in, then try again.';
+      }
+
+      Alert.alert('Error', errorMessage);
+    }
   };
 
   const copyInviteCode = async () => {
@@ -258,10 +513,195 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         </View>
       </View>
 
+      {/* Notification Preferences */}
+      <View style={styles.familyCard}>
+        <Text style={styles.familyTitle}>🔔 Notification Preferences</Text>
+        
+        <View style={styles.preferencesContainer}>
+          {/* Master toggle */}
+          <View style={styles.preferenceItem}>
+            <View style={styles.preferenceContent}>
+              <Text style={styles.preferenceLabel}>Push Notifications</Text>
+              <Text style={styles.preferenceDescription}>
+                Enable all push notifications
+              </Text>
+            </View>
+            <Switch
+              value={notificationPreferences.enabled}
+              onValueChange={(value) => {
+                const newPrefs = { ...notificationPreferences, enabled: value };
+                saveNotificationPreferences(newPrefs);
+              }}
+              trackColor={{ false: '#ccc', true: theme.colors.primary }}
+              thumbColor={notificationPreferences.enabled ? '#fff' : '#f4f3f4'}
+              disabled={loadingNotifications}
+            />
+          </View>
+
+          {notificationPreferences.enabled && (
+            <>
+              {/* Support Messages */}
+              <View style={styles.preferenceItem}>
+                <View style={styles.preferenceContent}>
+                  <Text style={styles.preferenceLabel}>Support Messages</Text>
+                  <Text style={styles.preferenceDescription}>
+                    Get notified when you receive support messages
+                  </Text>
+                </View>
+                <Switch
+                  value={notificationPreferences.supportMessages}
+                  onValueChange={(value) => {
+                    const newPrefs = { ...notificationPreferences, supportMessages: value };
+                    saveNotificationPreferences(newPrefs);
+                  }}
+                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
+                  thumbColor={notificationPreferences.supportMessages ? '#fff' : '#f4f3f4'}
+                  disabled={loadingNotifications}
+                />
+              </View>
+
+              {/* Payment Updates */}
+              <View style={styles.preferenceItem}>
+                <View style={styles.preferenceContent}>
+                  <Text style={styles.preferenceLabel}>Payment Updates</Text>
+                  <Text style={styles.preferenceDescription}>
+                    Get notified about payment status changes
+                  </Text>
+                </View>
+                <Switch
+                  value={notificationPreferences.paymentUpdates}
+                  onValueChange={(value) => {
+                    const newPrefs = { ...notificationPreferences, paymentUpdates: value };
+                    saveNotificationPreferences(newPrefs);
+                  }}
+                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
+                  thumbColor={notificationPreferences.paymentUpdates ? '#fff' : '#f4f3f4'}
+                  disabled={loadingNotifications}
+                />
+              </View>
+
+              {/* Wellness Reminders (Students only) */}
+              {user?.role === 'student' && (
+                <View style={styles.preferenceItem}>
+                  <View style={styles.preferenceContent}>
+                    <Text style={styles.preferenceLabel}>Daily Wellness Reminders</Text>
+                    <Text style={styles.preferenceDescription}>
+                      Get reminded to log your daily wellness (8 PM)
+                    </Text>
+                  </View>
+                  <Switch
+                    value={notificationPreferences.wellnessReminders}
+                    onValueChange={(value) => {
+                      const newPrefs = { ...notificationPreferences, wellnessReminders: value };
+                      saveNotificationPreferences(newPrefs);
+                    }}
+                    trackColor={{ false: '#ccc', true: theme.colors.primary }}
+                    thumbColor={notificationPreferences.wellnessReminders ? '#fff' : '#f4f3f4'}
+                    disabled={loadingNotifications}
+                  />
+                </View>
+              )}
+
+              {/* Student Wellness Logged (Parents only) */}
+              {user?.role === 'parent' && (
+                <View style={styles.preferenceItem}>
+                  <View style={styles.preferenceContent}>
+                    <Text style={styles.preferenceLabel}>Student Check-ins</Text>
+                    <Text style={styles.preferenceDescription}>
+                      Get notified when your student logs their wellness
+                    </Text>
+                  </View>
+                  <Switch
+                    value={notificationPreferences.studentWellnessLogged}
+                    onValueChange={(value) => {
+                      const newPrefs = { ...notificationPreferences, studentWellnessLogged: value };
+                      saveNotificationPreferences(newPrefs);
+                    }}
+                    trackColor={{ false: '#ccc', true: theme.colors.primary }}
+                    thumbColor={notificationPreferences.studentWellnessLogged ? '#fff' : '#f4f3f4'}
+                    disabled={loadingNotifications}
+                  />
+                </View>
+              )}
+
+              {/* Care Requests */}
+              <View style={styles.preferenceItem}>
+                <View style={styles.preferenceContent}>
+                  <Text style={styles.preferenceLabel}>Care Requests</Text>
+                  <Text style={styles.preferenceDescription}>
+                    Get notified about urgent care requests
+                  </Text>
+                </View>
+                <Switch
+                  value={notificationPreferences.careRequests}
+                  onValueChange={(value) => {
+                    const newPrefs = { ...notificationPreferences, careRequests: value };
+                    saveNotificationPreferences(newPrefs);
+                  }}
+                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
+                  thumbColor={notificationPreferences.careRequests ? '#fff' : '#f4f3f4'}
+                  disabled={loadingNotifications}
+                />
+              </View>
+
+              {/* Weekly Reports */}
+              <View style={styles.preferenceItem}>
+                <View style={styles.preferenceContent}>
+                  <Text style={styles.preferenceLabel}>Weekly Reports</Text>
+                  <Text style={styles.preferenceDescription}>
+                    Get weekly wellness summary reports
+                  </Text>
+                </View>
+                <Switch
+                  value={notificationPreferences.weeklyReports}
+                  onValueChange={(value) => {
+                    const newPrefs = { ...notificationPreferences, weeklyReports: value };
+                    saveNotificationPreferences(newPrefs);
+                  }}
+                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
+                  thumbColor={notificationPreferences.weeklyReports ? '#fff' : '#f4f3f4'}
+                  disabled={loadingNotifications}
+                />
+              </View>
+
+              {/* Daily Summaries */}
+              <View style={styles.preferenceItem}>
+                <View style={styles.preferenceContent}>
+                  <Text style={styles.preferenceLabel}>Daily Summaries</Text>
+                  <Text style={styles.preferenceDescription}>
+                    Get daily activity and wellness summaries (9 PM)
+                  </Text>
+                </View>
+                <Switch
+                  value={notificationPreferences.dailySummaries}
+                  onValueChange={(value) => {
+                    const newPrefs = { ...notificationPreferences, dailySummaries: value };
+                    saveNotificationPreferences(newPrefs);
+                  }}
+                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
+                  thumbColor={notificationPreferences.dailySummaries ? '#fff' : '#f4f3f4'}
+                  disabled={loadingNotifications}
+                />
+              </View>
+            </>
+          )}
+
+          {loadingNotifications && (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Updating preferences...</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
       {/* Actions */}
       <View style={styles.actionsSection}>
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Text style={styles.signOutButtonText}>Sign Out</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccount}>
+          <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
         </TouchableOpacity>
       </View>
       </ScrollView>
@@ -501,6 +941,7 @@ const styles = StyleSheet.create({
   },
   actionsSection: {
     marginTop: 32,
+    gap: 12,
   },
   signOutButton: {
     backgroundColor: theme.colors.error,
@@ -513,6 +954,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.backgroundSecondary,
   },
+  deleteAccountButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#dc2626',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  deleteAccountButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#dc2626',
+  },
   loadingContainer: {
     padding: 20,
     alignItems: 'center',
@@ -520,5 +974,31 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
+  },
+  preferencesContainer: {
+    gap: 16,
+  },
+  preferenceItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  preferenceContent: {
+    flex: 1,
+    marginRight: 16,
+  },
+  preferenceLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  preferenceDescription: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
   },
 });

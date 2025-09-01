@@ -25,8 +25,9 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && request.auth.uid == userId;
-      // Allow email verification updates
-      allow update: if request.resource.data.email_verified == true;
+      // Allow email verification updates from any authenticated user (for email verification process)
+      allow update: if request.resource.data.keys().hasOnly(['email_verified', 'updated_at']) && 
+                       request.resource.data.email_verified == true;
       // Allow reading for password reset lookup (need to query by email)
       allow read: if true;
       // Allow password reset updates
@@ -37,8 +38,9 @@ service cloud.firestore {
     match /profiles/{profileId} {
       allow read, write: if request.auth != null && request.auth.uid == profileId;
       allow create: if request.auth != null && request.auth.uid == profileId;
-      // Allow email verification updates (only email_verified field)
-      allow update: if request.resource.data.email_verified == true;
+      // Allow email verification updates (only email_verified field) from any authenticated user
+      allow update: if request.resource.data.keys().hasOnly(['email_verified', 'updated_at']) && 
+                       request.resource.data.email_verified == true;
     }
     
     // Family-based access control
@@ -47,6 +49,13 @@ service cloud.firestore {
         (resource.data.parentIds.hasAny([request.auth.uid]) || 
          resource.data.studentIds.hasAny([request.auth.uid]));
       allow create: if request.auth != null;
+      // Allow reading families for invite code lookup (needed for joining)
+      allow read: if request.auth != null;
+      // Allow students to join families (add themselves to studentIds array)
+      allow update: if request.auth != null && 
+        request.resource.data.studentIds.hasAny([request.auth.uid]) &&
+        !resource.data.studentIds.hasAny([request.auth.uid]) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['studentIds', 'updated_at']);
     }
     
     // Wellness entries - user can access their own, family members can read

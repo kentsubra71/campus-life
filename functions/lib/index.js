@@ -1,33 +1,34 @@
 "use strict";
-var _a, _b, _c;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = void 0;
+exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
-const dotenv_1 = require("dotenv");
 const expo_server_sdk_1 = require("expo-server-sdk");
-// Load environment variables
-(0, dotenv_1.config)();
+const params_1 = require("firebase-functions/params");
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
 // Initialize Expo SDK for push notifications
 const expo = new expo_server_sdk_1.Expo();
-// PayPal Configuration - prioritize environment variables over functions.config()
-const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || ((_a = functions.config().paypal) === null || _a === void 0 ? void 0 : _a.client_id);
-const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || ((_b = functions.config().paypal) === null || _b === void 0 ? void 0 : _b.client_secret);
-const PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL || ((_c = functions.config().paypal) === null || _c === void 0 ? void 0 : _c.base_url) || 'https://api-m.sandbox.paypal.com';
+// Secure secret definitions using Firebase Secret Manager
+const PAYPAL_CLIENT_ID = (0, params_1.defineSecret)('PAYPAL_CLIENT_ID');
+const PAYPAL_CLIENT_SECRET = (0, params_1.defineSecret)('PAYPAL_CLIENT_SECRET');
+const RESEND_API_KEY = (0, params_1.defineSecret)('RESEND_API_KEY');
+// PayPal Configuration
+const PAYPAL_BASE_URL = 'https://api-m.sandbox.paypal.com'; // Use production URL for live app
 // Debug logging function - updated for payments collection
 const debugLog = (functionName, message, data) => {
     console.log(`🔍 [${functionName}] ${message}`, data ? JSON.stringify(data, null, 2) : '');
 };
-// Get PayPal Access Token
+// Get PayPal Access Token (now secure with secrets)
 const getPayPalAccessToken = async () => {
     var _a;
     debugLog('getPayPalAccessToken', 'Requesting PayPal access token');
     try {
-        const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
+        const clientId = PAYPAL_CLIENT_ID.value();
+        const clientSecret = PAYPAL_CLIENT_SECRET.value();
+        const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
         const response = await axios_1.default.post(`${PAYPAL_BASE_URL}/v1/oauth2/token`, 'grant_type=client_credentials', {
             headers: {
                 'Authorization': `Basic ${auth}`,
@@ -43,7 +44,9 @@ const getPayPalAccessToken = async () => {
     }
 };
 // Create PayPal Order for P2P Payment
-exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
+exports.createPayPalOrder = functions
+    .runWith({ secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] })
+    .https.onCall(async (data, context) => {
     var _a, _b;
     debugLog('createPayPalOrder', 'Function called', { userId: (_a = context.auth) === null || _a === void 0 ? void 0 : _a.uid, data });
     // Verify authentication
@@ -62,8 +65,15 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
             throw new functions.https.HttpsError('not-found', 'Student not found');
         }
         const studentData = studentDoc.data();
+        debugLog('createPayPalOrder', 'Student data retrieved', {
+            hasPaypalEmail: !!studentData.paypal_email,
+            hasEmail: !!studentData.email,
+            paypalEmail: studentData.paypal_email || '[not set]',
+            email: studentData.email || '[not set]'
+        });
         const recipientEmail = studentData.paypal_email || studentData.email;
         if (!recipientEmail) {
+            debugLog('createPayPalOrder', 'No email found for student', studentData);
             throw new functions.https.HttpsError('failed-precondition', 'Student PayPal email not found');
         }
         debugLog('createPayPalOrder', 'Creating order for student', { recipientEmail, amountCents });
@@ -132,7 +142,9 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
     }
 });
 // Verify and Capture PayPal Payment
-exports.verifyPayPalPayment = functions.https.onCall(async (data, context) => {
+exports.verifyPayPalPayment = functions
+    .runWith({ secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] })
+    .https.onCall(async (data, context) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     debugLog('verifyPayPalPayment', 'Function called', { userId: (_a = context.auth) === null || _a === void 0 ? void 0 : _a.uid, data });
     // Verify authentication
@@ -319,39 +331,25 @@ exports.getTransactionStatus = functions.https.onCall(async (data, context) => {
     }
 });
 // Debug endpoint for testing PayPal connection
-exports.testPayPalConnection = functions.https.onCall(async (data, context) => {
+exports.testPayPalConnection = functions
+    .runWith({ secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] })
+    .https.onCall(async (data, context) => {
     var _a;
     debugLog('testPayPalConnection', 'Function called', { userId: (_a = context.auth) === null || _a === void 0 ? void 0 : _a.uid });
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
-    const credentialsInfo = {
-        hasClientId: !!PAYPAL_CLIENT_ID,
-        hasClientSecret: !!PAYPAL_CLIENT_SECRET,
-        clientIdLength: PAYPAL_CLIENT_ID ? PAYPAL_CLIENT_ID.length : 0,
-        secretLength: PAYPAL_CLIENT_SECRET ? PAYPAL_CLIENT_SECRET.length : 0,
-        baseUrl: PAYPAL_BASE_URL
-    };
-    debugLog('testPayPalConnection', 'Credentials check', credentialsInfo);
-    // Check if we have placeholder or real credentials
-    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET ||
-        PAYPAL_CLIENT_ID === 'test_client_id' ||
-        PAYPAL_CLIENT_SECRET === 'test_client_secret') {
-        return {
-            success: false,
-            error: 'PayPal credentials not configured. Please set real PayPal sandbox credentials.',
-            details: 'You need to set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to your actual PayPal sandbox app credentials.',
-            credentialsInfo,
-            setupInstructions: [
-                '1. Go to https://developer.paypal.com/',
-                '2. Create a sandbox application',
-                '3. Get your Client ID and Secret',
-                '4. Update functions/.env file with real credentials',
-                '5. Run: firebase deploy --only functions'
-            ]
-        };
-    }
     try {
+        const clientId = PAYPAL_CLIENT_ID.value();
+        const clientSecret = PAYPAL_CLIENT_SECRET.value();
+        const credentialsInfo = {
+            hasClientId: !!clientId,
+            hasClientSecret: !!clientSecret,
+            clientIdLength: clientId ? clientId.length : 0,
+            secretLength: clientSecret ? clientSecret.length : 0,
+            baseUrl: PAYPAL_BASE_URL
+        };
+        debugLog('testPayPalConnection', 'Credentials check', credentialsInfo);
         await getPayPalAccessToken();
         debugLog('testPayPalConnection', 'PayPal connection successful');
         return {
@@ -365,8 +363,15 @@ exports.testPayPalConnection = functions.https.onCall(async (data, context) => {
         return {
             success: false,
             error: error.message,
-            credentialsInfo,
-            details: 'Failed to get access token from PayPal. Check your credentials.'
+            details: 'Failed to get access token from PayPal. Check your credentials or set up secrets.',
+            setupInstructions: [
+                '1. Go to https://developer.paypal.com/',
+                '2. Create a sandbox application',
+                '3. Get your Client ID and Secret',
+                '4. Run: firebase functions:secrets:set PAYPAL_CLIENT_ID',
+                '5. Run: firebase functions:secrets:set PAYPAL_CLIENT_SECRET',
+                '6. Run: firebase deploy --only functions'
+            ]
         };
     }
 });
@@ -481,8 +486,161 @@ function checkNotificationTypeEnabled(type, preferences) {
             return preferences.careRequests !== false;
         case 'weekly_report':
             return preferences.weeklyReports !== false;
+        case 'daily_summary':
+            return preferences.dailySummaries !== false;
+        case 'student_wellness_logged':
+            return preferences.studentWellnessLogged !== false;
         default:
             return true;
     }
 }
+// Send Email using Resend API (Secure)
+exports.sendEmail = functions
+    .runWith({ secrets: [RESEND_API_KEY] })
+    .https.onCall(async (data, context) => {
+    var _a, _b, _c, _d;
+    debugLog('sendEmail', 'Function called', { userId: (_a = context.auth) === null || _a === void 0 ? void 0 : _a.uid, data: Object.assign(Object.assign({}, data), { verificationUrl: '[REDACTED]' }) });
+    // Verify authentication
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const { to, type, emailData } = data;
+    // Validate input
+    if (!to || !type || !emailData) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing required email data');
+    }
+    // Validate email type
+    if (!['email_verification', 'password_reset'].includes(type)) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid email type');
+    }
+    try {
+        const apiKey = RESEND_API_KEY.value();
+        if (!apiKey) {
+            throw new functions.https.HttpsError('failed-precondition', 'Email service not configured');
+        }
+        // Clean the API key of any potential invisible characters
+        const cleanApiKey = apiKey.trim().replace(/[\r\n\t]/g, '');
+        debugLog('sendEmail', 'API key validation', {
+            hasKey: !!cleanApiKey,
+            keyLength: cleanApiKey.length,
+            keyStart: cleanApiKey.substring(0, 5)
+        });
+        // Email templates
+        const templates = {
+            email_verification: {
+                subject: 'Verify your Campus Life email',
+                html: `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Verify Your Email - Campus Life</title>
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: #ffffff; border-radius: 12px; padding: 40px; border: 1px solid #e2e8f0;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                  <div style="width: 64px; height: 64px; background: #60a5fa; border-radius: 12px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 24px;">CL</div>
+                  <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Campus Life</h1>
+                  <p style="color: #64748b; margin: 10px 0 0 0; font-size: 16px;">Connecting families through wellness</p>
+                </div>
+                
+                <h2 style="color: #1e293b; font-size: 20px; font-weight: 700; margin-bottom: 16px;">Hi ${emailData.name},</h2>
+                
+                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                  Welcome to Campus Life! Please verify your email address to activate your account and start connecting with your family's wellness journey.
+                </p>
+                
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${emailData.verificationUrl}" style="background: #3b82f6; color: white; padding: 16px 24px; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px; display: inline-block;">Verify Email Address</a>
+                </div>
+                
+                <p style="color: #64748b; font-size: 14px; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+                  If you didn't create a Campus Life account, you can safely ignore this email.<br>
+                  This verification link will expire in 24 hours for security.
+                </p>
+                
+                <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
+                  <p>Campus Life<br>
+                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                </div>
+              </div>
+            </body>
+          </html>
+        `
+            },
+            password_reset: {
+                subject: 'Reset your Campus Life password',
+                html: `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Reset Password - Campus Life</title>
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: #ffffff; border-radius: 12px; padding: 40px; border: 1px solid #e2e8f0;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                  <div style="width: 64px; height: 64px; background: #60a5fa; border-radius: 12px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 24px;">CL</div>
+                  <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Campus Life</h1>
+                  <p style="color: #64748b; margin: 10px 0 0 0; font-size: 16px;">Connecting families through wellness</p>
+                </div>
+                
+                <h2 style="color: #1e293b; font-size: 20px; font-weight: 700; margin-bottom: 16px;">Hi ${emailData.name},</h2>
+                
+                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                  We received a request to reset your Campus Life password. Click the button below to create a new password.
+                </p>
+                
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${emailData.verificationUrl}" style="background: #dc2626; color: white; padding: 16px 24px; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px; display: inline-block;">Reset Password</a>
+                </div>
+                
+                <p style="color: #64748b; font-size: 14px; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+                  If you didn't request this password reset, you can safely ignore this email.<br>
+                  This reset link will expire in 1 hour for security.
+                </p>
+                
+                <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
+                  <p>Campus Life<br>
+                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                </div>
+              </div>
+            </body>
+          </html>
+        `
+            }
+        };
+        const template = templates[type];
+        debugLog('sendEmail', 'Sending email via Resend', { to, type, subject: template.subject });
+        // Send email using Resend API
+        const response = await axios_1.default.post('https://api.resend.com/emails', {
+            from: 'Campus Life <noreply@ronaldli.ca>',
+            to: [to],
+            subject: template.subject,
+            html: template.html
+        }, {
+            headers: {
+                'Authorization': `Bearer ${cleanApiKey}`,
+                'Content-Type': 'application/json',
+            },
+        });
+        debugLog('sendEmail', 'Email sent successfully', { messageId: response.data.id });
+        return {
+            success: true,
+            messageId: response.data.id,
+            type,
+            to
+        };
+    }
+    catch (error) {
+        debugLog('sendEmail', 'Error sending email', ((_b = error.response) === null || _b === void 0 ? void 0 : _b.data) || error.message);
+        if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
+        const errorMessage = ((_d = (_c = error.response) === null || _c === void 0 ? void 0 : _c.data) === null || _d === void 0 ? void 0 : _d.message) || error.message || 'Failed to send email';
+        throw new functions.https.HttpsError('internal', `Email service error: ${errorMessage}`);
+    }
+});
 //# sourceMappingURL=index.js.map

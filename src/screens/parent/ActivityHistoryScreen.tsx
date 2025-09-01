@@ -396,6 +396,15 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   ) => {
     if (!user) return;
 
+    console.log('🔍 Starting item payment:', {
+      requestId,
+      itemName,
+      itemPrice,
+      studentId,
+      provider,
+      itemDescription
+    });
+
     try {
       // First update the item request status to approved
       const { success, error: updateError } = await updateItemRequestStatus(requestId, 'approved', 'Payment processing');
@@ -403,18 +412,29 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         throw new Error(updateError);
       }
 
+      console.log('✅ Item request status updated to approved');
+
       // Use existing PayPal P2P system (same as support payments)
       const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
+      
+      console.log('🔍 Calling createPayPalP2POrder with:', {
+        studentId,
+        itemPrice,
+        note: `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
+      });
+      
       const result = await createPayPalP2POrder(
         studentId,
         itemPrice, // itemPrice is already in cents from database
         `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
       );
 
+      console.log('🔍 PayPal P2P order result:', result);
+
       if (result.success && result.approvalUrl) {
         // Store the transaction ID for potential cancellation (same as regular payments)
         if (result.transactionId) {
-          console.log('Item payment created with ID:', result.transactionId);
+          console.log('✅ Item payment created with ID:', result.transactionId);
         }
         
         // Open PayPal for payment (same as regular payments)
@@ -430,11 +450,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
         loadActivities(true); // Refresh activities
       } else {
+        console.error('❌ PayPal order creation failed:', result);
         throw new Error(result.error || 'Failed to create PayPal order');
       }
     } catch (error: any) {
-      console.error('Error sending item payment:', error);
-      Alert.alert('Error', error.message || 'Failed to send item payment. Please try again.');
+      console.error('❌ Error sending item payment:', error);
+      Alert.alert('Error', `Failed to make payment: ${error.message || 'Unknown error'}`);
     }
   };
 

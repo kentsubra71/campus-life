@@ -58,28 +58,21 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
 
   const renderStatsCard = () => (
     <View style={styles.statsContainer}>
-      <Text style={styles.statsTitle}>Your Wellness Stats</Text>
-      <View style={styles.statsGrid}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.currentStreak}</Text>
-          <Text style={styles.statLabel}>Day Streak</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.averageScore}</Text>
-          <Text style={styles.statLabel}>Avg Score</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.totalEntries}</Text>
-          <Text style={styles.statLabel}>Total Entries</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.weeklyAverage}</Text>
-          <Text style={styles.statLabel}>Weekly Avg</Text>
+      <View style={styles.statsHeader}>
+        <Text style={styles.statsTitle}>Wellness Overview</Text>
+        <View style={[styles.statusBadge, { 
+          backgroundColor: stats.currentStreak >= 3 ? '#10b981' : 
+                          stats.currentStreak >= 1 ? '#3b82f6' : '#f59e0b'
+        }]}>
+          <Text style={styles.statusBadgeText}>
+            {stats.currentStreak >= 3 ? 'ON TRACK' : 
+             stats.currentStreak >= 1 ? 'BUILDING' : 'GET STARTED'}
+          </Text>
         </View>
       </View>
+      <Text style={styles.statsSubtitle}>
+        {stats.currentStreak}-day streak • {stats.averageScore} avg score • {stats.totalEntries} total entries
+      </Text>
     </View>
   );
 
@@ -230,43 +223,37 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   statsContainer: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  statsTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
+    paddingVertical: 12,
     marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  statsGrid: {
+  statsHeader: {
     flexDirection: 'row',
-  },
-  statCard: {
-    flex: 1,
+    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: theme.colors.border,
-    marginHorizontal: 16,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
     marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    fontWeight: '500',
+  statsTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  },
+  statsSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    lineHeight: 16,
   },
   filterSection: {
     marginBottom: 16,

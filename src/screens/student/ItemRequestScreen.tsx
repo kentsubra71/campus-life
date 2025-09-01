@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { showMessage } from 'react-native-flash-message';
 import { theme } from '../../styles/theme';
 import { StatusHeader } from '../../components/StatusHeader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuthStore } from '../../stores/authStore';
+import { createItemRequest } from '../../lib/firebase';
 
 interface ItemRequestScreenProps {
   navigation: any;
@@ -22,12 +24,29 @@ interface ItemRequestScreenProps {
 
 const ItemRequestScreen: React.FC<ItemRequestScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { user, getFamilyMembers } = useAuthStore();
+  const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [itemName, setItemName] = useState('');
   const [itemPrice, setItemPrice] = useState('');
   const [itemDescription, setItemDescription] = useState('');
   const [requestReason, setRequestReason] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const predefinedAmounts = [10, 25, 50, 75, 100, 150];
+
+  useEffect(() => {
+    const loadFamilyMembers = async () => {
+      if (user) {
+        try {
+          const members = await getFamilyMembers();
+          setFamilyMembers(members);
+        } catch (error) {
+          console.error('Failed to load family members:', error);
+        }
+      }
+    };
+    loadFamilyMembers();
+  }, [user, getFamilyMembers]);
 
   const handleSendRequest = async () => {
     if (!itemName.trim() || !itemPrice.trim() || !requestReason.trim()) {
@@ -41,22 +60,48 @@ const ItemRequestScreen: React.FC<ItemRequestScreenProps> = ({ navigation }) => 
       return;
     }
 
+    if (!user) {
+      Alert.alert('Error', 'Please log in to send requests.');
+      return;
+    }
+
+    // Find parent from family members
+    const parent = familyMembers.parents[0];
+    if (!parent) {
+      Alert.alert('Error', 'No parent found in your family. Please contact support.');
+      return;
+    }
+
     try {
-      // TODO: Implement sending item request to parents
-      const requestMessage = `Item Request: ${itemName}\nPrice: $${price}\nDescription: ${itemDescription || 'No description provided'}\nReason: ${requestReason}`;
-      
-      // For now, show success message
+      setLoading(true);
+
+      const { id, error } = await createItemRequest({
+        student_id: user.id,
+        parent_id: parent.id,
+        item_name: itemName.trim(),
+        item_price: Math.round(price * 100), // Convert to cents
+        item_description: itemDescription.trim() || undefined,
+        reason: requestReason.trim(),
+      });
+
+      if (error) {
+        throw new Error(error);
+      }
+
       showMessage({
         message: 'Request Sent!',
-        description: 'Your item request has been sent to your family.',
+        description: `Your request for "${itemName}" has been sent to your family.`,
         type: 'success',
         backgroundColor: theme.colors.success,
         color: theme.colors.backgroundSecondary,
       });
 
       navigation.goBack();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to send request. Please try again.');
+    } catch (error: any) {
+      console.error('Error sending item request:', error);
+      Alert.alert('Error', error.message || 'Failed to send request. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -156,12 +201,14 @@ const ItemRequestScreen: React.FC<ItemRequestScreenProps> = ({ navigation }) => 
           <TouchableOpacity
             style={[
               styles.sendButton,
-              (!itemName.trim() || !itemPrice.trim() || !requestReason.trim()) && styles.sendButtonDisabled
+              (loading || !itemName.trim() || !itemPrice.trim() || !requestReason.trim()) && styles.sendButtonDisabled
             ]}
             onPress={handleSendRequest}
-            disabled={!itemName.trim() || !itemPrice.trim() || !requestReason.trim()}
+            disabled={loading || !itemName.trim() || !itemPrice.trim() || !requestReason.trim()}
           >
-            <Text style={styles.sendButtonText}>Send Request</Text>
+            <Text style={styles.sendButtonText}>
+              {loading ? 'Sending...' : 'Send Request'}
+            </Text>
           </TouchableOpacity>
           <Text style={styles.helpText}>
             Your family will receive this request and can choose to approve it

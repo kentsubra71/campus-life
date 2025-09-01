@@ -167,5 +167,45 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Item requests - students can create, parents can read/update
+    match /item_requests/{requestId} {
+      // Students can create item requests for themselves
+      allow create: if request.auth != null && 
+        request.resource.data.student_id == request.auth.uid &&
+        validateItemRequest(request.resource.data);
+      
+      // Parents can read item requests sent to them
+      allow read: if request.auth != null && 
+        resource.data.parent_id == request.auth.uid;
+      
+      // Students can read their own item requests  
+      allow read: if request.auth != null && 
+        resource.data.student_id == request.auth.uid;
+      
+      // Parents can update status of item requests sent to them
+      allow update: if request.auth != null && 
+        resource.data.parent_id == request.auth.uid &&
+        validateItemRequestUpdate(resource.data, request.resource.data);
+
+      // Validate item request creation data
+      function validateItemRequest(data) {
+        return data.keys().hasAll(['student_id', 'parent_id', 'item_name', 'reason', 'status']) &&
+               data.item_name is string &&
+               data.item_name.size() > 0 &&
+               data.reason is string &&
+               data.reason.size() > 0 &&
+               data.status == 'pending' &&
+               (!data.keys().hasAny(['item_price']) || data.item_price is int) &&
+               (!data.keys().hasAny(['item_description']) || data.item_description is string);
+      }
+      
+      // Validate item request updates (only allow status and related fields)
+      function validateItemRequestUpdate(oldData, newData) {
+        let allowedFields = ['status', 'updated_at', 'response_at', 'response_note', 'decline_reason', 'approve_reason'];
+        return newData.diff(oldData).affectedKeys().hasOnly(allowedFields) &&
+               newData.status in ['pending', 'approved', 'declined'];
+      }
+    }
   }
 }

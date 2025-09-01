@@ -13,12 +13,13 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
-import { db, getItemRequestsForParent } from '../../lib/firebase';
+import { db, getItemRequestsForParent, updateItemRequestStatus } from '../../lib/firebase';
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
 import { StatusHeader } from '../../components/StatusHeader';
 import { NavigationProp } from '@react-navigation/native';
 import { getUserFriendlyError, logError } from '../../utils/userFriendlyErrors';
+import { showMessage } from 'react-native-flash-message';
 import { 
   isPaymentNearTimeout, 
   formatTimeRemaining, 
@@ -35,6 +36,7 @@ interface ActivityItem {
   status: string;
   note?: string;
   student_name?: string;
+  student_id?: string; // Add student_id for item requests
   message_content?: string;
   message_type?: string;
   item_name?: string;
@@ -219,7 +221,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             item_price: request.item_price,
             item_description: request.item_description,
             reason: request.reason,
-            student_name: studentName
+            student_name: studentName,
+            student_id: request.student_id
           });
         }
       } catch (requestsError) {
@@ -330,6 +333,108 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   const previousPage = () => {
     if (currentPage > 0) {
       setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleDeclineItem = async (requestId: string, itemName: string) => {
+    Alert.alert(
+      'Decline Request',
+      `Are you sure you want to decline the request for "${itemName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Decline', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { success, error } = await updateItemRequestStatus(requestId, 'declined', 'Declined by parent');
+              if (success) {
+                showMessage({
+                  message: 'Request Declined',
+                  description: `The request for "${itemName}" has been declined.`,
+                  type: 'info',
+                  backgroundColor: theme.colors.warning,
+                  color: theme.colors.backgroundSecondary,
+                });
+                loadActivities(true); // Refresh activities
+              } else {
+                throw new Error(error);
+              }
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to decline request. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleApproveItem = async (requestId: string, itemName: string, itemPrice: number, studentId: string, itemDescription?: string) => {
+    // Convert cents to dollars for display
+    const priceInDollars = itemPrice / 100;
+    
+    Alert.alert(
+      'Send Item',
+      `Send $${priceInDollars.toFixed(2)} via PayPal for "${itemName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Send via PayPal', 
+          onPress: () => sendItemPayment(requestId, itemName, itemPrice, studentId, 'paypal', itemDescription)
+        }
+      ]
+    );
+  };
+
+  const sendItemPayment = async (
+    requestId: string, 
+    itemName: string, 
+    itemPrice: number, 
+    studentId: string, 
+    provider: string,
+    itemDescription?: string
+  ) => {
+    if (!user) return;
+
+    try {
+      // First update the item request status to approved
+      const { success, error: updateError } = await updateItemRequestStatus(requestId, 'approved', 'Payment processing');
+      if (!success) {
+        throw new Error(updateError);
+      }
+
+      // Use existing PayPal P2P system (same as support payments)
+      const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
+      const result = await createPayPalP2POrder(
+        studentId,
+        itemPrice, // itemPrice is already in cents from database
+        `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
+      );
+
+      if (result.success && result.approvalUrl) {
+        // Store the payment ID for potential cancellation (same as regular payments)
+        if (result.paymentId) {
+          console.log('Item payment created with ID:', result.paymentId);
+        }
+        
+        // Open PayPal for payment (same as regular payments)
+        const { Linking } = await import('react-native');
+        await Linking.openURL(result.approvalUrl);
+        
+        // Show user what to expect (same as regular payments)
+        Alert.alert(
+          'PayPal Payment Started',
+          `Complete your payment in PayPal, then return to Campus Life. The payment for "${itemName}" will be automatically verified.`,
+          [{ text: 'OK' }]
+        );
+
+        loadActivities(true); // Refresh activities
+      } else {
+        throw new Error(result.error || 'Failed to create PayPal order');
+      }
+    } catch (error: any) {
+      console.error('Error sending item payment:', error);
+      Alert.alert('Error', error.message || 'Failed to send item payment. Please try again.');
     }
   };
 
@@ -563,7 +668,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         {item.type === 'item_request' && (
           <View style={styles.requestDetails}>
             <Text style={styles.requestItem}>
-              {item.item_name} - ${item.item_price?.toFixed(2)}
+              {item.item_name} - ${item.item_price ? (item.item_price / 100).toFixed(2) : '0.00'}
             </Text>
             {item.item_description && (
               <Text style={styles.requestDescription} numberOfLines={2}>
@@ -573,6 +678,30 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             <Text style={styles.requestReason}>
               Reason: {item.reason}
             </Text>
+            
+            {/* Approval buttons for pending requests */}
+            {item.status === 'pending' && (
+              <View style={styles.requestActions}>
+                <TouchableOpacity
+                  style={styles.declineButton}
+                  onPress={() => handleDeclineItem(item.id, item.item_name || 'item')}
+                >
+                  <Text style={styles.declineButtonText}>Decline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.approveButton}
+                  onPress={() => handleApproveItem(
+                    item.id, 
+                    item.item_name || 'item', 
+                    item.item_price || 0,
+                    item.student_id || '',
+                    item.item_description
+                  )}
+                >
+                  <Text style={styles.approveButtonText}>Approve & Send</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
         </TouchableOpacity>
@@ -1050,6 +1179,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textTertiary,
     lineHeight: 18,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    gap: 12,
+  },
+  declineButton: {
+    flex: 1,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  declineButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.error,
+  },
+  approveButton: {
+    flex: 1,
+    backgroundColor: theme.colors.success,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  approveButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
   paginationContainer: {
     flexDirection: 'row',

@@ -26,6 +26,11 @@ interface Payment {
   created_at: any;
   confirmed_at?: any;
   parent_name?: string;
+  item_context?: {
+    item_request_id?: string;
+    item_name?: string;
+    item_description?: string;
+  };
 }
 
 interface SupportRequest {
@@ -86,7 +91,7 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
         const paymentsQuery = query(
           collection(db, 'payments'),
           where('student_id', '==', user.id),
-          where('status', 'in', ['completed', 'confirmed_by_parent'])
+          where('status', 'in', ['completed', 'confirmed_by_parent', 'initiated', 'pending', 'processing', 'sent'])
         );
         
         const paymentsSnapshot = await getDocs(paymentsQuery);
@@ -105,7 +110,8 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
             status: paymentData.status,
             created_at: paymentData.created_at,
             confirmed_at: paymentData.confirmed_at,
-            parent_name: 'Parent' // Use generic name to avoid users collection access
+            parent_name: 'Parent', // Use generic name to avoid users collection access
+            item_context: paymentData.item_context // Include item context if present
           } as Payment);
         });
       } catch (paymentsError) {
@@ -228,21 +234,42 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
 
   const renderActivity = (activity: ActivityItem) => {
     if ('intent_cents' in activity) {
-      // Payment
+      // Check if this is an item payment or regular payment
+      const isItemPayment = activity.item_context && activity.item_context.item_name;
+      
       return (
         <View key={activity.id} style={styles.activityCard}>
           <View style={styles.activityHeader}>
-            <View style={styles.paymentIcon}>
-              <Text style={styles.iconText}>💰</Text>
+            <View style={isItemPayment ? styles.itemIcon : styles.paymentIcon}>
+              <Text style={styles.iconText}>{isItemPayment ? '📦' : '💰'}</Text>
             </View>
             <View style={styles.activityContent}>
-              <Text style={styles.activityTitle}>
-                +${(activity.intent_cents / 100).toFixed(2)} received
-              </Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.activityTitle}>
+                  {isItemPayment 
+                    ? `${activity.item_context!.item_name} ${activity.status === 'completed' || activity.status === 'confirmed_by_parent' ? 'received' : 'being sent'}`
+                    : `+$${(activity.intent_cents / 100).toFixed(2)} ${activity.status === 'completed' || activity.status === 'confirmed_by_parent' ? 'received' : 'pending'}`
+                  }
+                </Text>
+                {(activity.status !== 'completed' && activity.status !== 'confirmed_by_parent') && (
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusText}>
+                      {activity.status === 'initiated' || activity.status === 'pending' || activity.status === 'processing' ? 'Processing' : 
+                       activity.status === 'sent' ? 'Sent' : activity.status}
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.activitySubtitle}>
-                from {activity.parent_name?.split(' ')[0] || 'Parent'} via {activity.provider}
+                {isItemPayment 
+                  ? `Item ${activity.status === 'completed' || activity.status === 'confirmed_by_parent' ? 'sent' : 'being processed'} by ${activity.parent_name?.split(' ')[0] || 'Parent'} via ${activity.provider} ($${(activity.intent_cents / 100).toFixed(2)})`
+                  : `${activity.status === 'completed' || activity.status === 'confirmed_by_parent' ? 'from' : 'being sent by'} ${activity.parent_name?.split(' ')[0] || 'Parent'} via ${activity.provider}`
+                }
               </Text>
-              {activity.note && (
+              {isItemPayment && activity.item_context!.item_description && (
+                <Text style={styles.activityNote}>"{activity.item_context!.item_description}"</Text>
+              )}
+              {!isItemPayment && activity.note && (
                 <Text style={styles.activityNote}>"{activity.note}"</Text>
               )}
             </View>
@@ -485,6 +512,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
+  itemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
   supportIcon: {
     width: 40,
     height: 40,
@@ -509,11 +545,29 @@ const styles = StyleSheet.create({
   activityContent: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   activityTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: 4,
+    flex: 1,
+  },
+  statusBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'white',
   },
   activitySubtitle: {
     fontSize: 14,

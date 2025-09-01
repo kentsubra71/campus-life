@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuthStore } from '../../stores/authStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
+import { StatusHeader } from '../../components/StatusHeader';
 import { theme } from '../../styles/theme';
 
 interface Payment {
@@ -55,8 +55,8 @@ interface PaymentHistoryScreenProps {
   navigation: any;
 }
 
-type TimeFilter = 'today' | 'week' | 'month' | 'all';
-type TypeFilter = 'all' | 'payments' | 'messages' | 'support';
+type FilterPeriod = 'all' | 'day' | 'week' | 'month';
+type FilterType = 'all' | 'payments' | 'messages' | 'items';
 
 export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
@@ -65,8 +65,10 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
   const [filteredActivities, setFilteredActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('all');
+  const [filterType, setFilterType] = useState<FilterType>('all');
+  const [currentPage, setCurrentPage] = useState(0);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     if (user) {
@@ -76,7 +78,7 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
 
   useEffect(() => {
     applyFilters();
-  }, [activities, timeFilter, typeFilter]);
+  }, [activities, filterPeriod, filterType]);
 
   const loadAllActivities = async () => {
     if (!user) return;
@@ -158,13 +160,13 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
     let filtered = [...activities];
 
     // Apply time filter
-    if (timeFilter !== 'all') {
+    if (filterPeriod !== 'all') {
       const now = new Date();
       let cutoffTime: Date;
       
-      switch (timeFilter) {
-        case 'today':
-          cutoffTime = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      switch (filterPeriod) {
+        case 'day':
+          cutoffTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
           break;
         case 'week':
           cutoffTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -183,15 +185,15 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
     }
 
     // Apply type filter
-    if (typeFilter !== 'all') {
+    if (filterType !== 'all') {
       filtered = filtered.filter(activity => {
-        switch (typeFilter) {
+        switch (filterType) {
           case 'payments':
             return 'intent_cents' in activity;
           case 'messages':
             return 'content' in activity && activity.type !== 'support_request';
-          case 'support':
-            return 'type' in activity && activity.type === 'support_request';
+          case 'items':
+            return 'intent_cents' in activity && activity.item_context;
           default:
             return true;
         }
@@ -199,6 +201,16 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
     }
 
     setFilteredActivities(filtered);
+  };
+
+  const getPeriodLabel = (period: FilterPeriod) => {
+    switch (period) {
+      case 'day': return 'Past 24h';
+      case 'week': return 'Past Week';
+      case 'month': return 'Past Month';
+      case 'all': return 'All Time';
+      default: return 'All Time';
+    }
   };
 
   const onRefresh = async () => {
@@ -232,170 +244,267 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
     }
   };
 
-  const renderActivity = (activity: ActivityItem) => {
-    if ('intent_cents' in activity) {
-      // Check if this is an item payment or regular payment
-      const isItemPayment = activity.item_context && activity.item_context.item_name;
-      
-      return (
-        <View key={activity.id} style={styles.activityCard}>
-          <View style={styles.activityHeader}>
-            <View style={isItemPayment ? styles.itemIcon : styles.paymentIcon}>
-              <Text style={styles.iconText}>{isItemPayment ? '📦' : '💰'}</Text>
-            </View>
-            <View style={styles.activityContent}>
-              <View style={styles.titleRow}>
-                <Text style={styles.activityTitle}>
-                  {isItemPayment 
-                    ? `${activity.item_context!.item_name} ${activity.status === 'completed' || activity.status === 'confirmed_by_parent' ? 'received' : 'being sent'}`
-                    : `+$${(activity.intent_cents / 100).toFixed(2)} ${activity.status === 'completed' || activity.status === 'confirmed_by_parent' ? 'received' : 'pending'}`
-                  }
-                </Text>
-                {(activity.status !== 'completed' && activity.status !== 'confirmed_by_parent') && (
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>
-                      {activity.status === 'initiated' || activity.status === 'pending' || activity.status === 'processing' ? 'Processing' : 
-                       activity.status === 'sent' ? 'Sent' : activity.status}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.activitySubtitle}>
-                {isItemPayment 
-                  ? `Item ${activity.status === 'completed' || activity.status === 'confirmed_by_parent' ? 'sent' : 'being processed'} by ${activity.parent_name?.split(' ')[0] || 'Parent'} via ${activity.provider} ($${(activity.intent_cents / 100).toFixed(2)})`
-                  : `${activity.status === 'completed' || activity.status === 'confirmed_by_parent' ? 'from' : 'being sent by'} ${activity.parent_name?.split(' ')[0] || 'Parent'} via ${activity.provider}`
-                }
-              </Text>
-              {isItemPayment && activity.item_context!.item_description && (
-                <Text style={styles.activityNote}>"{activity.item_context!.item_description}"</Text>
-              )}
-              {!isItemPayment && activity.note && (
-                <Text style={styles.activityNote}>"{activity.note}"</Text>
-              )}
-            </View>
-            <Text style={styles.activityTime}>
-              {formatTime(getActivityTimestamp(activity))}
-            </Text>
-          </View>
-        </View>
-      );
-    } else if (activity.type === 'support_request') {
-      // Support request
-      return (
-        <View key={activity.id} style={styles.activityCard}>
-          <View style={styles.activityHeader}>
-            <View style={styles.supportIcon}>
-              <Text style={styles.iconText}>🆘</Text>
-            </View>
-            <View style={styles.activityContent}>
-              <Text style={styles.activityTitle}>Support Requested</Text>
-              <Text style={styles.activitySubtitle}>{activity.content}</Text>
-            </View>
-            <Text style={styles.activityTime}>
-              {formatTime(getActivityTimestamp(activity))}
-            </Text>
-          </View>
-        </View>
-      );
+  const getStatusColor = (type: string, status: string) => {
+    if (type === 'payment') {
+      switch (status) {
+        case 'completed': return '#10b981';
+        case 'confirmed_by_parent': return '#10b981';
+        case 'sent': return '#f59e0b';
+        case 'initiated': return theme.colors.primary;
+        case 'pending': return theme.colors.primary;
+        case 'timeout': return '#dc2626';
+        case 'cancelled': return '#9ca3af';
+        case 'failed': return '#dc2626';
+        default: return '#9ca3af';
+      }
     } else {
-      // Support message
-      const getMessageEmoji = (type: string) => {
-        switch (type) {
-          case 'voice': return '🎤';
-          case 'care_package': return '📦';
-          case 'video_call': return '📹';
-          case 'boost': return '⚡';
-          default: return '💌';
-        }
-      };
-
-      return (
-        <View key={activity.id} style={styles.activityCard}>
-          <View style={styles.activityHeader}>
-            <View style={styles.messageIcon}>
-              <Text style={styles.iconText}>{getMessageEmoji(activity.type)}</Text>
-            </View>
-            <View style={styles.activityContent}>
-              <Text style={styles.activityTitle}>Family Message</Text>
-              <Text style={styles.activitySubtitle}>{activity.content}</Text>
-            </View>
-            <Text style={styles.activityTime}>
-              {formatTime(getActivityTimestamp(activity))}
-            </Text>
-          </View>
-        </View>
-      );
+      switch (status) {
+        case 'read': return '#10b981';
+        case 'sent': return theme.colors.primary;
+        default: return '#9ca3af';
+      }
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* Header with back button */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={theme.colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Activity History</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-      
-      {/* Filters */}
-      <View style={styles.filtersContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          {/* Time Filters */}
-          {(['today', 'week', 'month', 'all'] as TimeFilter[]).map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[styles.filterButton, timeFilter === filter && styles.activeFilter]}
-              onPress={() => setTimeFilter(filter)}
-            >
-              <Text style={[styles.filterText, timeFilter === filter && styles.activeFilterText]}>
-                {filter.charAt(0).toUpperCase() + filter.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          
-          <View style={styles.filterDivider} />
-          
-          {/* Type Filters */}
-          {(['all', 'payments', 'messages', 'support'] as TypeFilter[]).map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[styles.filterButton, typeFilter === filter && styles.activeFilter]}
-              onPress={() => setTypeFilter(filter)}
-            >
-              <Text style={[styles.filterText, typeFilter === filter && styles.activeFilterText]}>
-                {filter === 'all' ? 'All' : 
-                 filter === 'payments' ? 'Money' :
-                 filter === 'messages' ? 'Messages' : 'Support'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+  const getStatusText = (type: string, status: string) => {
+    if (type === 'payment') {
+      switch (status) {
+        case 'completed': return 'Completed';
+        case 'confirmed_by_parent': return 'Confirmed';
+        case 'sent': return 'Sent';
+        case 'initiated': return 'Processing';
+        case 'pending': return 'Pending';
+        case 'timeout': return 'Timed Out';
+        case 'cancelled': return 'Cancelled';
+        case 'failed': return 'Failed';
+        default: return status;
+      }
+    } else {
+      switch (status) {
+        case 'read': return 'Read';
+        case 'sent': return 'Sent';
+        default: return status;
+      }
+    }
+  };
 
-      {/* Activities List */}
+  const renderActivity = (activity: ActivityItem) => {
+    const timestamp = getActivityTimestamp(activity);
+    const activityType = 'intent_cents' in activity ? 'payment' : 
+                        activity.type === 'support_request' ? 'request' : 'message';
+    
+    return (
+      <View key={activity.id} style={styles.activityItem}>
+        <View style={styles.activityHeader}>
+          <View style={styles.activityInfo}>
+            <Text style={styles.activityType}>
+              {'intent_cents' in activity && activity.item_context 
+                ? `Item Request` 
+                : 'intent_cents' in activity 
+                ? 'Payment'
+                : activity.type === 'support_request' 
+                ? 'Support Request'
+                : 'Family Message'
+              }
+            </Text>
+            <Text style={styles.activityTime}>{formatTime(timestamp)}</Text>
+          </View>
+          <View style={[styles.statusBadge, { 
+            backgroundColor: getStatusColor(activityType, 'intent_cents' in activity ? activity.status : activity.type || 'message') 
+          }]}>
+            <Text style={styles.statusText}>
+              {getStatusText(activityType, 'intent_cents' in activity ? activity.status : activity.type || 'message')}
+            </Text>
+          </View>
+        </View>
+
+        {'intent_cents' in activity && (
+          <View style={styles.paymentDetails}>
+            <Text style={styles.paymentAmount}>
+              ${(activity.intent_cents / 100).toFixed(2)} via {activity.provider?.charAt(0).toUpperCase()}{activity.provider?.slice(1)}
+            </Text>
+            {activity.item_context && activity.item_context.item_name && (
+              <Text style={styles.itemName}>
+                Item: {activity.item_context.item_name}
+              </Text>
+            )}
+            {activity.item_context && activity.item_context.item_description && (
+              <Text style={styles.paymentNote}>"{activity.item_context.item_description}"</Text>
+            )}
+            {!activity.item_context && activity.note && (
+              <Text style={styles.paymentNote}>"{activity.note}"</Text>
+            )}
+          </View>
+        )}
+
+        {'content' in activity && (
+          <View style={styles.messageDetails}>
+            <Text style={styles.messageContent} numberOfLines={2}>
+              {activity.content}
+            </Text>
+            <Text style={styles.messageType}>
+              {activity.type === 'support_request' ? 'Support Request' : 'Family Message'}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const insets = useSafeAreaInsets();
+  const paginatedActivities = filteredActivities.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage);
+
+  return (
+    <View style={styles.container}>
+      <StatusHeader title="Activity History" />
       <ScrollView
-        style={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        style={[styles.scrollView, { paddingTop: 50 }]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>All Activity</Text>
+          <Text style={styles.subtitle}>Your family connections and support</Text>
+        </View>
+
+        {/* Quick Stats */}
+        <View style={styles.quickStats}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activities.filter(a => 'intent_cents' in a).length}</Text>
+            <Text style={styles.statLabel}>Payments</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activities.filter(a => 'content' in a).length}</Text>
+            <Text style={styles.statLabel}>Messages</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activities.filter(a => 'intent_cents' in a && a.item_context).length}</Text>
+            <Text style={styles.statLabel}>Items</Text>
+          </View>
+        </View>
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Loading activities...</Text>
           </View>
-        ) : filteredActivities.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No activities found</Text>
-            <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
-          </View>
         ) : (
-          filteredActivities.map(renderActivity)
+          <View style={styles.activitiesContainer}>
+            {/* Time Period Filter */}
+            <View style={styles.filterSection}>
+              <View style={styles.segmentedControl}>
+                {(['all', 'day', 'week', 'month'] as FilterPeriod[]).map((period, index) => (
+                  <TouchableOpacity
+                    key={period}
+                    style={[
+                      styles.segment,
+                      index === 0 && styles.segmentFirst,
+                      index === 3 && styles.segmentLast,
+                      filterPeriod === period && styles.segmentActive
+                    ]}
+                    onPress={() => setFilterPeriod(period)}
+                  >
+                    <Text style={[
+                      styles.segmentText,
+                      filterPeriod === period && styles.segmentTextActive
+                    ]}>
+                      {period === 'all' ? 'All' :
+                       period === 'day' ? '24h' : 
+                       period === 'week' ? '7d' : '30d'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Activity Type Filter */}
+            <View style={styles.filterSection}>
+              <View style={styles.segmentedControl}>
+                {(['all', 'payments', 'messages', 'items'] as FilterType[]).map((type, index) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.segment,
+                      index === 0 && styles.segmentFirst,
+                      index === 3 && styles.segmentLast,
+                      filterType === type && styles.segmentActive
+                    ]}
+                    onPress={() => setFilterType(type)}
+                  >
+                    <Text style={[
+                      styles.segmentText,
+                      filterType === type && styles.segmentTextActive
+                    ]}>
+                      {type === 'all' ? 'All' : 
+                       type === 'payments' ? 'Payments' :
+                       type === 'messages' ? 'Messages' : 'Items'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Results Info */}
+            <View style={styles.resultsInfo}>
+              <Text style={styles.resultsText}>
+                {filteredActivities.length} {filteredActivities.length === 1 ? 'activity' : 'activities'}
+              </Text>
+            </View>
+
+            {/* Activities List */}
+            {filteredActivities.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No activities found</Text>
+                <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
+              </View>
+            ) : (
+              <View style={styles.activitiesList}>
+                {paginatedActivities.map(renderActivity)}
+              </View>
+            )}
+
+            {/* Pagination */}
+            {filteredActivities.length > itemsPerPage && (
+              <View style={styles.paginationContainer}>
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage === 0 && styles.paginationButtonDisabled]}
+                  onPress={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                  disabled={currentPage === 0}
+                >
+                  <Text style={[styles.paginationButtonText, currentPage === 0 && styles.paginationButtonTextDisabled]}>
+                    Previous
+                  </Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.paginationInfo}>
+                  Page {currentPage + 1} of {Math.ceil(filteredActivities.length / itemsPerPage)}
+                </Text>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.paginationButton, 
+                    (currentPage + 1) * itemsPerPage >= filteredActivities.length && styles.paginationButtonDisabled
+                  ]}
+                  onPress={() => setCurrentPage(currentPage + 1)}
+                  disabled={(currentPage + 1) * itemsPerPage >= filteredActivities.length}
+                >
+                  <Text style={[
+                    styles.paginationButtonText,
+                    (currentPage + 1) * itemsPerPage >= filteredActivities.length && styles.paginationButtonTextDisabled
+                  ]}>
+                    Next
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -404,68 +513,189 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.backgroundCard,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
+  scrollView: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+  },
+  header: {
+    marginBottom: 20,
+    paddingTop: 10,
+    paddingHorizontal: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
-    textAlign: 'center',
-    marginLeft: -32, // Compensate for back button width
+    marginBottom: 4,
   },
-  headerSpacer: {
-    width: 32, // Same width as back button for centering
+  subtitle: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
   },
-  filtersContainer: {
-    backgroundColor: theme.colors.backgroundCard,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  filterScroll: {
-    paddingHorizontal: 16,
-  },
-  filterButton: {
+  quickStats: {
+    flexDirection: 'row',
     backgroundColor: theme.colors.backgroundSecondary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
+    borderRadius: 8,
+    padding: 16,
+    marginHorizontal: 24,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  activeFilter: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
   },
-  filterText: {
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: theme.colors.border,
+    marginHorizontal: 16,
+  },
+  activitiesContainer: {
+    paddingHorizontal: 24,
+  },
+  filterSection: {
+    marginBottom: 16,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+    padding: 2,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentFirst: {
+    borderTopLeftRadius: 6,
+    borderBottomLeftRadius: 6,
+  },
+  segmentLast: {
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  segmentActive: {
+    backgroundColor: theme.colors.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  segmentText: {
     fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textSecondary,
   },
-  activeFilterText: {
-    color: 'white',
+  segmentTextActive: {
+    color: theme.colors.textPrimary,
+    fontWeight: '600',
   },
-  filterDivider: {
-    width: 1,
-    backgroundColor: theme.colors.border,
-    marginHorizontal: 8,
-    alignSelf: 'stretch',
+  resultsInfo: {
+    paddingBottom: 12,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  content: {
+  resultsText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  activitiesList: {
+    gap: 1,
+  },
+  activityItem: {
+    backgroundColor: theme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  activityInfo: {
     flex: 1,
-    padding: 16,
+    marginRight: 12,
+  },
+  activityType: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  activityTime: {
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    fontWeight: '500',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
+    textTransform: 'uppercase',
+  },
+  paymentDetails: {
+    marginTop: 4,
+  },
+  paymentAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.success,
+    marginBottom: 4,
+  },
+  itemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  paymentNote: {
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+    fontStyle: 'italic',
+    lineHeight: 16,
+  },
+  messageDetails: {
+    marginTop: 4,
+  },
+  messageContent: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  messageType: {
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    fontWeight: '500',
   },
   loadingContainer: {
     alignItems: 'center',
@@ -491,98 +721,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
   },
-  activityCard: {
-    backgroundColor: theme.colors.backgroundCard,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  activityHeader: {
+  paginationContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  paymentIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#10b981',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  itemIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  supportIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  messageIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  iconText: {
-    fontSize: 18,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
+    paddingVertical: 20,
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
   },
-  activityTitle: {
-    fontSize: 16,
+  paginationButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderRadius: 6,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  paginationButtonDisabled: {
+    borderColor: theme.colors.border,
+    opacity: 0.5,
+  },
+  paginationButtonText: {
+    fontSize: 14,
     fontWeight: '600',
-    color: theme.colors.textPrimary,
-    flex: 1,
+    color: theme.colors.primary,
   },
-  statusBadge: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: 8,
+  paginationButtonTextDisabled: {
+    color: theme.colors.textTertiary,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: 'white',
-  },
-  activitySubtitle: {
+  paginationInfo: {
     fontSize: 14,
     color: theme.colors.textSecondary,
-    lineHeight: 18,
-  },
-  activityNote: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  activityTime: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginLeft: 8,
+    fontWeight: '500',
   },
 });

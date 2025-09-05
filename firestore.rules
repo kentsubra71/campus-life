@@ -32,6 +32,9 @@ service cloud.firestore {
       allow read: if true;
       // Allow password reset updates
       allow update: if request.resource.data.keys().hasAny(['password_reset_pending', 'password_reset_token', 'password_reset_requested_at', 'updated_at']);
+      // Allow push token and notification preference updates for authenticated users
+      allow update: if request.auth != null && request.auth.uid == userId &&
+                       request.resource.data.keys().hasAny(['pushToken', 'pushTokenUpdatedAt', 'deviceInfo', 'notificationPreferences', 'updated_at']);
     }
     
     // Profiles collection - allow own access and email verification  
@@ -225,6 +228,12 @@ service cloud.firestore {
         return newData.diff(oldData).affectedKeys().hasOnly(allowedFields) &&
                newData.status in ['pending', 'approved', 'declined'];
       }
+    }
+
+    // Push tokens collection - allow users to create their own push token records
+    match /push_tokens/{tokenId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }
 }

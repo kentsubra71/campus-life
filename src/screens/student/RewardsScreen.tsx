@@ -13,7 +13,6 @@ import { showMessage } from 'react-native-flash-message';
 import { theme } from '../../styles/theme';
 import { MoneyCompactSummary } from '../../components/MoneyCompactSummary';
 import { MessagesSummary } from '../../components/MessagesSummary';
-import { ItemsSummary } from '../../components/ItemsSummary';
 
 interface RewardsScreenProps {
   navigation: any;
@@ -196,9 +195,6 @@ export const RewardsScreen: React.FC<RewardsScreenProps> = ({ navigation }) => {
 
         {/* Messages Summary */}
         <MessagesSummary onViewAll={() => {}} userType="student" />
-
-        {/* Items Summary */}
-        <ItemsSummary onViewAll={() => {}} userType="student" />
 
         {/* Family Support Messages */}
         <View style={styles.messagesSection}>

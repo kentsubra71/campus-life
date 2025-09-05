@@ -10,8 +10,6 @@ import { PaymentHistoryScreen } from '../screens/student/PaymentHistoryScreen';
 import { ProfileScreen } from '../screens/shared/ProfileScreen';
 import WellnessLogScreen from '../screens/wellness/WellnessLogScreen';
 import WellnessHistoryScreen from '../screens/wellness/WellnessHistoryScreen';
-import ItemRequestScreen from '../screens/student/ItemRequestScreen';
-
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
@@ -21,7 +19,6 @@ const DashboardStack = () => {
       <Stack.Screen name="DashboardMain" component={DashboardScreen} />
       <Stack.Screen name="WellnessLog" component={WellnessLogScreen} />
       <Stack.Screen name="WellnessHistory" component={WellnessHistoryScreen} />
-      <Stack.Screen name="ItemRequest" component={ItemRequestScreen} />
     </Stack.Navigator>
   );
 };

@@ -52,7 +52,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     loadFamilyMembers();
     loadNotificationPreferences();
     checkEmailVerificationStatus();
-  }, []);
+  }, [user?.id]);
 
   const checkEmailVerificationStatus = async () => {
     if (!user) return;
@@ -209,7 +209,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       const { db } = await import('../../lib/firebase');
       
       await updateDoc(doc(db, 'users', user.id), {
-        notificationPreferences: newPreferences
+        notificationPreferences: newPreferences,
+        updated_at: new Date()
       });
       
       setNotificationPreferences(newPreferences);
@@ -235,7 +236,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         await pushNotificationService.cancelScheduledNotifications();
       }
       
-      Alert.alert('Success', 'Notification preferences updated successfully');
+      console.log('✅ Notification preferences saved successfully');
     } catch (error) {
       console.error('Failed to save notification preferences:', error);
       Alert.alert('Error', 'Failed to update notification preferences');

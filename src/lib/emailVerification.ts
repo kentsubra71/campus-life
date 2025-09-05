@@ -27,6 +27,29 @@ export const createVerificationToken = async (
   type: 'email_verification' | 'password_reset'
 ): Promise<{ token: string; error?: string }> => {
   try {
+    // First, invalidate any existing tokens of the same type for this user
+    const { query, collection, where, getDocs, updateDoc } = await import('firebase/firestore');
+    const existingTokensQuery = query(
+      collection(db, 'verification_tokens'), 
+      where('user_id', '==', userId),
+      where('type', '==', type),
+      where('used', '==', false)
+    );
+    
+    const existingTokens = await getDocs(existingTokensQuery);
+    const invalidationPromises = existingTokens.docs.map(tokenDoc => 
+      updateDoc(tokenDoc.ref, { 
+        used: true, 
+        invalidated_at: Timestamp.now(),
+        invalidated_reason: 'new_token_requested'
+      })
+    );
+    
+    if (invalidationPromises.length > 0) {
+      await Promise.all(invalidationPromises);
+      console.log(`Invalidated ${invalidationPromises.length} existing ${type} tokens for user ${userId}`);
+    }
+
     const token = await generateVerificationToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
@@ -97,7 +120,7 @@ export const sendVerificationEmail = async (
   type: 'email_verification' | 'password_reset'
 ): Promise<{ success: boolean; error?: string; messageId?: string }> => {
   try {
-    const verificationUrl = `https://campus-life-auth-website.vercel.app/verify/${type}/${token}`;
+    const verificationUrl = `https://verify.ronaldli.ca/verify/${type}/${token}`;
     
     if (type === 'password_reset') {
       // Use HTTP endpoint for password reset (unauthenticated)

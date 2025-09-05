@@ -373,17 +373,6 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
             
             <TouchableOpacity 
               style={styles.actionItem}
-              onPress={() => navigation.navigate('ItemRequest')}
-            >
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Request Item</Text>
-                <Text style={styles.actionSubtitle}>Ask for something you need</Text>
-              </View>
-              <Text style={styles.actionArrow}>›</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionItem}
               onPress={() => navigation.navigate('WellnessHistory')}
             >
               <View style={styles.actionContent}>

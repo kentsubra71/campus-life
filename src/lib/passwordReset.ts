@@ -79,67 +79,28 @@ export const resetPasswordWithToken = async (
   error?: string;
 }> => {
   try {
-    // Import Firebase functions dynamically
-    const { functions } = await import('./firebase');
-    const { httpsCallable } = await import('firebase/functions');
+    // Use HTTP endpoint for password reset (no authentication required)
+    const response = await fetch('https://us-central1-campus-life-b0fd3.cloudfunctions.net/resetPasswordHttp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token,
+        newPassword
+      })
+    });
     
-    // Call the Cloud Function to reset the password
-    const resetPasswordFunction = httpsCallable(functions, 'resetPassword');
-    const result = await resetPasswordFunction({ token, newPassword });
-    
-    const data = result.data as any;
+    const data = await response.json();
     
     if (data.success) {
       return { success: true };
     } else {
-      return { success: false, error: data.message || 'Failed to reset password' };
+      return { success: false, error: data.error || 'Failed to reset password' };
     }
   } catch (error: any) {
     console.error('Reset password error:', error);
-    
-    // Handle specific Firebase function errors
-    if (error.code === 'functions/not-found') {
-      return { 
-        success: false, 
-        error: 'Password reset service is currently unavailable. Please try again later.' 
-      };
-    }
-    
-    if (error.code === 'functions/invalid-argument') {
-      return { success: false, error: error.message };
-    }
-    
-    if (error.code === 'functions/unauthenticated') {
-      // For password reset, we need to temporarily authenticate
-      // Let's try to sign in the user with a temporary method
-      try {
-        const tokenResult = await verifyPasswordResetToken(token);
-        
-        if (!tokenResult.valid) {
-          return { success: false, error: tokenResult.error };
-        }
-        
-        // Import signInAnonymously temporarily for the password reset
-        const { signInAnonymously } = await import('firebase/auth');
-        await signInAnonymously(auth);
-        
-        // Retry the function call
-        const retryResult = await resetPasswordFunction({ token, newPassword });
-        const retryData = retryResult.data as any;
-        
-        // Sign out the anonymous user
-        await auth.signOut();
-        
-        return retryData.success 
-          ? { success: true } 
-          : { success: false, error: retryData.message || 'Failed to reset password' };
-          
-      } catch (retryError) {
-        return { success: false, error: 'Unable to complete password reset. Please try again.' };
-      }
-    }
-    
-    return { success: false, error: error.message || 'Failed to reset password' };
+    return { success: false, error: 'Network error. Please check your internet connection and try again.' };
   }
 };
 

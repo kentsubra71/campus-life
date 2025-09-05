@@ -875,25 +875,38 @@ export const sendEmail = functions
   }
 });
 
-// Reset Password using Firebase Admin SDK
-export const resetPassword = functions.https.onCall(async (data, context) => {
-  debugLog('resetPassword', 'Function called', { userId: context.auth?.uid, data: { token: '[REDACTED]' } });
-  
-  // Verify authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+// Reset Password using Firebase Admin SDK (unauthenticated endpoint for password reset)
+export const resetPasswordHttp = functions.https.onRequest(async (req, res) => {
+  // Set CORS headers
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
   }
 
-  const { token, newPassword } = data;
+  if (req.method !== 'POST') {
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+    return;
+  }
+
+  const { token, newPassword } = req.body;
+  
+  debugLog('resetPassword', 'HTTP request received', { token: '[REDACTED]', hasPassword: !!newPassword });
 
   // Validate input
   if (!token || !newPassword) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing token or password');
+    res.status(400).json({ success: false, error: 'Missing token or password' });
+    return;
   }
 
   // Validate password strength
   if (newPassword.length < 8) {
-    throw new functions.https.HttpsError('invalid-argument', 'Password must be at least 8 characters long');
+    res.status(400).json({ success: false, error: 'Password must be at least 8 characters long' });
+    return;
   }
 
   try {
@@ -901,18 +914,21 @@ export const resetPassword = functions.https.onCall(async (data, context) => {
     const tokenDoc = await db.collection('verification_tokens').doc(token).get();
     
     if (!tokenDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Invalid reset token');
+      res.status(404).json({ success: false, error: 'Invalid reset token' });
+      return;
     }
 
     const tokenData = tokenDoc.data()!;
     
     // Check if token is valid and not expired
     if (tokenData.used || tokenData.type !== 'password_reset') {
-      throw new functions.https.HttpsError('invalid-argument', 'Invalid or used reset token');
+      res.status(400).json({ success: false, error: 'Invalid or used reset token' });
+      return;
     }
 
     if (tokenData.expires_at.toDate() < new Date()) {
-      throw new functions.https.HttpsError('invalid-argument', 'Reset token has expired');
+      res.status(400).json({ success: false, error: 'Reset token has expired' });
+      return;
     }
 
     debugLog('resetPassword', 'Token verified, updating password', { userId: tokenData.user_id });
@@ -938,18 +954,18 @@ export const resetPassword = functions.https.onCall(async (data, context) => {
 
     debugLog('resetPassword', 'Password reset completed successfully', { userId: tokenData.user_id });
 
-    return {
+    res.status(200).json({
       success: true,
       message: 'Password reset successfully'
-    };
+    });
   } catch (error: any) {
     debugLog('resetPassword', 'Error resetting password', error);
     
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    
-    throw new functions.https.HttpsError('internal', `Failed to reset password: ${error.message}`);
+    const errorMessage = error.message || 'Failed to reset password';
+    res.status(500).json({
+      success: false,
+      error: `Password reset failed: ${errorMessage}`
+    });
   }
 });
 

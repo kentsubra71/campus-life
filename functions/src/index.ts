@@ -278,7 +278,9 @@ export const verifyPayPalPayment = functions
         debugLog('verifyPayPalPayment', 'Payment capture failed', { captureStatus });
       }
 
+      // Update payment status immediately with faster write
       await paymentRef.update(updateData);
+      debugLog('verifyPayPalPayment', 'Payment status updated in database', { status: updateData.status });
 
       return {
         success: captureStatus === 'COMPLETED' || captureStatus === 'PENDING',

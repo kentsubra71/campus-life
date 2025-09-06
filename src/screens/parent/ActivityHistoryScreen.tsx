@@ -10,9 +10,11 @@ import {
   Alert,
   Animated,
   ActivityIndicator,
+  AppState,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../../stores/authStore';
-import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, Timestamp, limit } from 'firebase/firestore';
 import { db, getItemRequestsForParent, updateItemRequestStatus } from '../../lib/firebase';
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
@@ -69,14 +71,223 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   const [currentPage, setCurrentPage] = useState(0);
   const [itemsPerPage] = useState(10);
   const [newActivityIds, setNewActivityIds] = useState<string[]>([]);
+  const [seenActivityIds, setSeenActivityIds] = useState<Set<string>>(new Set());
+  const [seenActivitiesLoaded, setSeenActivitiesLoaded] = useState(false);
+  const [previousActivities, setPreviousActivities] = useState<ActivityItem[]>([]);
   const animatedValues = useRef<{ [key: string]: Animated.Value }>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const allActivityRef = useRef<View>(null);
 
+  // Load seen activities from storage
+  const loadSeenActivities = async () => {
+    if (!user) {
+      console.log('⚠️ No user found, cannot load seen activities');
+      setSeenActivitiesLoaded(true);
+      return;
+    }
+    
+    try {
+      const seenKey = `seen_activities_${user.id}`;
+      console.log(`🔍 Loading seen activities with key: ${seenKey}`);
+      
+      // Test AsyncStorage is working
+      const testKey = `test_${user.id}`;
+      await AsyncStorage.setItem(testKey, 'test_value');
+      const testValue = await AsyncStorage.getItem(testKey);
+      console.log(`🧪 AsyncStorage test: ${testValue === 'test_value' ? 'WORKING' : 'FAILED'}`);
+      
+      const seenData = await AsyncStorage.getItem(seenKey);
+      console.log(`🔍 Raw seen data from storage:`, seenData ? `"${seenData}"` : 'null');
+      
+      if (seenData) {
+        const seenIds = JSON.parse(seenData) as string[];
+        setSeenActivityIds(new Set(seenIds));
+        console.log(`📖 Loaded ${seenIds.length} seen activities from storage:`, seenIds.slice(0, 5));
+      } else {
+        console.log('📖 No seen activities found in storage - first time user or empty');
+        setSeenActivityIds(new Set());
+      }
+    } catch (error) {
+      console.error('❌ Error loading seen activities:', error);
+      setSeenActivityIds(new Set()); // Fallback to empty set
+    } finally {
+      setSeenActivitiesLoaded(true);
+      console.log('✅ Seen activities loading completed');
+    }
+  };
+
+  // Save seen activities to storage
+  const saveSeenActivities = async (seenIds: Set<string>) => {
+    if (!user) {
+      console.log('⚠️ No user found, cannot save seen activities');
+      return;
+    }
+    
+    try {
+      const seenKey = `seen_activities_${user.id}`;
+      const seenArray = Array.from(seenIds);
+      await AsyncStorage.setItem(seenKey, JSON.stringify(seenArray));
+      console.log(`💾 Saved ${seenIds.size} seen activities to storage with key: ${seenKey}`);
+      console.log(`💾 Sample saved IDs:`, seenArray.slice(0, 5));
+    } catch (error) {
+      console.error('❌ Error saving seen activities:', error);
+    }
+  };
+
+  // Mark activities as seen when they become visible
+  const markActivitiesAsSeen = (activityIds: string[]) => {
+    if (activityIds.length === 0) return;
+    
+    const updatedSeenIds = new Set(seenActivityIds);
+    const newlySeenIds: string[] = [];
+    
+    for (const id of activityIds) {
+      if (!updatedSeenIds.has(id)) {
+        updatedSeenIds.add(id);
+        newlySeenIds.push(id);
+      }
+    }
+    
+    if (newlySeenIds.length > 0) {
+      console.log(`👁️ Marking ${newlySeenIds.length} activities as seen:`, newlySeenIds.slice(0, 3));
+      setSeenActivityIds(updatedSeenIds);
+      // Save immediately instead of waiting for app state changes
+      saveSeenActivities(updatedSeenIds).catch(error => {
+        console.error('Failed to save seen activities immediately:', error);
+      });
+    }
+  };
+
+
+  // Manual PayPal verification for debugging
+  const runManualPayPalVerification = async () => {
+    if (!user) return;
+    
+    console.log('🔧 Running manual PayPal verification...');
+    try {
+      const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+      const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+      console.log(`🔧 Manual verification completed: ${verifiedCount} payments verified`);
+      
+      // Refresh activities to show updates
+      await loadActivities(true);
+      
+      Alert.alert(
+        'PayPal Verification Complete',
+        `${verifiedCount} payments were verified and updated.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('🔧 Manual PayPal verification failed:', error);
+      Alert.alert('Error', `Verification failed: ${error.message}`);
+    }
+  };
+
   useEffect(() => {
-    loadActivities();
+    const initializeData = async () => {
+      console.log('🚀 Starting data initialization...');
+      await loadSeenActivities(); // Wait for seen activities to load first
+      console.log('📋 Seen activities loaded, now loading fresh activities...');
+    };
+    
+    initializeData();
+
+    // Set up auto-reload every 10 seconds
+    const autoReloadInterval = setInterval(() => {
+      console.log('🔄 Auto-reloading activity history...');
+      loadActivities(true);
+    }, 10000);
+
+    // Set up more frequent checking for processing payments (every 3 seconds)
+    const frequentCheckInterval = setInterval(() => {
+      const hasProcessingPayments = activities.some(activity => 
+        activity.type === 'payment' && 
+        (activity.status === 'initiated' || activity.status === 'pending' || activity.status === 'processing')
+      );
+      
+      if (hasProcessingPayments) {
+        console.log('🔄 Quick check for processing payments...');
+        loadActivities(true);
+      }
+    }, 3000);
+
+    // Set up PayPal auto-verification (every 10 seconds) - will be created later when activities are loaded
+
+    // Clear intervals on component unmount
+    return () => {
+      clearInterval(autoReloadInterval);
+      clearInterval(frequentCheckInterval);
+    };
   }, []);
 
+  // Save seen activities when app goes to background or component unmounts
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        console.log('📱 App going to background, saving seen activities');
+        saveSeenActivities(seenActivityIds);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Also save on component unmount
+    return () => {
+      console.log('🔄 Component unmounting, saving seen activities');
+      saveSeenActivities(seenActivityIds);
+      subscription?.remove();
+    };
+  }, [seenActivityIds]);
+
+  // Load activities only after seen activities are loaded
+  useEffect(() => {
+    if (seenActivitiesLoaded) {
+      console.log('📋 Seen activities are loaded, loading activities now...');
+      loadActivities();
+    }
+  }, [seenActivitiesLoaded]);
+
+  // Set up PayPal auto-verification based on current activities
+  useEffect(() => {
+    if (!user || activities.length === 0) return;
+
+    const hasPayPalProcessing = activities.some(activity => 
+      activity.type === 'payment' && 
+      activity.provider === 'paypal' &&
+      (activity.status === 'initiated' || activity.status === 'pending' || activity.status === 'processing')
+    );
+
+    console.log(`🔍 PayPal verification check: ${hasPayPalProcessing ? 'NEEDED' : 'NOT NEEDED'} (${activities.length} activities total)`);
+
+    let paypalVerifyInterval: NodeJS.Timeout | null = null;
+
+    if (hasPayPalProcessing) {
+      console.log('⚡ Starting PayPal auto-verification timer...');
+      paypalVerifyInterval = setInterval(async () => {
+        console.log('💙 Running scheduled PayPal auto-verification...');
+        try {
+          const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+          const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+          if (verifiedCount > 0) {
+            console.log(`✅ Auto-verified ${verifiedCount} PayPal payments`);
+            loadActivities(true);
+          } else {
+            console.log('💙 No PayPal payments were verified');
+          }
+        } catch (error) {
+          console.error('⚠️ PayPal auto-verification failed:', error);
+        }
+      }, 10000);
+    }
+
+    // Cleanup
+    return () => {
+      if (paypalVerifyInterval) {
+        console.log('🛑 Stopping PayPal auto-verification timer');
+        clearInterval(paypalVerifyInterval);
+      }
+    };
+  }, [activities, user]);
 
   const loadActivities = async (isRefresh = false, forceRefresh = false) => {
     if (!user) return;
@@ -106,15 +317,16 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       
       const allActivities: ActivityItem[] = [];
 
-      // Load payments with optimized student name caching
+      // Load payments with optimized student name caching - limit to latest 15
       const paymentsQuery = query(
         collection(db, 'payments'),
         where('parent_id', '==', user.id),
-        orderBy('created_at', 'desc')
+        orderBy('created_at', 'desc'),
+        limit(15)
       );
       const paymentsSnapshot = await getDocs(paymentsQuery);
       
-      console.log(`📄 Found ${paymentsSnapshot.size} payments`);
+      console.log(`📄 Found ${paymentsSnapshot.size} payments (latest 15)`);
       
       for (const doc of paymentsSnapshot.docs) {
         const payment = doc.data();
@@ -153,11 +365,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         const messagesQuery = query(
           collection(db, 'messages'),
           where('from_user_id', '==', user.id),
-          orderBy('created_at', 'desc')
+          orderBy('created_at', 'desc'),
+          limit(10)
         );
         const messagesSnapshot = await getDocs(messagesQuery);
         
-        console.log(`💬 Found ${messagesSnapshot.size} messages`);
+        console.log(`💬 Found ${messagesSnapshot.size} messages (latest 10)`);
         
         for (const doc of messagesSnapshot.docs) {
           const message = doc.data();
@@ -194,9 +407,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
       // Load item requests
       try {
-        const requests = await getItemRequestsForParent(user.id);
+        const requests = await getItemRequestsForParent(user.id, 10);
         
-        console.log(`📦 Found ${requests.length} item requests`);
+        console.log(`📦 Found ${requests.length} item requests (latest 10)`);
         
         for (const request of requests) {
           const studentId = request.student_id;
@@ -236,15 +449,72 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         return bTime - aTime;
       });
 
-      // Mark new activities for animation
-      const existingIds = new Set(activities.map(a => a.id));
-      const newIds = allActivities.filter(a => !existingIds.has(a.id)).map(a => a.id);
-      
-      if (newIds.length > 0) {
-        setNewActivityIds(newIds);
-        // Clear new activity indicators after animation
-        setTimeout(() => setNewActivityIds([]), 3000);
+      // Only process "new" activities if seen activities have been loaded
+      if (seenActivitiesLoaded) {
+        // Mark truly new activities (not previously seen) for highlighting
+        const existingIds = new Set(activities.map(a => a.id));
+        const allActivityIds = allActivities.map(a => a.id);
+        
+        console.log(`🔍 Checking for new activities and status changes:`);
+        console.log(`  - Current activities: ${activities.length}`);
+        console.log(`  - New activities from DB: ${allActivities.length}`);
+        console.log(`  - Previous activities: ${previousActivities.length}`);
+        console.log(`  - Seen activities in memory: ${seenActivityIds.size}`);
+        console.log(`  - Seen activities loaded: ${seenActivitiesLoaded}`);
+        
+        // Find truly new activities
+        const brandNewIds = allActivities
+          .filter(a => !seenActivityIds.has(a.id))
+          .map(a => a.id);
+        
+        // Find activities with status changes
+        const statusChangedIds: string[] = [];
+        if (previousActivities.length > 0) {
+          const previousMap = new Map(previousActivities.map(a => [a.id, a.status]));
+          allActivities.forEach(currentActivity => {
+            const previousStatus = previousMap.get(currentActivity.id);
+            if (previousStatus && previousStatus !== currentActivity.status) {
+              console.log(`📊 Status change detected for ${currentActivity.id.slice(-6)}: ${previousStatus} → ${currentActivity.status}`);
+              statusChangedIds.push(currentActivity.id);
+            }
+          });
+        }
+        
+        // Combine new activities and status changes
+        const allHighlightIds = [...new Set([...brandNewIds, ...statusChangedIds])];
+        
+        console.log(`  - Activities not in seen set: ${brandNewIds.length}`);
+        console.log(`  - Activities with status changes: ${statusChangedIds.length}`);
+        console.log(`  - Total to highlight: ${allHighlightIds.length}`);
+        
+        if (allHighlightIds.length > 0) {
+          setNewActivityIds(allHighlightIds);
+          console.log(`✨ Highlighting ${allHighlightIds.length} activities (${brandNewIds.length} new + ${statusChangedIds.length} status changes):`, allHighlightIds.slice(0, 3));
+          
+          // Mark new activities as seen immediately to prevent re-highlighting
+          // But don't mark status changes as "seen" - they should highlight until user sees them
+          if (brandNewIds.length > 0) {
+            markActivitiesAsSeen(brandNewIds);
+          }
+          
+          // Clear new activity indicators after animation
+          setTimeout(() => {
+            setNewActivityIds([]);
+            // Mark status changed activities as seen after the animation
+            if (statusChangedIds.length > 0) {
+              markActivitiesAsSeen(statusChangedIds);
+            }
+          }, 5000);
+        } else {
+          console.log(`✅ No new activities or status changes to highlight`);
+        }
+      } else {
+        console.log(`⏳ Seen activities not loaded yet, skipping new activity detection`);
+        setNewActivityIds([]); // Clear any existing new activity indicators
       }
+
+      // Store current activities for next comparison
+      setPreviousActivities([...allActivities]);
 
       setActivities(allActivities);
       
@@ -280,6 +550,25 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   useEffect(() => {
     updateDisplayedActivities();
   }, [filteredActivities, currentPage]);
+
+  // Mark displayed activities as seen after a short delay (only if not already seen)
+  useEffect(() => {
+    if (displayedActivities.length > 0 && seenActivitiesLoaded) {
+      const unseenVisibleIds = displayedActivities
+        .filter(a => !seenActivityIds.has(a.id))
+        .map(a => a.id);
+      
+      if (unseenVisibleIds.length > 0) {
+        // Mark as seen after 2 seconds of being visible
+        const timer = setTimeout(() => {
+          console.log(`⏰ Auto-marking ${unseenVisibleIds.length} unseen displayed activities as seen`);
+          markActivitiesAsSeen(unseenVisibleIds);
+        }, 2000);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [displayedActivities, seenActivityIds, seenActivitiesLoaded]);
 
   const filterActivities = () => {
     let filtered = [...activities];
@@ -668,7 +957,15 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   };
 
   const renderActivityItem = (item: ActivityItem) => {
-    const isNew = newActivityIds.includes(item.id);
+    const isInNewList = newActivityIds.includes(item.id);
+    const isNotSeen = !seenActivityIds.has(item.id);
+    const isNew = isInNewList || isNotSeen;
+    
+    // Debug first few items
+    if (activities.indexOf(item) < 3) {
+      console.log(`🎨 Rendering item ${item.id.slice(-6)}: isInNewList=${isInNewList}, isNotSeen=${isNotSeen}, isNew=${isNew}`);
+    }
+    
     const animatedValue = animatedValues.current[item.id] || new Animated.Value(1);
     
     const animatedStyle = isNew ? {
@@ -855,8 +1152,23 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     <View style={styles.container}>
       <StatusHeader title="Activity" />
       <View style={[styles.header, { paddingTop: 50 }]}>
-        <Text style={styles.title}>Activity History</Text>
-        <Text style={styles.subtitle}>All your family activity in one place</Text>
+        <View style={styles.titleContainer}>
+          <View>
+            <Text style={styles.title}>Activity History</Text>
+            <Text style={styles.subtitle}>All your family activity in one place</Text>
+          </View>
+          <View style={styles.headerButtons}>
+            {activities.some(a => a.type === 'payment' && a.provider === 'paypal' && 
+              (a.status === 'initiated' || a.status === 'pending' || a.status === 'processing')) && (
+              <TouchableOpacity 
+                style={styles.verifyButton}
+                onPress={runManualPayPalVerification}
+              >
+                <Text style={styles.verifyButtonText}>Check PayPal</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
         
       </View>
 
@@ -1033,7 +1345,8 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: theme.spacing.sm,
   },
   title: {
@@ -1041,6 +1354,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: theme.colors.textPrimary,
     marginBottom: 8,
+  },
+  headerButtons: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  verifyButton: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+  },
+  verifyButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
   activityListHeader: {
     paddingHorizontal: 24,

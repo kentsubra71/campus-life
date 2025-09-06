@@ -12,15 +12,15 @@ import { getTodayDateString, getLocalDateString, getDateStringDaysAgo } from '..
 export interface WellnessEntry {
   id: string;
   date: string;
-  mood: number; // 1-10 scale
-  sleep: number; // hours
-  exercise: number; // minutes
-  nutrition: number; // 1-10 scale
-  water: number; // glasses
-  social: number; // 1-10 scale
-  academic: number; // 1-10 scale
+  rankings: {
+    sleep: number;      // 1-4 (1=best performing, 4=worst performing)
+    nutrition: number;  // 1-4  
+    academics: number;  // 1-4
+    social: number;     // 1-4
+  };
+  overallMood: number; // 1-10 slider for general day quality
   notes?: string;
-  wellnessScore: number; // calculated score
+  overallScore: number; // calculated from rankings + mood
 }
 
 export interface WellnessStats {
@@ -29,6 +29,12 @@ export interface WellnessStats {
   averageScore: number;
   totalEntries: number;
   weeklyAverage: number;
+  categoryAverages: {
+    sleep: number;      // 1-4 average
+    nutrition: number;  // 1-4 average
+    academics: number;  // 1-4 average
+    social: number;     // 1-4 average
+  };
 }
 
 interface WellnessStore {
@@ -37,41 +43,39 @@ interface WellnessStore {
   todayEntry: WellnessEntry | null;
   
   // Actions
-  addEntry: (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>) => Promise<void>;
+  addEntry: (entry: Omit<WellnessEntry, 'id' | 'overallScore'>) => Promise<void>;
   updateEntry: (id: string, updates: Partial<WellnessEntry>) => Promise<void>;
   getEntryByDate: (date: string) => WellnessEntry | null;
-  calculateWellnessScore: (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>) => number;
+  calculateOverallScore: (entry: Omit<WellnessEntry, 'id' | 'overallScore'>) => number;
   calculateStats: () => WellnessStats;
   getWeeklyEntries: () => WellnessEntry[];
   getMonthlyEntries: () => WellnessEntry[];
-  loadEntries: () => Promise<void>;
+  loadEntries: (studentId?: string) => Promise<void>;
 }
 
-const calculateWellnessScore = (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>): number => {
-  const weights = {
-    mood: 0.25,
-    sleep: 0.20,
-    exercise: 0.15,
-    nutrition: 0.15,
-    water: 0.10,
-    social: 0.10,
-    academic: 0.05,
+const calculateOverallScore = (entry: Omit<WellnessEntry, 'id' | 'overallScore'>): number => {
+  const { rankings, overallMood } = entry;
+  
+  // Convert rankings to points (1=best=4pts, 2=3pts, 3=2pts, 4=worst=1pt)
+  const points = {
+    sleep: 5 - rankings.sleep,      // Inverts: 1->4, 2->3, 3->2, 4->1
+    nutrition: 5 - rankings.nutrition,
+    academics: 5 - rankings.academics, 
+    social: 5 - rankings.social,
   };
-
-  const normalizedSleep = Math.min(entry.sleep / 8, 1) * 10; // 8 hours = 10 points
-  const normalizedExercise = Math.min(entry.exercise / 60, 1) * 10; // 60 minutes = 10 points
-  const normalizedWater = Math.min(entry.water / 8, 1) * 10; // 8 glasses = 10 points
-
-  const score = 
-    entry.mood * weights.mood +
-    normalizedSleep * weights.sleep +
-    normalizedExercise * weights.exercise +
-    entry.nutrition * weights.nutrition +
-    normalizedWater * weights.water +
-    entry.social * weights.social +
-    entry.academic * weights.academic;
-
-  return Math.round(score * 10) / 10; // Round to 1 decimal place
+  
+  // Rankings component (40% weight): average of category points, scaled to 4
+  const rankingsScore = (points.sleep + points.nutrition + points.academics + points.social) / 4;
+  
+  // Overall mood component (60% weight): direct 1-10 scale
+  const moodScore = overallMood;
+  
+  // Weighted combination: 40% rankings + 60% mood
+  const combinedScore = (rankingsScore * 0.4 * 2.5) + (moodScore * 0.6);
+  
+  // Ensure score is between 1-10
+  const finalScore = Math.max(1, Math.min(10, combinedScore));
+  return Math.round(finalScore * 10) / 10; // Round to 1 decimal place
 };
 
 export const useWellnessStore = create<WellnessStore>((set, get) => ({
@@ -82,6 +86,12 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     averageScore: 0,
     totalEntries: 0,
     weeklyAverage: 0,
+    categoryAverages: {
+      sleep: 0,
+      nutrition: 0,
+      academics: 0,
+      social: 0,
+    },
   },
   todayEntry: null,
 
@@ -89,7 +99,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const user = getCurrentUser();
     if (!user) return;
 
-    const wellnessScore = calculateWellnessScore(entryData);
+    const overallScore = calculateOverallScore(entryData);
     
     // Check if entry for today already exists
     const today = entryData.date;
@@ -105,13 +115,11 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const firebaseEntry: Omit<FirebaseWellnessEntry, 'id' | 'created_at'> = {
       user_id: user.uid,
       date: entryData.date,
-      mood: entryData.mood,
-      sleep_hours: entryData.sleep,
-      exercise_minutes: entryData.exercise,
-      nutrition: entryData.nutrition,
-      water: entryData.water,
-      social: entryData.social,
-      academic: entryData.academic,
+      sleep_ranking: entryData.rankings.sleep,
+      nutrition_ranking: entryData.rankings.nutrition,
+      academics_ranking: entryData.rankings.academics,
+      social_ranking: entryData.rankings.social,
+      overall_mood: entryData.overallMood,
       notes: entryData.notes,
     };
 
@@ -125,7 +133,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const newEntry: WellnessEntry = {
         ...entryData,
         id,
-        wellnessScore,
+        overallScore,
       };
 
       set((state) => ({
@@ -150,14 +158,20 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           const familyMembers = await getFamilyMembers();
           const studentName = currentUser.name || 'Student';
           
-          // Get mood string for notification
-          const moodLabels = ['Terrible', 'Very Bad', 'Bad', 'Poor', 'Okay', 'Fair', 'Good', 'Very Good', 'Great', 'Excellent'];
-          const moodText = moodLabels[Math.max(0, Math.min(9, entryData.mood - 1))] || 'okay';
+          // Get overall wellness status for notification
+          const getWellnessStatusText = (score: number) => {
+            if (score >= 8) return 'doing great';
+            if (score >= 6) return 'doing well';
+            if (score >= 4) return 'managing okay';
+            return 'may need support';
+          };
+          
+          const statusText = getWellnessStatusText(overallScore);
           
           // Send to all parents
           for (const parent of familyMembers.parents) {
             const notification = {
-              ...NotificationTemplates.studentWellnessLogged(studentName, wellnessScore, moodText),
+              ...NotificationTemplates.studentWellnessLogged(studentName, overallScore, statusText),
               userId: parent.id
             };
             
@@ -175,13 +189,13 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         const { useRewardsStore } = await import('./rewardsStore');
         const { addExperience } = useRewardsStore.getState();
         
-        // Award XP based on wellness score
+        // Award XP based on overall score
         let xpAmount = 20; // Base XP for logging
-        if (wellnessScore >= 8) xpAmount = 50; // Bonus for high wellness
-        else if (wellnessScore >= 6) xpAmount = 35; // Bonus for good wellness
+        if (overallScore >= 8) xpAmount = 50; // Bonus for high wellness
+        else if (overallScore >= 6) xpAmount = 35; // Bonus for good wellness
         
         addExperience(xpAmount);
-        console.log(`🎯 Awarded ${xpAmount} XP for wellness entry (score: ${wellnessScore})`);
+        console.log(`🎯 Awarded ${xpAmount} XP for wellness entry (score: ${overallScore})`);
       } catch (error) {
         console.error('Failed to award XP:', error);
       }
@@ -202,18 +216,18 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         const studentName = userProfile.full_name;
         
         // Only send notification for significant wellness changes (good or concerning)
-        const shouldNotify = wellnessScore >= 8 || wellnessScore <= 4;
+        const shouldNotify = overallScore >= 8 || overallScore <= 4;
         
         if (shouldNotify) {
           for (const parent of parents) {
             if (parent.pushToken) {
               const notification = {
-                ...NotificationTemplates.weeklyReport(studentName, wellnessScore),
+                ...NotificationTemplates.weeklyReport(studentName, overallScore),
                 userId: parent.id,
-                title: wellnessScore >= 8 ? 
+                title: overallScore >= 8 ? 
                   `✨ ${studentName} had a great day!` : 
                   `💙 ${studentName} may need support`,
-                body: `Wellness score: ${wellnessScore}/10 - Check their latest log`
+                body: `Wellness score: ${overallScore}/10 - Check their latest log`
               };
               
               console.log('📱 Sending wellness notification to parent:', parent.id);
@@ -237,13 +251,11 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       // Convert local format to Firebase format for update
       const firebaseUpdates: any = {};
       if (updates.date !== undefined) firebaseUpdates.date = updates.date;
-      if (updates.mood !== undefined) firebaseUpdates.mood = updates.mood;
-      if (updates.sleep !== undefined) firebaseUpdates.sleep_hours = updates.sleep;
-      if (updates.exercise !== undefined) firebaseUpdates.exercise_minutes = updates.exercise;
-      if (updates.nutrition !== undefined) firebaseUpdates.nutrition = updates.nutrition;
-      if (updates.water !== undefined) firebaseUpdates.water = updates.water;
-      if (updates.social !== undefined) firebaseUpdates.social = updates.social;
-      if (updates.academic !== undefined) firebaseUpdates.academic = updates.academic;
+      if (updates.rankings?.sleep !== undefined) firebaseUpdates.sleep_ranking = updates.rankings.sleep;
+      if (updates.rankings?.nutrition !== undefined) firebaseUpdates.nutrition_ranking = updates.rankings.nutrition;
+      if (updates.rankings?.academics !== undefined) firebaseUpdates.academics_ranking = updates.rankings.academics;
+      if (updates.rankings?.social !== undefined) firebaseUpdates.social_ranking = updates.rankings.social;
+      if (updates.overallMood !== undefined) firebaseUpdates.overall_mood = updates.overallMood;
       if (updates.notes !== undefined) firebaseUpdates.notes = updates.notes;
 
       const { success, error } = await updateWellnessEntry(id, firebaseUpdates);
@@ -256,8 +268,8 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         const updatedEntries = state.entries.map((entry) => {
           if (entry.id === id) {
             const updatedEntry = { ...entry, ...updates };
-            if (updates.mood || updates.sleep || updates.exercise || updates.nutrition || updates.water || updates.social || updates.academic) {
-              updatedEntry.wellnessScore = calculateWellnessScore(updatedEntry);
+            if (updates.rankings) {
+              updatedEntry.overallScore = calculateOverallScore(updatedEntry);
             }
             return updatedEntry;
           }
@@ -285,7 +297,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     return get().entries.find(entry => entry.date === date) || null;
   },
 
-  calculateWellnessScore,
+  calculateOverallScore,
 
   calculateStats: () => {
     const { entries } = get();
@@ -324,15 +336,31 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       lastDate = entryDate;
     }
 
-    // Calculate averages
-    const totalScore = entries.reduce((sum, entry) => sum + entry.wellnessScore, 0);
+    // Calculate overall score averages
+    const totalScore = entries.reduce((sum, entry) => sum + entry.overallScore, 0);
     const averageScore = entries.length > 0 ? totalScore / entries.length : 0;
 
     // Weekly average (last 7 days)
     const weekAgoDateStr = getDateStringDaysAgo(7);
     const weeklyEntries = entries.filter(entry => entry.date >= weekAgoDateStr);
-    const weeklyScore = weeklyEntries.reduce((sum, entry) => sum + entry.wellnessScore, 0);
+    const weeklyScore = weeklyEntries.reduce((sum, entry) => sum + entry.overallScore, 0);
     const weeklyAverage = weeklyEntries.length > 0 ? weeklyScore / weeklyEntries.length : 0;
+    
+    // Calculate category averages
+    const categoryTotals = entries.reduce((totals, entry) => {
+      totals.sleep += entry.rankings.sleep;
+      totals.nutrition += entry.rankings.nutrition;
+      totals.academics += entry.rankings.academics;
+      totals.social += entry.rankings.social;
+      return totals;
+    }, { sleep: 0, nutrition: 0, academics: 0, social: 0 });
+
+    const categoryAverages = {
+      sleep: entries.length > 0 ? Math.round((categoryTotals.sleep / entries.length) * 10) / 10 : 0,
+      nutrition: entries.length > 0 ? Math.round((categoryTotals.nutrition / entries.length) * 10) / 10 : 0,
+      academics: entries.length > 0 ? Math.round((categoryTotals.academics / entries.length) * 10) / 10 : 0,
+      social: entries.length > 0 ? Math.round((categoryTotals.social / entries.length) * 10) / 10 : 0,
+    };
 
     const stats: WellnessStats = {
       currentStreak,
@@ -340,6 +368,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       averageScore: Math.round(averageScore * 10) / 10,
       totalEntries: entries.length,
       weeklyAverage: Math.round(weeklyAverage * 10) / 10,
+      categoryAverages,
     };
 
     set({ stats });
@@ -377,23 +406,23 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
             id: entry.id || '',
             date: entry.date || getLocalDateString(entry.created_at.toDate()), // Use stored date or fallback to created_at
-            mood: entry.mood,
-            sleep: entry.sleep_hours,
-            exercise: entry.exercise_minutes,
-            nutrition: entry.nutrition,
-            water: entry.water,
-            social: entry.social,
-            academic: entry.academic,
+            rankings: {
+              sleep: entry.sleep_ranking || 2, // Default to middle if not set
+              nutrition: entry.nutrition_ranking || 2,
+              academics: entry.academics_ranking || 2,
+              social: entry.social_ranking || 2,
+            },
+            overallMood: entry.overall_mood || 5, // Default to middle mood
             notes: entry.notes,
-            wellnessScore: calculateWellnessScore({
+            overallScore: calculateOverallScore({
               date: entry.date || getLocalDateString(entry.created_at.toDate()),
-              mood: entry.mood,
-              sleep: entry.sleep_hours,
-              exercise: entry.exercise_minutes,
-              nutrition: entry.nutrition,
-              water: entry.water,
-              social: entry.social,
-              academic: entry.academic,
+              rankings: {
+                sleep: entry.sleep_ranking || 2,
+                nutrition: entry.nutrition_ranking || 2,
+                academics: entry.academics_ranking || 2,
+                social: entry.social_ranking || 2,
+              },
+              overallMood: entry.overall_mood || 5,
               notes: entry.notes,
             }),
           }));

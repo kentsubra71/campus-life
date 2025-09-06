@@ -19,6 +19,7 @@ import { StatusHeader } from '../../components/StatusHeader';
 import { theme } from '../../styles/theme';
 import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
 import { pushNotificationService } from '../../services/pushNotificationService';
+import { changePassword } from '../../lib/passwordReset';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -28,6 +29,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, family, logout, updateProfile, getFamilyMembers } = useAuthStore();
   const insets = useSafeAreaInsets();
   const [isEditing, setIsEditing] = useState(false);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -480,6 +486,47 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      Alert.alert('Error', 'Please fill in all password fields');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert('Error', 'New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      Alert.alert('Error', 'New password must be at least 8 characters long');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const result = await changePassword(currentPassword, newPassword);
+      
+      if (result.success) {
+        Alert.alert(
+          'Success', 
+          'Password changed successfully',
+          [{ text: 'OK', onPress: () => {
+            setShowPasswordChange(false);
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+          }}]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to change password');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to change password. Please try again.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const copyInviteCode = async () => {
     if (family?.inviteCode) {
       await Clipboard.setStringAsync(family.inviteCode);
@@ -886,6 +933,72 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         </View>
       </View>
 
+      {/* Password Change Section */}
+      <View style={styles.passwordSection}>
+        <TouchableOpacity 
+          style={styles.passwordButton} 
+          onPress={() => setShowPasswordChange(!showPasswordChange)}
+        >
+          <Text style={styles.passwordButtonText}>Change Password</Text>
+          <Text style={styles.passwordButtonArrow}>{showPasswordChange ? '▼' : '▶'}</Text>
+        </TouchableOpacity>
+        
+        {showPasswordChange && (
+          <View style={styles.passwordForm}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Current Password"
+              secureTextEntry
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="New Password (min 8 characters)"
+              secureTextEntry
+              value={newPassword}
+              onChangeText={setNewPassword}
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Confirm New Password"
+              secureTextEntry
+              value={confirmNewPassword}
+              onChangeText={setConfirmNewPassword}
+              autoCapitalize="none"
+            />
+            
+            <View style={styles.passwordActions}>
+              <TouchableOpacity 
+                style={styles.cancelPasswordButton} 
+                onPress={() => {
+                  setShowPasswordChange(false);
+                  setCurrentPassword('');
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                }}
+              >
+                <Text style={styles.cancelPasswordButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.changePasswordButton, isChangingPassword && styles.disabledButton]} 
+                onPress={handleChangePassword}
+                disabled={isChangingPassword}
+              >
+                {isChangingPassword ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.changePasswordButtonText}>Change Password</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+
       {/* Actions */}
       <View style={styles.actionsSection}>
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
@@ -1282,5 +1395,84 @@ const styles = StyleSheet.create({
     color: '#92400E',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  passwordSection: {
+    marginBottom: 24,
+  },
+  passwordButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  passwordButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  passwordButtonArrow: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+  },
+  passwordForm: {
+    backgroundColor: '#ffffff',
+    marginTop: 8,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  passwordInput: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+    backgroundColor: '#f8f9fa',
+  },
+  passwordActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  cancelPasswordButton: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 12,
+    marginRight: 8,
+    alignItems: 'center',
+  },
+  cancelPasswordButtonText: {
+    color: '#64748b',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  changePasswordButton: {
+    flex: 1,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+    padding: 12,
+    marginLeft: 8,
+    alignItems: 'center',
+  },
+  changePasswordButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: '#94a3b8',
   },
 });

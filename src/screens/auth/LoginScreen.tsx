@@ -9,11 +9,12 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { AuthScreenProps } from '../../types/navigation';
 import { theme } from '../../styles/theme';
-import { commonStyles } from '../../styles/components';
 
 interface LoginScreenProps extends AuthScreenProps<'Login'> {
   onNavigateToRegister?: () => void;
@@ -21,9 +22,11 @@ interface LoginScreenProps extends AuthScreenProps<'Login'> {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigateToRegister, onLoginSuccess }) => {
+  const insets = useSafeAreaInsets();
   const { login, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -52,62 +55,81 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
         style={styles.keyboardContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.content}>
-          <View style={styles.headerContainer}>
-            <Text style={styles.title}>Welcome Back</Text>
+        <View style={[styles.content, { paddingBottom: insets.bottom + 40 }]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <Image source={require('../../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
+            </View>
+            <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>Sign in to continue your wellness journey</Text>
           </View>
 
-          <View style={styles.formContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor={theme.colors.textSecondary}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+          {/* Form */}
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor={theme.colors.textSecondary}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Enter your password"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
             <TouchableOpacity
-              style={[styles.loginButton, isLoading && styles.buttonDisabled]}
+              style={styles.forgotPassword}
+              onPress={() => navigation.navigate('ForgotPassword')}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.signInButton, isLoading && styles.signInButtonDisabled]}
               onPress={handleLogin}
               disabled={isLoading}
-              activeOpacity={0.8}
             >
               {isLoading ? (
                 <ActivityIndicator size="small" color="#ffffff" />
               ) : (
-                <Text style={styles.buttonText}>Sign In</Text>
+                <Text style={styles.signInButtonText}>Sign In</Text>
               )}
             </TouchableOpacity>
+          </View>
 
+          {/* Footer */}
+          <View style={styles.footer}>
             <TouchableOpacity
-              style={styles.forgotPasswordButton}
-              onPress={() => navigation.navigate('ForgotPassword')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.linkButton}
+              style={styles.createAccountButton}
               onPress={() => onNavigateToRegister ? onNavigateToRegister() : navigation.navigate('RoleSelection')}
-              activeOpacity={0.7}
             >
-              <Text style={styles.linkText}>
-                Don't have an account? <Text style={styles.linkTextBold}>Sign up</Text>
+              <Text style={styles.createAccountText}>
+                Don't have an account? <Text style={styles.createAccountLink}>Create one</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -119,7 +141,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
 
 const styles = StyleSheet.create({
   container: {
-    ...commonStyles.container,
+    flex: 1,
+    backgroundColor: theme.colors.background,
   },
   keyboardContainer: {
     flex: 1,
@@ -127,62 +150,139 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
-    ...theme.layout.screenPadding,
+    paddingHorizontal: 32,
+    paddingTop: 60,
   },
-  headerContainer: {
+  
+  // Header
+  header: {
     alignItems: 'center',
-    marginBottom: theme.spacing.huge + theme.spacing.sm,
+    marginBottom: 48,
+  },
+  logoContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: theme.colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  logo: {
+    width: 40,
+    height: 40,
   },
   title: {
-    ...theme.typography.titleLarge,
+    fontSize: 28,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
     textAlign: 'center',
-    marginBottom: theme.spacing.md,
   },
   subtitle: {
-    ...theme.typography.subtitleMedium,
+    fontSize: 16,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
-  formContainer: {
-    width: '100%',
+  
+  // Form
+  form: {
+    marginBottom: 32,
+  },
+  inputContainer: {
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
   },
   input: {
-    ...commonStyles.input,
-    marginBottom: theme.spacing.xl,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
   },
-  loginButton: {
-    ...commonStyles.button,
-    marginTop: theme.spacing.md,
-    marginBottom: theme.spacing.xxxl,
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+    paddingRight: 50, // Make room for the eye button
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 4,
+  },
+  eyeIcon: {
+    fontSize: 16,
+  },
+  forgotPassword: {
+    alignSelf: 'flex-end',
+    marginBottom: 32,
+    paddingVertical: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  signInButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
     shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  buttonDisabled: {
+  signInButtonDisabled: {
     backgroundColor: theme.colors.textSecondary,
     shadowOpacity: 0,
     elevation: 0,
   },
-  buttonText: {
-    ...commonStyles.buttonText,
+  signInButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
   },
-  linkButton: {
-    ...commonStyles.linkButton,
-  },
-  linkText: {
-    ...theme.typography.bodyMedium,
-    color: theme.colors.textSecondary,
-  },
-  linkTextBold: {
-    fontWeight: '600',
-    color: theme.colors.primary,
-  },
-  forgotPasswordButton: {
+  
+  // Footer
+  footer: {
     alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    marginBottom: theme.spacing.lg,
   },
-  forgotPasswordText: {
+  createAccountButton: {
+    paddingVertical: 12,
+  },
+  createAccountText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+  },
+  createAccountLink: {
     color: theme.colors.primary,
-    fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
-}); 
+});

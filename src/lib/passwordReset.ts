@@ -1,6 +1,6 @@
 import { auth, db } from './firebase';
 import { doc, getDoc, updateDoc, query, collection, where, getDocs, Timestamp } from 'firebase/firestore';
-import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
+import { updatePassword, reauthenticateWithCredential, EmailAuthProvider, signInAnonymously } from 'firebase/auth';
 import { createVerificationToken, sendVerificationEmail, verifyToken } from './emailVerification';
 
 // Request password reset
@@ -79,29 +79,28 @@ export const resetPasswordWithToken = async (
   error?: string;
 }> => {
   try {
-    // Verify the token first
-    const tokenResult = await verifyPasswordResetToken(token);
-    
-    if (!tokenResult.valid) {
-      return { success: false, error: tokenResult.error };
-    }
-    
-    // Note: Firebase doesn't allow password updates without authentication
-    // This would require a custom backend with Firebase Admin SDK
-    // For now, we'll store the reset request and handle it when user logs in
-    
-    await updateDoc(doc(db, 'users', tokenResult.userId!), {
-      password_reset_pending: true,
-      password_reset_token: token,
-      password_reset_requested_at: Timestamp.now()
+    // Use HTTP endpoint for password reset (no authentication required)
+    const response = await fetch('https://us-central1-campus-life-b0fd3.cloudfunctions.net/resetPasswordHttp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token,
+        newPassword
+      })
     });
     
-    return { 
-      success: true, 
-      error: 'Password reset approved. Please sign in with your new password.' 
-    };
+    const data = await response.json();
+    
+    if (data.success) {
+      return { success: true };
+    } else {
+      return { success: false, error: data.error || 'Failed to reset password' };
+    }
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('Reset password error:', error);
+    return { success: false, error: 'Network error. Please check your internet connection and try again.' };
   }
 };
 

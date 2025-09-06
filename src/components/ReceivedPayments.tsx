@@ -149,7 +149,7 @@ export const ReceivedPayments: React.FC = () => {
         </Text>
       </View>
 
-      <ScrollView style={styles.paymentsList} showsVerticalScrollIndicator={false}>
+      <View style={styles.paymentsList}>
         {payments.map((payment) => (
           <View key={payment.id} style={styles.paymentCard}>
             <View style={styles.paymentHeader}>
@@ -176,7 +176,7 @@ export const ReceivedPayments: React.FC = () => {
             )}
           </View>
         ))}
-      </ScrollView>
+      </View>
     </View>
   );
 };
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   paymentsList: {
-    maxHeight: 300,
+    // Removed maxHeight to allow full scrolling within parent
   },
   paymentCard: {
     backgroundColor: theme.colors.backgroundTertiary,

@@ -7,7 +7,10 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Image
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -46,6 +49,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
   const [selectedProvider, setSelectedProvider] = useState<'paypal' | 'venmo' | 'cashapp' | 'zelle' | null>(null);
   const [spendingInfo, setSpendingInfo] = useState<any>(null);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
+  const [isLoading, setIsLoading] = useState(false);
 
   React.useEffect(() => {
     const loadFamilyData = async () => {
@@ -127,7 +131,12 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
   };
 
   const sendSupport = async () => {
-    if (selectedType === 'boost') {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    
+    try {
+      if (selectedType === 'boost') {
       // For care boost, we need actual payment
       if (!selectedProvider) {
         Alert.alert('Select Payment Method', 'Choose how you want to send the money (PayPal, Venmo, etc.)');
@@ -234,6 +243,9 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
     } catch (error: any) {
       Alert.alert('Error', 'Something went wrong while sending your message.');
     }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getRemainingBudget = () => 50 - monthlyEarned;
@@ -259,7 +271,11 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
   return (
     <View style={styles.container}>
       <StatusHeader title="Send Support" />
-      <ScrollView 
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView 
         style={[styles.scrollContainer, { paddingTop: 50 }]}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
@@ -452,17 +468,21 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           <TouchableOpacity
             style={[
               styles.sendButton,
-              (selectedType === 'boost' && (!selectedProvider || (spendingInfo && boostAmount * 100 > (spendingInfo.remainingCents || 0)))) && styles.sendButtonDisabled
+              ((selectedType === 'boost' && (!selectedProvider || (spendingInfo && boostAmount * 100 > (spendingInfo.remainingCents || 0)))) || isLoading) && styles.sendButtonDisabled
             ]}
             onPress={sendSupport}
-            disabled={selectedType === 'boost' && (!selectedProvider || (spendingInfo && boostAmount * 100 > (spendingInfo.remainingCents || 0)))}
+            disabled={(selectedType === 'boost' && (!selectedProvider || (spendingInfo && boostAmount * 100 > (spendingInfo.remainingCents || 0)))) || isLoading}
           >
-            <Text style={styles.sendButtonText}>
-              {selectedType === 'boost' 
-                ? `Send $${boostAmount}`
-                : 'Send Message'
-              }
-            </Text>
+            {isLoading ? (
+              <ActivityIndicator color="#ffffff" size="small" />
+            ) : (
+              <Text style={styles.sendButtonText}>
+                {selectedType === 'boost' 
+                  ? `Send $${boostAmount}`
+                  : 'Send Message'
+                }
+              </Text>
+            )}
           </TouchableOpacity>
           
           {selectedType === 'boost' && !selectedProvider && (
@@ -478,6 +498,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -486,6 +507,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollContainer: {
     flex: 1,

@@ -20,6 +20,8 @@ import { StudentRegisterScreen } from './src/screens/auth/StudentRegisterScreen'
 import { LoginScreen } from './src/screens/auth/LoginScreen';
 import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/auth/ResetPasswordScreen';
+import { PrivacyPolicyScreen } from './src/screens/shared/PrivacyPolicyScreen';
+import { NetworkStatusIndicator } from './src/components/NetworkStatusIndicator';
 
 const Stack = createStackNavigator<AuthStackParamList>();
 
@@ -113,6 +115,61 @@ export default function App() {
           console.error('Error parsing payment deep link:', error);
           Alert.alert('Error', 'Invalid payment link received.');
         }
+      } else if (url.includes('campuslife://paypal-return')) {
+        // Handle PayPal P2P return deep link
+        console.log('PayPal P2P return deep link received:', url);
+        try {
+          const params = new URLSearchParams(url.split('?')[1] || '');
+          const transactionId = params.get('transactionId');
+          const orderId = params.get('orderId'); 
+          const payerID = params.get('payerID');
+          const status = params.get('status');
+          
+          console.log('PayPal P2P deep link parsed:', { transactionId, orderId, payerID, status });
+          
+          if (transactionId && orderId) {
+            if (!isAuthenticated) {
+              console.log('User not authenticated, showing login prompt');
+              Alert.alert(
+                'Login Required', 
+                'Please log in to complete your payment.',
+                [{ text: 'OK', style: 'default' }]
+              );
+              return;
+            }
+            
+            if (!navigationRef.current) {
+              console.log('Navigation ref not ready, retrying...');
+              // Retry after a short delay if navigation isn't ready
+              setTimeout(() => {
+                if (navigationRef.current) {
+                  navigationRef.current.navigate('PayPalP2PReturn', {
+                    transactionId,
+                    orderId,
+                    payerID,
+                    status
+                  });
+                }
+              }, 1000);
+              return;
+            }
+            
+            // Navigate to PayPalP2PReturn screen
+            navigationRef.current.navigate('PayPalP2PReturn', {
+              transactionId,
+              orderId, 
+              payerID,
+              status
+            });
+            
+            console.log('Navigated to PayPalP2PReturn screen');
+          } else {
+            console.error('Missing transactionId or orderId in PayPal deep link');
+          }
+        } catch (error) {
+          console.error('Error parsing PayPal deep link:', error);
+          Alert.alert('Error', 'Invalid PayPal payment link received.');
+        }
       }
     };
 
@@ -156,6 +213,7 @@ export default function App() {
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Loading CampusLife...</Text>
         </View>
+        <NetworkStatusIndicator position="top" />
       </SafeAreaProvider>
     );
   }
@@ -180,6 +238,7 @@ export default function App() {
       <Stack.Screen name="StudentRegister" component={StudentRegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
     </Stack.Navigator>
   );
 
@@ -213,6 +272,7 @@ export default function App() {
           </View>
         )}
       </NavigationContainer>
+      <NetworkStatusIndicator position="top" />
     </SafeAreaProvider>
   );
 }

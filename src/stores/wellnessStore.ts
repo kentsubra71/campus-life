@@ -7,6 +7,7 @@ import {
   getCurrentUser 
 } from '../lib/firebase';
 import { cache, CACHE_CONFIGS } from '../utils/universalCache';
+import { getTodayDateString, getLocalDateString, getDateStringDaysAgo } from '../utils/dateUtils';
 
 export interface WellnessEntry {
   id: string;
@@ -103,6 +104,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     // Convert to Firebase format
     const firebaseEntry: Omit<FirebaseWellnessEntry, 'id' | 'created_at'> = {
       user_id: user.uid,
+      date: entryData.date,
       mood: entryData.mood,
       sleep_hours: entryData.sleep,
       exercise_minutes: entryData.exercise,
@@ -135,8 +137,54 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
       
-      // Invalidate cache so fresh data is loaded next time
-      await cache.invalidate(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+      // Clear cache so fresh data is loaded next time
+      await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+
+      // Send notification to parents
+      try {
+        const { useAuthStore } = await import('./authStore');
+        const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+        
+        const { getFamilyMembers, user: currentUser } = useAuthStore.getState();
+        if (currentUser?.role === 'student') {
+          const familyMembers = await getFamilyMembers();
+          const studentName = currentUser.name || 'Student';
+          
+          // Get mood string for notification
+          const moodLabels = ['Terrible', 'Very Bad', 'Bad', 'Poor', 'Okay', 'Fair', 'Good', 'Very Good', 'Great', 'Excellent'];
+          const moodText = moodLabels[Math.max(0, Math.min(9, entryData.mood - 1))] || 'okay';
+          
+          // Send to all parents
+          for (const parent of familyMembers.parents) {
+            const notification = {
+              ...NotificationTemplates.studentWellnessLogged(studentName, wellnessScore, moodText),
+              userId: parent.id
+            };
+            
+            await pushNotificationService.sendPushNotification(notification);
+          }
+          
+          console.log('📊 Wellness notification sent to parents');
+        }
+      } catch (notifError) {
+        console.error('Failed to send wellness notification:', notifError);
+      }
+      
+      // Award XP for logging wellness entry
+      try {
+        const { useRewardsStore } = await import('./rewardsStore');
+        const { addExperience } = useRewardsStore.getState();
+        
+        // Award XP based on wellness score
+        let xpAmount = 20; // Base XP for logging
+        if (wellnessScore >= 8) xpAmount = 50; // Bonus for high wellness
+        else if (wellnessScore >= 6) xpAmount = 35; // Bonus for good wellness
+        
+        addExperience(xpAmount);
+        console.log(`🎯 Awarded ${xpAmount} XP for wellness entry (score: ${wellnessScore})`);
+      } catch (error) {
+        console.error('Failed to award XP:', error);
+      }
       
       // Send wellness log notification to parents
       try {
@@ -188,6 +236,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     try {
       // Convert local format to Firebase format for update
       const firebaseUpdates: any = {};
+      if (updates.date !== undefined) firebaseUpdates.date = updates.date;
       if (updates.mood !== undefined) firebaseUpdates.mood = updates.mood;
       if (updates.sleep !== undefined) firebaseUpdates.sleep_hours = updates.sleep;
       if (updates.exercise !== undefined) firebaseUpdates.exercise_minutes = updates.exercise;
@@ -217,7 +266,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
 
         return {
           entries: updatedEntries,
-          todayEntry: updatedEntries.find(entry => entry.date === new Date().toISOString().split('T')[0]) || null,
+          todayEntry: updatedEntries.find(entry => entry.date === getTodayDateString()) || null,
         };
       });
       
@@ -225,8 +274,8 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
       
-      // Invalidate cache so fresh data is loaded next time
-      await cache.invalidate(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+      // Clear cache so fresh data is loaded next time
+      await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
     } catch (error) {
       console.error('Failed to update wellness entry:', error);
     }
@@ -240,20 +289,18 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
 
   calculateStats: () => {
     const { entries } = get();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateString();
     const sortedEntries = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Calculate current streak
     let currentStreak = 0;
-    let currentDate = new Date();
     
     for (let i = 0; i < 30; i++) { // Check last 30 days
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = getDateStringDaysAgo(i);
       const entry = entries.find(e => e.date === dateStr);
       
       if (entry) {
         currentStreak++;
-        currentDate.setDate(currentDate.getDate() - 1);
       } else {
         break;
       }
@@ -282,9 +329,8 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const averageScore = entries.length > 0 ? totalScore / entries.length : 0;
 
     // Weekly average (last 7 days)
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weeklyEntries = entries.filter(entry => new Date(entry.date) >= weekAgo);
+    const weekAgoDateStr = getDateStringDaysAgo(7);
+    const weeklyEntries = entries.filter(entry => entry.date >= weekAgoDateStr);
     const weeklyScore = weeklyEntries.reduce((sum, entry) => sum + entry.wellnessScore, 0);
     const weeklyAverage = weeklyEntries.length > 0 ? weeklyScore / weeklyEntries.length : 0;
 
@@ -302,16 +348,14 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
 
   getWeeklyEntries: () => {
     const { entries } = get();
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    return entries.filter(entry => new Date(entry.date) >= weekAgo);
+    const weekAgoDateStr = getDateStringDaysAgo(7);
+    return entries.filter(entry => entry.date >= weekAgoDateStr);
   },
 
   getMonthlyEntries: () => {
     const { entries } = get();
-    const monthAgo = new Date();
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
-    return entries.filter(entry => new Date(entry.date) >= monthAgo);
+    const monthAgoDateStr = getDateStringDaysAgo(30);
+    return entries.filter(entry => entry.date >= monthAgoDateStr);
   },
 
   loadEntries: async (studentId?: string) => {
@@ -332,7 +376,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           // Convert Firebase entries to local format
           const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
             id: entry.id || '',
-            date: entry.created_at.toDate().toISOString().split('T')[0],
+            date: entry.date || getLocalDateString(entry.created_at.toDate()), // Use stored date or fallback to created_at
             mood: entry.mood,
             sleep: entry.sleep_hours,
             exercise: entry.exercise_minutes,
@@ -342,7 +386,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
             academic: entry.academic,
             notes: entry.notes,
             wellnessScore: calculateWellnessScore({
-              date: entry.created_at.toDate().toISOString().split('T')[0],
+              date: entry.date || getLocalDateString(entry.created_at.toDate()),
               mood: entry.mood,
               sleep: entry.sleep_hours,
               exercise: entry.exercise_minutes,
@@ -354,7 +398,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
             }),
           }));
 
-          const today = new Date().toISOString().split('T')[0];
+          const today = getTodayDateString();
           const todayEntry = entries.find(entry => entry.date === today) || null;
           
           return { entries, todayEntry };

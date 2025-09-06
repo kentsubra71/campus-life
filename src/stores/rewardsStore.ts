@@ -6,9 +6,11 @@ import {
   getUserTotalPoints, 
   getCurrentUser,
   getMessagesForUser,
-  getMessagesSentByUser 
+  getMessagesSentByUser,
+  markMessageAsRead 
 } from '../lib/firebase';
 import { cache, CACHE_CONFIGS } from '../utils/universalCache';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SupportMessage {
   id: string;
@@ -61,9 +63,10 @@ interface ConnectionState {
   claimReward: (id: string) => Promise<void>;
   addExperience: (amount: number) => void;
   updateMood: (mood: 'great' | 'good' | 'okay' | 'struggling') => void;
-  markMessageRead: (id: string) => void;
+  markMessageRead: (id: string) => Promise<void>;
   requestSupport: () => void;
   acknowledgeSupport: (id: string) => void;
+  loadUserProgress: () => Promise<void>;
 }
 
 export const useRewardsStore = create<ConnectionState>((set, get) => ({
@@ -141,6 +144,11 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       
       console.log('📥 Messages fetched:', firebaseMessages.length);
       
+      // Get locally stored read message IDs
+      const readMessagesKey = `read_messages_${user.uid}`;
+      const localReadMessages = await AsyncStorage.getItem(readMessagesKey);
+      const localReadIds = localReadMessages ? JSON.parse(localReadMessages) : [];
+      
       // Convert Firebase messages to our SupportMessage format
       const supportMessages = firebaseMessages.map(msg => ({
         id: msg.id,
@@ -150,7 +158,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
         to: msg.to_user_id,
         familyId: msg.family_id,
         timestamp: msg.created_at.toDate(),
-        read: msg.read || false
+        read: msg.read || localReadIds.includes(msg.id) // Use Firebase read state OR local storage
       }));
       
       // Sort by timestamp (newest first)
@@ -256,15 +264,39 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     }
   },
   
-  addExperience: (amount: number) => {
+  addExperience: async (amount: number) => {
     const current = get();
     const newExp = current.experience + amount;
     const newLevel = Math.floor(newExp / 200) + 1;
+    const leveledUp = newLevel > current.level;
     
     set({ 
       experience: newExp,
       level: newLevel
     });
+    
+    // Save XP to Firebase
+    try {
+      const user = getCurrentUser();
+      if (!user) return;
+      
+      const { collection, doc, setDoc, Timestamp } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      await setDoc(doc(collection(db, 'user_progress'), user.uid), {
+        user_id: user.uid,
+        experience: newExp,
+        level: newLevel,
+        last_updated: Timestamp.now()
+      }, { merge: true });
+      
+      if (leveledUp) {
+        console.log(`🎉 Level up! Reached level ${newLevel}`);
+        // TODO: Show level up animation/notification
+      }
+    } catch (error) {
+      console.error('Failed to save XP to Firebase:', error);
+    }
   },
   
   updateMood: (mood) => {
@@ -274,12 +306,36 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     });
   },
   
-  markMessageRead: (id: string) => {
+  markMessageRead: async (id: string) => {
     const current = get();
+    const user = getCurrentUser();
+    if (!user) return;
+    
+    // Update local state immediately for responsive UI
     const updatedMessages = current.supportMessages.map(msg => 
       msg.id === id ? { ...msg, read: true } : msg
     );
     set({ supportMessages: updatedMessages });
+    
+    try {
+      // Persist read state to Firebase
+      await markMessageAsRead(id);
+      
+      // Also store in AsyncStorage for local persistence
+      const readMessagesKey = `read_messages_${user.uid}`;
+      const existingReadMessages = await AsyncStorage.getItem(readMessagesKey);
+      const readMessageIds = existingReadMessages ? JSON.parse(existingReadMessages) : [];
+      
+      if (!readMessageIds.includes(id)) {
+        readMessageIds.push(id);
+        await AsyncStorage.setItem(readMessagesKey, JSON.stringify(readMessageIds));
+      }
+      
+      // Update cache to reflect the read status
+      await cache.invalidate(CACHE_CONFIGS.MESSAGE_THREADS, user.uid);
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+    }
   },
 
   requestSupport: async () => {
@@ -364,5 +420,34 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       req.id === id ? { ...req, acknowledged: true } : req
     );
     set({ supportRequests: updatedRequests });
+  },
+  
+  loadUserProgress: async () => {
+    const user = getCurrentUser();
+    if (!user) return;
+    
+    try {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      const progressDoc = await getDoc(doc(db, 'user_progress', user.uid));
+      
+      if (progressDoc.exists()) {
+        const data = progressDoc.data();
+        set({
+          experience: data.experience || 0,
+          level: data.level || 1
+        });
+        console.log(`📊 Loaded user progress: Level ${data.level || 1}, ${data.experience || 0} XP`);
+      } else {
+        // Initialize new user progress
+        set({ experience: 0, level: 1 });
+        console.log('🆕 Initialized new user progress');
+      }
+    } catch (error) {
+      console.error('Failed to load user progress:', error);
+      // Fallback to defaults
+      set({ experience: 0, level: 1 });
+    }
   },
 })); 

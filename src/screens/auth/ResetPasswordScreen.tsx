@@ -11,6 +11,7 @@ import {
   Alert,
   SafeAreaView,
 } from 'react-native';
+import { theme } from '../../styles/theme';
 import { AuthScreenProps } from '../../types/navigation';
 import { verifyPasswordResetToken, resetPasswordWithToken } from '../../lib/passwordReset';
 
@@ -113,7 +114,7 @@ export const ResetPasswordScreen: React.FC<AuthScreenProps<'ResetPassword'>> = (
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="theme.colors.primary" />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Verifying reset link...</Text>
         </View>
       </SafeAreaView>
@@ -211,7 +212,7 @@ export const ResetPasswordScreen: React.FC<AuthScreenProps<'ResetPassword'>> = (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.background,
   },
   keyboardContainer: {
     flex: 1,
@@ -227,7 +228,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontSize: 16,
     marginTop: 16,
   },
@@ -238,13 +239,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     textAlign: 'center',
     marginBottom: 12,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -255,57 +256,57 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputLabel: {
-    color: '#d1d5db',
+    color: theme.colors.textSecondary,
     fontSize: 14,
     fontWeight: '500',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundSecondary,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderRadius: 12,
     fontSize: 16,
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
   },
   requirementsContainer: {
-    backgroundColor: '#1f2937',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: theme.colors.border,
   },
   requirementsTitle: {
-    color: '#d1d5db',
+    color: theme.colors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
   },
   requirement: {
-    color: '#6b7280',
+    color: theme.colors.textTertiary,
     fontSize: 14,
     marginBottom: 4,
   },
   requirementMet: {
-    color: '#10b981',
+    color: theme.colors.success,
   },
   resetButton: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: 'theme.colors.primary',
+    shadowColor: theme.colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
   buttonDisabled: {
-    backgroundColor: '#4b5563',
+    backgroundColor: theme.colors.textTertiary,
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -319,7 +320,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   backButtonText: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontSize: 16,
     fontWeight: '500',
   },

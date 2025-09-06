@@ -19,29 +19,6 @@ export const LogWellnessScreen: React.FC<LogWellnessScreenProps> = ({ navigation
   const { todayEntry, stats } = useWellnessStore();
   const [currentStreak, setCurrentStreak] = useState(stats.currentStreak);
 
-  const quickActions = [
-    {
-      title: 'Log Today\'s Wellness',
-      subtitle: todayEntry ? 'Update your daily entry' : 'Start your wellness tracking',
-      action: () => navigation.navigate('WellnessLog'),
-      icon: 'today',
-      status: todayEntry ? 'completed' : 'pending'
-    },
-    {
-      title: 'View History',
-      subtitle: 'See your wellness journey over time',
-      action: () => navigation.navigate('WellnessHistory'),
-      icon: 'history',
-      status: 'available'
-    },
-    {
-      title: 'Weekly Summary',
-      subtitle: 'Review your week\'s progress',
-      action: () => showWeeklySummary(),
-      icon: 'weekly',
-      status: 'available'
-    },
-  ];
 
   const showWeeklySummary = () => {
     showMessage({
@@ -54,86 +31,113 @@ export const LogWellnessScreen: React.FC<LogWellnessScreenProps> = ({ navigation
     });
   };
 
-  const renderQuickAction = (action: any, index: number) => (
-    <TouchableOpacity 
-      key={index}
-      style={[
-        styles.actionCard,
-        action.status === 'completed' && styles.completedCard
-      ]}
-      onPress={action.action}
-      activeOpacity={0.8}
-    >
-      <View style={styles.actionHeader}>
-        <View style={[
-          styles.actionIcon,
-          action.status === 'completed' && styles.completedIcon,
-          action.status === 'pending' && styles.pendingIcon
-        ]}>
-          <Text style={[
-            styles.actionIconText,
-            action.status === 'completed' && styles.completedIconText
-          ]}>
-            {action.icon === 'today' ? 'T' : 
-             action.icon === 'history' ? 'H' : 'W'}
-          </Text>
-        </View>
-        <View style={styles.actionContent}>
-          <Text style={styles.actionTitle}>{action.title}</Text>
-          <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
-        </View>
-        <View style={styles.statusIndicator}>
-          {action.status === 'completed' && (
-            <Text style={styles.statusText}>Done</Text>
-          )}
-          {action.status === 'pending' && (
-            <Text style={styles.statusTextPending}>Pending</Text>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Wellness Tracking</Text>
-          <Text style={styles.subtitle}>Track and monitor your daily wellness journey</Text>
+          <Text style={styles.greeting}>Wellness</Text>
+          <Text style={styles.title}>Track Your Journey</Text>
+          <Text style={styles.subtitle}>Stay consistent with your daily wellness habits</Text>
         </View>
 
-        <View style={styles.streakCard}>
-          <Text style={styles.streakNumber}>{currentStreak}</Text>
-          <Text style={styles.streakLabel}>Day Streak</Text>
-          <Text style={styles.streakMessage}>
-            {currentStreak === 0 ? 'Start your wellness journey today!' :
-             currentStreak === 1 ? 'Great start! Keep it going.' :
-             currentStreak < 7 ? 'Building a healthy habit!' :
-             currentStreak < 30 ? 'Excellent consistency!' :
-             'Amazing dedication!'}
+        {/* Current Status */}
+        <View style={styles.statusSection}>
+          <View style={styles.statusHeader}>
+            <Text style={styles.statusTitle}>
+              {todayEntry ? 'Today is logged' : 'Ready to log today?'}
+            </Text>
+            <View style={[styles.statusBadge, { 
+              backgroundColor: todayEntry ? theme.colors.success : theme.colors.warning 
+            }]}>
+              <Text style={styles.statusBadgeText}>
+                {currentStreak} DAY STREAK
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.statusSubtitle}>
+            {currentStreak === 0 ? 'Start your wellness journey today and build a healthy habit' :
+             currentStreak === 1 ? 'Great start! Keep the momentum going.' :
+             currentStreak < 7 ? 'You\'re building a strong wellness routine!' :
+             currentStreak < 30 ? 'Excellent consistency — you\'re doing amazing!' :
+             'Incredible dedication to your wellness!'}
           </Text>
         </View>
 
-        <View style={styles.actionsSection}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          {quickActions.map(renderQuickAction)}
+        {/* Progress Metrics */}
+        <View style={styles.metricsSection}>
+          <View style={styles.metricItem}>
+            <View style={styles.metricHeader}>
+              <Text style={styles.metricLabel}>Total Entries</Text>
+              <Text style={styles.metricValue}>{stats.totalEntries}</Text>
+            </View>
+            <Text style={[styles.metricTag, { color: theme.colors.primary }]}>
+              {stats.totalEntries === 0 ? 'Start tracking today' : 'wellness logs completed'}
+            </Text>
+          </View>
+          
+          <View style={styles.metricItem}>
+            <View style={styles.metricHeader}>
+              <Text style={styles.metricLabel}>Average Score</Text>
+              <Text style={styles.metricValue}>
+                {stats.totalEntries === 0 ? '--' : stats.averageScore.toFixed(1)}
+              </Text>
+            </View>
+            <Text style={[styles.metricTag, { color: theme.colors.success }]}>
+              {stats.totalEntries === 0 ? 'out of 10' : `out of 10 — ${stats.averageScore >= 7 ? 'great work!' : stats.averageScore >= 5 ? 'keep improving!' : 'every step counts!'}`}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Your Progress</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.totalEntries}</Text>
-              <Text style={styles.statLabel}>Total Entries</Text>
+        {/* Quick Actions */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          
+          {/* Primary Action */}
+          <TouchableOpacity 
+            style={styles.primaryAction}
+            onPress={() => navigation.navigate('WellnessLog')}
+          >
+            <View style={styles.primaryActionContent}>
+              <View style={styles.primaryActionIcon}>
+                <View style={[styles.primaryActionIndicator, {
+                  backgroundColor: todayEntry ? theme.colors.success : theme.colors.primary
+                }]} />
+              </View>
+              <View style={styles.primaryActionText}>
+                <Text style={styles.primaryActionTitle}>
+                  {todayEntry ? 'Update Today\'s Wellness' : 'Log Today\'s Wellness'}
+                </Text>
+                <Text style={styles.primaryActionSubtitle}>
+                  Track your mood, sleep, meals, and exercise
+                </Text>
+              </View>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.averageScore}</Text>
-              <Text style={styles.statLabel}>Average Score</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.weeklyAverage}</Text>
-              <Text style={styles.statLabel}>This Week</Text>
-            </View>
+          </TouchableOpacity>
+          
+          {/* Secondary Actions */}
+          <View style={styles.secondaryActions}>
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => navigation.navigate('WellnessHistory')}
+            >
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>View History</Text>
+                <Text style={styles.actionSubtitle}>See your wellness journey over time</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.actionItem}
+              onPress={() => showWeeklySummary()}
+            >
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Weekly Summary</Text>
+                <Text style={styles.actionSubtitle}>Review your week's progress</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -148,11 +152,17 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 24,
   },
   header: {
     marginBottom: 30,
-    paddingTop: 10,
+    paddingTop: 20,
+  },
+  greeting: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
   },
   title: {
     fontSize: 28,
@@ -165,141 +175,151 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     lineHeight: 22,
   },
-  streakCard: {
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    alignItems: 'center',
-    marginBottom: 30,
-    ...theme.shadows.medium,
+  
+  // Status Section - No Card
+  statusSection: {
+    paddingVertical: 16,
+    marginBottom: 20,
   },
-  streakNumber: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: theme.colors.primary,
+  statusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
-  streakLabel: {
-    fontSize: 16,
+  statusTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    flex: 1,
+    marginRight: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusBadgeText: {
+    fontSize: 11,
     fontWeight: '600',
+    color: theme.colors.backgroundSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statusSubtitle: {
+    fontSize: 15,
     color: theme.colors.textSecondary,
     marginBottom: 12,
+    lineHeight: 20,
   },
-  streakMessage: {
+  
+  // Metrics Section - Mixed Layout
+  metricsSection: {
+    gap: 12,
+    marginBottom: 20,
+  },
+  metricItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  metricHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  metricLabel: {
     fontSize: 14,
-    color: theme.colors.textPrimary,
-    textAlign: 'center',
     fontWeight: '500',
+    color: theme.colors.textSecondary,
   },
+  metricValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  metricTag: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  
+  // Actions Section
   actionsSection: {
-    marginBottom: 30,
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: theme.colors.textPrimary,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  actionCard: {
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 20,
-    borderRadius: 12,
+  
+  // Primary Action - Prominent
+  primaryAction: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    marginBottom: 12,
-    ...theme.shadows.small,
   },
-  completedCard: {
-    borderColor: theme.colors.success,
-    backgroundColor: theme.colors.backgroundCard,
-  },
-  actionHeader: {
+  primaryActionContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: theme.colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
+  primaryActionIcon: {
     marginRight: 16,
   },
-  completedIcon: {
-    backgroundColor: theme.colors.success,
+  primaryActionIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
-  pendingIcon: {
-    backgroundColor: theme.colors.warning,
+  primaryActionText: {
+    flex: 1,
   },
-  actionIconText: {
-    fontSize: 18,
-    fontWeight: '700',
+  primaryActionTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 2,
+  },
+  primaryActionSubtitle: {
+    fontSize: 14,
     color: theme.colors.textSecondary,
   },
-  completedIconText: {
-    color: 'white',
+  
+  // Secondary Actions - List Style
+  secondaryActions: {
+    gap: 1,
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   actionContent: {
     flex: 1,
   },
   actionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: 4,
+    marginBottom: 1,
   },
   actionSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.textSecondary,
-    fontWeight: '500',
   },
-  statusIndicator: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusText: {
-    fontSize: 12,
-    color: theme.colors.success,
-    fontWeight: '600',
-  },
-  statusTextPending: {
-    fontSize: 12,
-    color: theme.colors.warning,
-    fontWeight: '600',
-  },
-  statsSection: {
-    marginBottom: 20,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statItem: {
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
-    ...theme.shadows.small,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.primary,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    fontWeight: '500',
-    textAlign: 'center',
+  actionArrow: {
+    fontSize: 18,
+    color: theme.colors.textTertiary,
+    fontWeight: '300',
   },
 }); 

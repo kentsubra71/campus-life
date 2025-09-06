@@ -120,7 +120,7 @@ export const sendVerificationEmail = async (
   type: 'email_verification' | 'password_reset'
 ): Promise<{ success: boolean; error?: string; messageId?: string }> => {
   try {
-    const verificationUrl = `https://verify.ronaldli.ca/verify/${type}/${token}`;
+    const verificationUrl = `https://campus-life-auth-website.vercel.app/verify/${type}/${token}`;
     
     if (type === 'password_reset') {
       // Use HTTP endpoint for password reset (unauthenticated)

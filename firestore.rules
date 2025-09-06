@@ -73,16 +73,16 @@ service cloud.firestore {
         validateWellnessEntry(request.resource.data);
     }
     
-    // Validate wellness entry data
+    // Validate wellness entry data (new ranking-based model)
     function validateWellnessEntry(data) {
-      return data.keys().hasAll(['user_id', 'mood', 'sleep_hours', 'exercise_minutes', 'nutrition', 'water', 'social', 'academic']) &&
-             data.mood is number && data.mood >= 1 && data.mood <= 10 &&
-             data.sleep_hours is number && data.sleep_hours >= 0 && data.sleep_hours <= 24 &&
-             data.exercise_minutes is number && data.exercise_minutes >= 0 &&
-             data.nutrition is number && data.nutrition >= 1 && data.nutrition <= 10 &&
-             data.water is number && data.water >= 0 && data.water <= 20 &&
-             data.social is number && data.social >= 1 && data.social <= 10 &&
-             data.academic is number && data.academic >= 1 && data.academic <= 10;
+      return data.keys().hasAll(['user_id', 'date', 'sleep_ranking', 'nutrition_ranking', 'academics_ranking', 'social_ranking', 'overall_mood']) &&
+             data.user_id is string &&
+             data.date is string &&
+             data.sleep_ranking is number && data.sleep_ranking >= 1 && data.sleep_ranking <= 4 &&
+             data.nutrition_ranking is number && data.nutrition_ranking >= 1 && data.nutrition_ranking <= 4 &&
+             data.academics_ranking is number && data.academics_ranking >= 1 && data.academics_ranking <= 4 &&
+             data.social_ranking is number && data.social_ranking >= 1 && data.social_ranking <= 4 &&
+             data.overall_mood is number && data.overall_mood >= 1 && data.overall_mood <= 10;
     }
     
     // Rewards - user can access their own, family members can read

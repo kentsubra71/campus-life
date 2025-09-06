@@ -30,7 +30,8 @@
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_hb6hME/**)",
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_Jp64CP/**)",
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_mAClFA/**)",
-      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_sn92YL/**)"
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_sn92YL/**)",
+      "Bash(firebase deploy:*)"
     ],
     "deny": []
   }

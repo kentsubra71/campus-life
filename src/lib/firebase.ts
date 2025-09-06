@@ -308,7 +308,9 @@ export const getWellnessEntries = async (userId: string, limitCount: number = 50
     }
     
     console.error('Error getting wellness entries:', error);
-    throw error; // Re-throw for proper error handling upstream
+    // Return empty array instead of throwing to prevent crashes
+    console.log('Returning empty array due to wellness entries error');
+    return [];
   }
 };
 

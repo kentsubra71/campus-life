@@ -107,35 +107,49 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
     </View>
   );
 
+  const getRankingText = (ranking: number) => {
+    switch (ranking) {
+      case 1: return 'Best';
+      case 2: return 'Good';
+      case 3: return 'Fair';
+      case 4: return 'Worst';
+      default: return 'Unknown';
+    }
+  };
+
   const renderEntryItem = ({ item }: { item: WellnessEntry }) => (
     <View style={styles.entryCard}>
       <View style={styles.entryHeader}>
         <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getScoreColor(item.wellnessScore) }]}>
+        <View style={[styles.statusBadge, { backgroundColor: getScoreColor(item.overallScore) }]}>
           <Text style={styles.scoreText}>
-            {item.wellnessScore}/10
+            {item.overallScore}/10
           </Text>
         </View>
       </View>
       
       <View style={styles.entryDetails}>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Mood:</Text>
+          <Text style={styles.detailLabel}>Overall Mood:</Text>
           <Text style={styles.detailValue}>
-            {getMoodLevel(item.mood)} ({item.mood}/10)
+            {getMoodLevel(item.overallMood)} ({item.overallMood}/10)
           </Text>
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Sleep:</Text>
-          <Text style={styles.detailValue}>{item.sleep}h</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.sleep)} (#{item.rankings.sleep})</Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Exercise:</Text>
-          <Text style={styles.detailValue}>{item.exercise}m</Text>
+          <Text style={styles.detailLabel}>Nutrition:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.nutrition)} (#{item.rankings.nutrition})</Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Water:</Text>
-          <Text style={styles.detailValue}>{item.water} glasses</Text>
+          <Text style={styles.detailLabel}>Academics:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.academics)} (#{item.rankings.academics})</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Social:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.social)} (#{item.rankings.social})</Text>
         </View>
       </View>
 
@@ -210,7 +224,7 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '500',
   },
   title: {
@@ -373,7 +387,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   addEntryButton: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

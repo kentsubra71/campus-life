@@ -181,7 +181,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
 
   const getMoodLevel = useMemo(() => {
     // Use today's entry mood if available, otherwise fallback to stored mood
-    const currentMood = todayEntry?.mood || null;
+    const currentMood = todayEntry?.overallMood || null;
     
     if (currentMood === null) return 'Not logged';
     if (currentMood >= 9) return 'Amazing';
@@ -189,7 +189,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     if (currentMood >= 5) return 'Okay';
     if (currentMood >= 3) return 'Struggling';
     return 'Difficult';
-  }, [todayEntry?.mood]);
+  }, [todayEntry?.overallMood]);
 
 
   if (isLoading) {
@@ -236,8 +236,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           </View>
           <Text style={styles.statusSubtitle}>
             {todayEntry 
-              ? `Wellness score: ${Math.round(todayEntry.wellnessScore * 10) / 10}/10 — ${todayEntry.wellnessScore >= 8 ? 'Great work!' : todayEntry.wellnessScore >= 6 ? 'Keep it up!' : 'Every step counts'}`
-              : 'Track your mood, sleep, meals, and exercise to see how you\'re doing'
+              ? `Wellness score: ${Math.round(todayEntry.overallScore * 10) / 10}/10 — ${todayEntry.overallScore >= 8 ? 'Great work!' : todayEntry.overallScore >= 6 ? 'Keep it up!' : 'Every step counts'}`
+              : 'Track your mood, sleep, nutrition, academics, and social to see how you\'re doing'
             }
           </Text>
           <TouchableOpacity 

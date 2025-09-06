@@ -292,30 +292,6 @@ class UniversalCacheManager {
     }
   }
 
-  /**
-   * Get data with automatic caching
-   * Tries cache first, then executes fetcher function and caches result
-   */
-  async getOrFetch<T>(
-    config: CacheConfig,
-    fetcher: () => Promise<T>,
-    userId?: string
-  ): Promise<T> {
-    // Try cache first
-    const cached = await this.get<T>(config, userId);
-    if (cached !== null) {
-      return cached;
-    }
-
-    // Fetch fresh data
-    console.log(`🔄 Cache miss for ${config.key}, fetching fresh data...`);
-    const freshData = await fetcher();
-    
-    // Cache the result
-    await this.set(config, freshData, userId);
-    
-    return freshData;
-  }
 
   /**
    * Smart refresh: show cached data immediately, refresh in background

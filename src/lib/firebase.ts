@@ -60,13 +60,11 @@ export interface WellnessEntry {
   id?: string;
   user_id: string;
   date: string; // YYYY-MM-DD format
-  mood: number;
-  sleep_hours: number;
-  exercise_minutes: number;
-  nutrition: number;
-  water: number;
-  social: number;
-  academic: number;
+  sleep_ranking: number; // 1-4 (1=best performing, 4=worst performing)
+  nutrition_ranking: number; // 1-4
+  academics_ranking: number; // 1-4
+  social_ranking: number; // 1-4
+  overall_mood: number; // 1-10 general day quality
   notes?: string;
   created_at: Timestamp;
 }

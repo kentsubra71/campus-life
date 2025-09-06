@@ -54,6 +54,9 @@
         "projectId": "8c66d3a1-b6ce-49e3-a654-83c1de4f9193"
       }
     },
-    "owner": "ronaldli08"
+    "owner": "ronaldli08",
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

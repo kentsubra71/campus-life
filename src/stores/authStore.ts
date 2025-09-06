@@ -156,10 +156,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           
           console.log('✅ All notification schedules initialized');
         } catch (error) {
-          console.error('Failed to schedule notifications:', error);
+          console.warn('Failed to schedule notifications:', error);
         }
       }).catch(error => {
-        console.error('Failed to initialize push notifications:', error);
+        console.warn('Failed to initialize push notifications:', error);
       });
       
       return { success: true };
@@ -252,10 +252,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           
           console.log('✅ All notification schedules initialized');
         } catch (error) {
-          console.error('Failed to schedule notifications:', error);
+          console.warn('Failed to schedule notifications:', error);
         }
       }).catch(error => {
-        console.error('Failed to initialize push notifications:', error);
+        console.warn('Failed to initialize push notifications:', error);
       });
       
       return { success: true };
@@ -356,10 +356,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           
           console.log('✅ All notification schedules initialized');
         } catch (error) {
-          console.error('Failed to schedule notifications:', error);
+          console.warn('Failed to schedule notifications:', error);
         }
       }).catch(error => {
-        console.error('Failed to initialize push notifications:', error);
+        console.warn('Failed to initialize push notifications:', error);
       });
       
       return { success: true, inviteCode };
@@ -462,10 +462,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           
           console.log('✅ All notification schedules initialized');
         } catch (error) {
-          console.error('Failed to schedule notifications:', error);
+          console.warn('Failed to schedule notifications:', error);
         }
       }).catch(error => {
-        console.error('Failed to initialize push notifications:', error);
+        console.warn('Failed to initialize push notifications:', error);
       });
       
       return { success: true };

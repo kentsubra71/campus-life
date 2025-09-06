@@ -61,6 +61,24 @@ class PushNotificationService {
         return null;
       }
 
+      // Suppress expo-notifications warnings by catching them
+      const originalError = console.error;
+      const originalWarn = console.warn;
+      console.error = (...args: any[]) => {
+        const message = args.join(' ');
+        if (message.includes('expo-notifications') || message.includes('Android Push notifications')) {
+          return; // Suppress these specific errors
+        }
+        originalError.apply(console, args);
+      };
+      console.warn = (...args: any[]) => {
+        const message = args.join(' ');
+        if (message.includes('expo-notifications') || message.includes('Android Push notifications')) {
+          return; // Suppress these specific warnings
+        }
+        originalWarn.apply(console, args);
+      };
+
       // Request permissions
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
@@ -72,7 +90,7 @@ class PushNotificationService {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('❌ Notification permissions denied');
+        console.warn('⚠️ Notification permissions denied - continuing without notifications');
         return null;
       }
 
@@ -100,10 +118,19 @@ class PushNotificationService {
       // Set up notification received listener
       this.setupNotificationListeners();
 
+      // Restore console functions
+      console.error = originalError;
+      console.warn = originalWarn;
+
       return this.token;
 
     } catch (error) {
-      console.error('❌ Error initializing push notifications:', error);
+      // Restore console functions on error
+      try {
+        console.error = originalError;
+        console.warn = originalWarn;
+      } catch {}
+      console.warn('⚠️ Error initializing push notifications:', error);
       return null;
     }
   }

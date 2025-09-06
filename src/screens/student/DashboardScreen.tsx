@@ -250,36 +250,6 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           </TouchableOpacity>
         </View>
 
-        {/* Support Messages - Priority #1 */}
-        {supportMessages.length > 0 && (
-          <View style={styles.messagesSection}>
-            <View style={styles.messagesHeader}>
-              <Text style={styles.sectionTitle}>Messages from Family</Text>
-              {supportMessages.filter(m => !m.read).length > 0 && (
-                <Text style={styles.newMessagesBadge}>
-                  {supportMessages.filter(m => !m.read).length} new
-                </Text>
-              )}
-            </View>
-            
-            {supportMessages.slice(0, 3).map((message) => (
-              <TouchableOpacity 
-                key={message.id} 
-                style={[styles.messageCard, !message.read && styles.unreadMessage]}
-                onPress={() => markMessageRead(message.id)}
-              >
-                <View style={styles.messageTypeContainer}>
-                  <Text style={styles.messageType}>{getMessageType(message.type)}</Text>
-                </View>
-                <View style={styles.messageContent}>
-                  <Text style={styles.messageText}>{message.content}</Text>
-                  <Text style={styles.messageTime}>{formatTimeAgo(message.timestamp)}</Text>
-                </View>
-                {!message.read && <View style={styles.unreadDot} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
 
         {/* Key Metrics */}
         <View style={styles.metricsSection}>
@@ -384,71 +354,6 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           </View>
         </View>
 
-        {/* Recent Activity */}
-        <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Your Activity</Text>
-          
-          {todayEntry && (
-            <TouchableOpacity 
-              style={styles.activityItem}
-              onPress={() => navigation.navigate('WellnessLog')}
-            >
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Today's Wellness</Text>
-                <Text style={styles.activitySubtitle}>
-                  Score: {Math.round(todayEntry.wellnessScore * 10) / 10}/10
-                </Text>
-              </View>
-              <Text style={[styles.activityScore, {
-                color: todayEntry.wellnessScore > 7 ? theme.colors.success : 
-                       todayEntry.wellnessScore < 5 ? theme.colors.warning : theme.colors.primary
-              }]}>
-                {Math.round(todayEntry.wellnessScore * 10) / 10}/10
-              </Text>
-            </TouchableOpacity>
-          )}
-          
-          {stats.totalEntries > 0 && (
-            <TouchableOpacity 
-              style={styles.activityItem}
-              onPress={() => navigation.navigate('WellnessHistory')}
-            >
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Wellness Summary</Text>
-                <Text style={styles.activitySubtitle}>
-                  {stats.totalEntries} entries • {stats.averageScore.toFixed(1)} avg score
-                </Text>
-              </View>
-              <Text style={styles.activityAction}>View All</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Care Boosts - Simplified */}
-          {activeRewards.length > 0 && (
-            <TouchableOpacity 
-              style={styles.activityItem}
-              onPress={() => claimReward(activeRewards[0].id)}
-            >
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Care Boost Available</Text>
-                <Text style={styles.activitySubtitle}>
-                  ${activeRewards[0].amount} • {getCategoryName(activeRewards[0].category)}
-                </Text>
-              </View>
-              <Text style={styles.activityAction}>Claim</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Show helpful message if no activity */}
-          {!todayEntry && stats.totalEntries === 0 && activeRewards.length === 0 && (
-            <View style={styles.activityItem}>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Get started!</Text>
-                <Text style={styles.activitySubtitle}>Log your wellness to begin tracking progress</Text>
-              </View>
-            </View>
-          )}
-        </View>
 
         {/* Received Payments Summary */}
         <ReceivedPaymentsSummary />

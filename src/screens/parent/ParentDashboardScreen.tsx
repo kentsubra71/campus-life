@@ -631,16 +631,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
               </View>
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={styles.actionItem}
-              onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id })}
-            >
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Check Wellness</Text>
-                <Text style={styles.actionSubtitle}>Full details</Text>
-              </View>
-              <Text style={styles.actionArrow}>›</Text>
-            </TouchableOpacity>
             
           </View>
         </View>
@@ -679,18 +669,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             </TouchableOpacity>
           )}
           
-          {familyMembers.students.length > 1 && (
-            <TouchableOpacity 
-              style={styles.activityItem}
-              onPress={() => setSelectedStudentIndex((prev) => (prev + 1) % familyMembers.students.length)}
-            >
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Switch Student View</Text>
-                <Text style={styles.activitySubtitle}>{familyMembers.students.length} children in family</Text>
-              </View>
-              <Text style={styles.activityAction}>Switch</Text>
-            </TouchableOpacity>
-          )}
           
           {/* If no real activity, show helpful message */}
           {!wellnessScore && supportMessages.length === 0 && monthlyEarned === 0 && (
@@ -704,28 +682,6 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           )}
         </View>
 
-        {/* Wellness */}
-        <View style={styles.wellnessSection}>
-          <Text style={styles.sectionHeader}>Wellness Check-in</Text>
-          <TouchableOpacity 
-            style={styles.wellnessContainer}
-            onPress={() => navigation.navigate('ChildWellness', { 
-              selectedStudentId: currentStudent?.id,
-              selectedStudentName: studentName 
-            })}
-          >
-            {stats.totalEntries === 0 ? (
-              <Text style={styles.wellnessText}>
-                {studentName.split(' ')[0]} hasn't started tracking wellness yet
-              </Text>
-            ) : (
-              <Text style={styles.wellnessText}>
-                {studentName.split(' ')[0]} has a {stats.currentStreak} day streak with a {stats.averageScore}/10 average
-              </Text>
-            )}
-            <Text style={styles.tapHint}>→</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
     </View>
   );

@@ -23,7 +23,14 @@
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_btBK5N/**)",
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_Awxd9Y/**)",
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_5yED3Z/**)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git checkout:*)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_ufc7bJ/**)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_BnIDds/**)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_hb6hME/**)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_Jp64CP/**)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_mAClFA/**)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_sn92YL/**)"
     ],
     "deny": []
   }

@@ -957,42 +957,10 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   };
 
   const renderActivityItem = (item: ActivityItem) => {
-    const isInNewList = newActivityIds.includes(item.id);
-    const isNotSeen = !seenActivityIds.has(item.id);
-    const isNew = isInNewList || isNotSeen;
-    
-    // Debug first few items
-    if (activities.indexOf(item) < 3) {
-      console.log(`🎨 Rendering item ${item.id.slice(-6)}: isInNewList=${isInNewList}, isNotSeen=${isNotSeen}, isNew=${isNew}`);
-    }
-    
-    const animatedValue = animatedValues.current[item.id] || new Animated.Value(1);
-    
-    const animatedStyle = isNew ? {
-      opacity: animatedValue,
-      transform: [
-        {
-          translateY: animatedValue.interpolate({
-            inputRange: [0, 1],
-            outputRange: [20, 0],
-          }),
-        },
-        {
-          scale: animatedValue.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.95, 1],
-          }),
-        },
-      ],
-    } : {};
-
     return (
-      <Animated.View key={item.id} style={[animatedStyle]}>
+      <View key={item.id}>
         <TouchableOpacity 
-          style={[
-            styles.activityItem, 
-            isNew && styles.activityItemNew
-          ]}
+          style={styles.activityItem}
         >
         <View style={styles.activityHeader}>
           <View style={styles.activityInfo}>
@@ -1144,55 +1112,46 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           </View>
         )}
         </TouchableOpacity>
-      </Animated.View>
+      </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      <StatusHeader title="Activity" />
-      <View style={[styles.header, { paddingTop: 50 }]}>
-        <View style={styles.titleContainer}>
-          <View>
-            <Text style={styles.title}>Activity History</Text>
-            <Text style={styles.subtitle}>All your family activity in one place</Text>
-          </View>
-        </View>
-        
-      </View>
-
+      <StatusHeader title="Activity History" />
       <ScrollView
         ref={scrollViewRef}
-        style={styles.scrollView}
+        style={[styles.scrollView, { paddingTop: 50 }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={theme.colors.primary}
           />
         }
+        contentContainerStyle={{ paddingBottom: 80 }}
       >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>All Activity</Text>
+          <Text style={styles.subtitle}>Your family connections and support</Text>
+        </View>
+
         {/* Quick Stats */}
         <View style={styles.quickStats}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activities?.length || 0}</Text>
-            <Text style={styles.statLabel}>Total Activity</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activities?.filter(a => a.type === 'payment').length || 0}</Text>
+            <Text style={[styles.statValue, { color: '#10b981' }]}>{activities?.filter(a => a.type === 'payment').length || 0}</Text>
             <Text style={styles.statLabel}>Payments</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activities?.filter(a => a.type === 'item_request').length || 0}</Text>
-            <Text style={styles.statLabel}>Requests</Text>
+            <Text style={[styles.statValue, { color: '#3b82f6' }]}>{activities?.filter(a => a.type === 'message').length || 0}</Text>
+            <Text style={styles.statLabel}>Messages</Text>
           </View>
-        </View>
-        
-        {/* Activity List Header */}
-        <View ref={allActivityRef} style={styles.activityListHeader}>
-          <Text style={styles.activityListTitle}>All Activity</Text>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: '#f59e0b' }]}>{activities?.filter(a => a.type === 'item_request').length || 0}</Text>
+            <Text style={styles.statLabel}>Items</Text>
+          </View>
         </View>
         
         {loading ? (
@@ -1201,10 +1160,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           </View>
         ) : activities.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No Activity Yet</Text>
-            <Text style={styles.emptyText}>
-              Your payments and messages will appear here
-            </Text>
+            <Text style={styles.emptyText}>No activities found</Text>
+            <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
           </View>
         ) : (
           <View style={styles.activitiesContainer}>
@@ -1268,47 +1225,46 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                 {filteredActivities.length} {filteredActivities.length === 1 ? 'activity' : 'activities'}
               </Text>
             </View>
-            
+
+            {/* Activities List */}
             {filteredActivities.length === 0 ? (
-              <View style={styles.emptyFilterContainer}>
-                <Text style={styles.emptyFilterTitle}>No matching activities</Text>
-                <Text style={styles.emptyFilterText}>
-                  Try adjusting your filters above
-                </Text>
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No activities found</Text>
+                <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
               </View>
             ) : (
-              <>
+              <View style={styles.activitiesList}>
                 {displayedActivities.map(renderActivityItem)}
+              </View>
+            )}
+
+            {/* Pagination */}
+            {filteredActivities.length > itemsPerPage && (
+              <View style={styles.paginationContainer}>
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage === 0 && styles.paginationButtonDisabled]}
+                  onPress={previousPage}
+                  disabled={currentPage === 0}
+                >
+                  <Text style={[styles.paginationButtonText, currentPage === 0 && styles.paginationButtonTextDisabled]}>
+                    Previous
+                  </Text>
+                </TouchableOpacity>
                 
-                {/* Pagination Controls */}
-                {filteredActivities.length > itemsPerPage && (
-                  <View style={styles.paginationContainer}>
-                    <TouchableOpacity
-                      style={[styles.paginationButton, currentPage === 0 && styles.paginationButtonDisabled]}
-                      onPress={previousPage}
-                      disabled={currentPage === 0}
-                    >
-                      <Text style={[styles.paginationButtonText, currentPage === 0 && styles.paginationButtonTextDisabled]}>
-                        Previous
-                      </Text>
-                    </TouchableOpacity>
-                    
-                    <Text style={styles.paginationInfo}>
-                      Page {currentPage + 1} of {Math.ceil(filteredActivities.length / itemsPerPage)}
-                    </Text>
-                    
-                    <TouchableOpacity
-                      style={[styles.paginationButton, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonDisabled]}
-                      onPress={nextPage}
-                      disabled={currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1}
-                    >
-                      <Text style={[styles.paginationButtonText, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonTextDisabled]}>
-                        Next
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </>
+                <Text style={styles.paginationInfo}>
+                  Page {currentPage + 1} of {Math.ceil(filteredActivities.length / itemsPerPage)}
+                </Text>
+                
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonDisabled]}
+                  onPress={nextPage}
+                  disabled={currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1}
+                >
+                  <Text style={[styles.paginationButtonText, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonTextDisabled]}>
+                    Next
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         )}
@@ -1422,7 +1378,17 @@ const styles = StyleSheet.create({
     ...commonStyles.emptyTitle,
   },
   emptyText: {
-    ...commonStyles.emptyText,
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  activitiesList: {
+    gap: 1,
   },
   activitiesContainer: {
     ...commonStyles.containerPadding,

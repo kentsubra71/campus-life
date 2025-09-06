@@ -1157,17 +1157,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             <Text style={styles.title}>Activity History</Text>
             <Text style={styles.subtitle}>All your family activity in one place</Text>
           </View>
-          <View style={styles.headerButtons}>
-            {activities.some(a => a.type === 'payment' && a.provider === 'paypal' && 
-              (a.status === 'initiated' || a.status === 'pending' || a.status === 'processing')) && (
-              <TouchableOpacity 
-                style={styles.verifyButton}
-                onPress={runManualPayPalVerification}
-              >
-                <Text style={styles.verifyButtonText}>Check PayPal</Text>
-              </TouchableOpacity>
-            )}
-          </View>
         </View>
         
       </View>
@@ -1354,23 +1343,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: theme.colors.textPrimary,
     marginBottom: 8,
-  },
-  headerButtons: {
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  verifyButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-  },
-  verifyButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
   },
   activityListHeader: {
     paddingHorizontal: 24,

@@ -18,7 +18,12 @@
       "Bash(find:*)",
       "Bash(sed:*)",
       "Bash(python3:*)",
-      "Bash(npx expo install:*)"
+      "Bash(npx expo install:*)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_1FTxnl/**)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_btBK5N/**)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_Awxd9Y/**)",
+      "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_5yED3Z/**)",
+      "WebSearch"
     ],
     "deny": []
   }

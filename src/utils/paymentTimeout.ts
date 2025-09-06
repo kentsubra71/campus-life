@@ -41,6 +41,10 @@ export const isPaymentTimedOut = (
   createdAt: Date, 
   provider: string
 ): boolean => {
+  if (!createdAt || !createdAt.getTime) {
+    return false; // Can't timeout if no valid creation date
+  }
+  
   const timeoutHours = getTimeoutHours(provider);
   const timeoutMs = timeoutHours * 60 * 60 * 1000;
   const now = new Date();
@@ -98,7 +102,12 @@ export const cleanupTimedOutPayments = async (): Promise<{
         continue;
       }
       
-      const createdAt = payment.created_at.toDate();
+      const createdAt = payment.created_at && payment.created_at.toDate ? payment.created_at.toDate() : null;
+      if (!createdAt) {
+        console.warn(`⚠️ Payment ${paymentId} has invalid created_at timestamp`);
+        continue;
+      }
+      
       const provider = payment.provider || 'unknown';
       const ageMs = new Date().getTime() - createdAt.getTime();
       const ageHours = Math.floor(ageMs / (1000 * 60 * 60));
@@ -166,6 +175,10 @@ export const isPaymentNearTimeout = (
   provider: string,
   warningHours: number = 12
 ): boolean => {
+  if (!createdAt || !createdAt.getTime) {
+    return false; // Can't be near timeout if no valid creation date
+  }
+  
   const timeoutHours = getTimeoutHours(provider);
   const warningMs = (timeoutHours - warningHours) * 60 * 60 * 1000;
   const now = new Date();
@@ -180,6 +193,10 @@ export const getTimeUntilTimeout = (
   createdAt: Date,
   provider: string
 ): { hours: number; minutes: number; expired: boolean } => {
+  if (!createdAt || !createdAt.getTime) {
+    return { hours: 0, minutes: 0, expired: true }; // Treat invalid dates as expired
+  }
+  
   const timeoutHours = getTimeoutHours(provider);
   const timeoutMs = timeoutHours * 60 * 60 * 1000;
   const now = new Date();
@@ -200,6 +217,10 @@ export const getTimeUntilTimeout = (
  * Format time remaining for display
  */
 export const formatTimeRemaining = (createdAt: Date, provider: string): string => {
+  if (!createdAt || !createdAt.getTime) {
+    return 'Invalid Date';
+  }
+  
   const remaining = getTimeUntilTimeout(createdAt, provider);
   
   if (remaining.expired) {

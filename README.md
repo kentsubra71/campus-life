@@ -303,6 +303,25 @@ interface VerifyPaymentResponse {
 - Pre-commit hooks for automated quality checks
 
 ### Testing Strategy
+
+**Production APK Testing Protocol**
+- Multi-device testing with real Firebase backend integration
+- Cross-device database synchronization validation
+- Real-time notification delivery testing between devices
+- Complete payment flow testing with sandbox PayPal integration
+- Offline/online sync scenario testing
+- Family workflow testing (parent-student interactions)
+
+**Device Testing Checklist**
+- Account registration and email verification flow
+- Family linking with invite codes
+- Real-time wellness data sync between parent/student devices  
+- PayPal payment processing end-to-end
+- Push notification delivery and preferences
+- Message and support request functionality
+- Caching behavior and performance validation
+
+**Unit and Integration Testing**
 - Unit testing for business logic and utility functions
 - Integration testing for Firebase Cloud Functions
 - End-to-end testing for critical payment flows

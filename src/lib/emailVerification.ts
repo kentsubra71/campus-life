@@ -27,6 +27,29 @@ export const createVerificationToken = async (
   type: 'email_verification' | 'password_reset'
 ): Promise<{ token: string; error?: string }> => {
   try {
+    // First, invalidate any existing tokens of the same type for this user
+    const { query, collection, where, getDocs, updateDoc } = await import('firebase/firestore');
+    const existingTokensQuery = query(
+      collection(db, 'verification_tokens'), 
+      where('user_id', '==', userId),
+      where('type', '==', type),
+      where('used', '==', false)
+    );
+    
+    const existingTokens = await getDocs(existingTokensQuery);
+    const invalidationPromises = existingTokens.docs.map(tokenDoc => 
+      updateDoc(tokenDoc.ref, { 
+        used: true, 
+        invalidated_at: Timestamp.now(),
+        invalidated_reason: 'new_token_requested'
+      })
+    );
+    
+    if (invalidationPromises.length > 0) {
+      await Promise.all(invalidationPromises);
+      console.log(`Invalidated ${invalidationPromises.length} existing ${type} tokens for user ${userId}`);
+    }
+
     const token = await generateVerificationToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
@@ -97,31 +120,80 @@ export const sendVerificationEmail = async (
   type: 'email_verification' | 'password_reset'
 ): Promise<{ success: boolean; error?: string; messageId?: string }> => {
   try {
-    const { sendEmailWithResend } = await import('./resendEmailService');
+    const verificationUrl = `https://verify.ronaldli.ca/verify/${type}/${token}`;
     
-    const verificationUrl = `https://campus-life-auth-website.vercel.app/verify/${type}/${token}`;
-    
-    const emailData = {
-      to: email,
-      type,
-      data: {
-        name: fullName,
-        verificationUrl,
-        token
+    if (type === 'password_reset') {
+      // Use HTTP endpoint for password reset (unauthenticated)
+      const response = await fetch('https://us-central1-campus-life-b0fd3.cloudfunctions.net/sendPasswordResetEmailHttp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: email,
+          emailData: {
+            name: fullName,
+            verificationUrl,
+            token
+          }
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log(`✅ ${type} email sent to ${email}, Message ID: ${data.messageId}`);
+      } else {
+        console.error(`❌ Failed to send ${type} email to ${email}:`, data.error);
       }
-    };
-    
-    const result = await sendEmailWithResend(emailData);
-    
-    if (result.success) {
-      console.log(`✅ ${type} email sent to ${email}, Message ID: ${result.messageId}`);
+      
+      return {
+        success: data.success,
+        messageId: data.messageId,
+        error: data.error
+      };
     } else {
-      console.error(`❌ Failed to send ${type} email to ${email}:`, result.error);
+      // Use callable function for email verification (authenticated)
+      const { functions } = await import('./firebase');
+      const { httpsCallable } = await import('firebase/functions');
+      
+      const sendEmailFunction = httpsCallable(functions, 'sendEmail');
+      const result = await sendEmailFunction({
+        to: email,
+        type,
+        emailData: {
+          name: fullName,
+          verificationUrl,
+          token
+        }
+      });
+      
+      const data = result.data as any;
+      const finalResult = {
+        success: data.success,
+        messageId: data.messageId,
+        error: data.error
+      };
+      
+      if (finalResult.success) {
+        console.log(`✅ ${type} email sent to ${email}, Message ID: ${finalResult.messageId}`);
+      } else {
+        console.error(`❌ Failed to send ${type} email to ${email}:`, finalResult.error);
+      }
+      
+      return finalResult;
     }
-    
-    return result;
   } catch (error: any) {
     console.error('Email sending failed:', error);
+    
+    // Handle specific function not found errors
+    if (error.code === 'functions/not-found') {
+      return { 
+        success: false, 
+        error: 'Email service is temporarily unavailable. Please try again later.' 
+      };
+    }
+    
     return { success: false, error: error.message };
   }
 };

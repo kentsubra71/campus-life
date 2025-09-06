@@ -3,7 +3,6 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { doc, updateDoc, collection, addDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -31,10 +30,12 @@ export interface NotificationPreferences {
   wellnessReminders: boolean;
   careRequests: boolean;
   weeklyReports: boolean;
+  dailySummaries: boolean;
+  studentWellnessLogged: boolean;
 }
 
 export interface NotificationData {
-  type: 'support_received' | 'payment_received' | 'wellness_reminder' | 'care_request' | 'payment_status' | 'weekly_report';
+  type: 'support_received' | 'payment_received' | 'wellness_reminder' | 'care_request' | 'payment_status' | 'weekly_report' | 'daily_summary' | 'student_wellness_logged';
   title: string;
   body: string;
   data?: { [key: string]: any };
@@ -112,6 +113,9 @@ class PushNotificationService {
    */
   private async saveTokenToFirebase(userId: string, token: string): Promise<void> {
     try {
+      // Ensure Firebase is initialized by importing it dynamically
+      const { db: firebaseDb } = await import('../lib/firebase');
+      
       const deviceId = Constants.deviceId || 'unknown';
       
       const tokenData: Omit<PushNotificationToken, 'id'> = {
@@ -130,12 +134,14 @@ class PushNotificationService {
         paymentUpdates: true,
         wellnessReminders: true,
         careRequests: true,
-        weeklyReports: true
+        weeklyReports: true,
+        dailySummaries: true,
+        studentWellnessLogged: true
       };
 
       console.log('💾 Setting notification preferences for user:', userId, defaultPreferences);
 
-      await updateDoc(doc(db, 'users', userId), {
+      await updateDoc(doc(firebaseDb, 'users', userId), {
         pushToken: token,
         pushTokenUpdatedAt: Timestamp.now(),
         deviceInfo: {
@@ -146,7 +152,7 @@ class PushNotificationService {
       });
 
       // Also store in dedicated push_tokens collection for easier querying
-      await addDoc(collection(db, 'push_tokens'), {
+      await addDoc(collection(firebaseDb, 'push_tokens'), {
         ...tokenData,
         createdAt: Timestamp.fromDate(tokenData.createdAt),
         lastUpdated: Timestamp.fromDate(tokenData.lastUpdated)
@@ -254,6 +260,10 @@ class PushNotificationService {
           return preferences.careRequests;
         case 'weekly_report':
           return preferences.weeklyReports;
+        case 'daily_summary':
+          return preferences.dailySummaries;
+        case 'student_wellness_logged':
+          return preferences.studentWellnessLogged;
         default:
           return true; // Default to enabled for unknown types
       }
@@ -428,6 +438,88 @@ class PushNotificationService {
   }
 
   /**
+   * Schedule daily summary notifications (9 PM)
+   */
+  async scheduleDailySummary(userId: string): Promise<void> {
+    try {
+      const { getUserProfile } = await import('../lib/firebase');
+      const userProfile = await getUserProfile(userId);
+      
+      if (!userProfile) return;
+
+      // Schedule notification for 9 PM daily
+      const now = new Date();
+      const summaryTime = new Date();
+      summaryTime.setHours(21, 0, 0, 0); // 9:00 PM
+      
+      // If it's already past 9 PM today, schedule for tomorrow
+      if (now.getTime() > summaryTime.getTime()) {
+        summaryTime.setDate(summaryTime.getDate() + 1);
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '📅 Daily Summary',
+          body: 'Check out your daily activity and wellness summary',
+          data: {
+            type: 'daily_summary',
+            userId
+          },
+          sound: 'default',
+        },
+        trigger: {
+          date: summaryTime,
+          repeats: true,
+        },
+      });
+
+      console.log('📅 Scheduled daily summary notification for', summaryTime);
+    } catch (error) {
+      console.error('❌ Error scheduling daily summary:', error);
+    }
+  }
+
+  /**
+   * Schedule weekly summary notifications (Sunday 7 PM)
+   */
+  async scheduleWeeklySummary(userId: string): Promise<void> {
+    try {
+      const { getUserProfile } = await import('../lib/firebase');
+      const userProfile = await getUserProfile(userId);
+      
+      if (!userProfile) return;
+
+      // Schedule for next Sunday at 7 PM
+      const now = new Date();
+      const weeklyTime = new Date();
+      const daysUntilSunday = (7 - now.getDay()) % 7;
+      
+      weeklyTime.setDate(now.getDate() + (daysUntilSunday === 0 ? 7 : daysUntilSunday));
+      weeklyTime.setHours(19, 0, 0, 0); // 7:00 PM
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '📊 Weekly Wellness Report',
+          body: 'Your weekly wellness summary is ready',
+          data: {
+            type: 'weekly_report',
+            userId
+          },
+          sound: 'default',
+        },
+        trigger: {
+          date: weeklyTime,
+          repeats: true,
+        },
+      });
+
+      console.log('📊 Scheduled weekly summary notification for', weeklyTime);
+    } catch (error) {
+      console.error('❌ Error scheduling weekly summary:', error);
+    }
+  }
+
+  /**
    * Cancel all scheduled notifications for a user
    */
   async cancelScheduledNotifications(): Promise<void> {
@@ -490,5 +582,23 @@ export const NotificationTemplates = {
     body: `Wellness score this week: ${score}/10`,
     priority: 'default',
     data: { studentName, score }
+  }),
+
+  dailySummary: (studentName: string, activities: number, wellnessScore?: number): Omit<NotificationData, 'userId'> => ({
+    type: 'daily_summary',
+    title: `📅 Daily Summary: ${studentName}`,
+    body: wellnessScore 
+      ? `${activities} activities today • Wellness: ${wellnessScore}/10`
+      : `${activities} activities today`,
+    priority: 'default',
+    data: { studentName, activities, wellnessScore }
+  }),
+
+  studentWellnessLogged: (studentName: string, score: number, mood: string): Omit<NotificationData, 'userId'> => ({
+    type: 'student_wellness_logged',
+    title: `✅ ${studentName} logged wellness`,
+    body: `Feeling ${mood} today • Score: ${score}/10`,
+    priority: 'default',
+    data: { studentName, score, mood }
   })
 };

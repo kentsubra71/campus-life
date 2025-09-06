@@ -4,20 +4,24 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   RefreshControl,
   Alert,
   Animated,
   ActivityIndicator,
+  AppState,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../../stores/authStore';
-import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { collection, query, where, orderBy, getDocs, Timestamp, limit } from 'firebase/firestore';
+import { db, getItemRequestsForParent, updateItemRequestStatus } from '../../lib/firebase';
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
 import { StatusHeader } from '../../components/StatusHeader';
 import { NavigationProp } from '@react-navigation/native';
 import { getUserFriendlyError, logError } from '../../utils/userFriendlyErrors';
+import { showMessage } from 'react-native-flash-message';
 import { 
   isPaymentNearTimeout, 
   formatTimeRemaining, 
@@ -34,12 +38,13 @@ interface ActivityItem {
   status: string;
   note?: string;
   student_name?: string;
+  student_id?: string; // Add student_id for item requests
   message_content?: string;
   message_type?: string;
   item_name?: string;
   item_price?: number;
   item_description?: string;
-  request_reason?: string;
+  reason?: string;
 }
 
 type ParentStackParamList = {
@@ -51,26 +56,238 @@ interface ActivityHistoryScreenProps {
   navigation: NavigationProp<ParentStackParamList>;
 }
 
-type FilterPeriod = 'all' | '7days' | '30days' | '90days';
-type FilterType = 'all' | 'payments' | 'messages' | 'requests';
+type FilterPeriod = 'day' | 'week' | 'month' | 'all';
+type FilterType = 'all' | 'payments' | 'messages' | 'items';
 
 export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [filteredActivities, setFilteredActivities] = useState<ActivityItem[]>([]);
+  const [displayedActivities, setDisplayedActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [backgroundLoading, setBackgroundLoading] = useState(false);
-  const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('30days');
+  const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('month');
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [itemsPerPage] = useState(10);
   const [newActivityIds, setNewActivityIds] = useState<string[]>([]);
-  const [usingCache, setUsingCache] = useState(false);
-  const [lastCacheLoad, setLastCacheLoad] = useState<Date | null>(null);
+  const [seenActivityIds, setSeenActivityIds] = useState<Set<string>>(new Set());
+  const [seenActivitiesLoaded, setSeenActivitiesLoaded] = useState(false);
+  const [previousActivities, setPreviousActivities] = useState<ActivityItem[]>([]);
   const animatedValues = useRef<{ [key: string]: Animated.Value }>({});
+  const scrollViewRef = useRef<ScrollView>(null);
+  const allActivityRef = useRef<View>(null);
+
+  // Load seen activities from storage
+  const loadSeenActivities = async () => {
+    if (!user) {
+      console.log('⚠️ No user found, cannot load seen activities');
+      setSeenActivitiesLoaded(true);
+      return;
+    }
+    
+    try {
+      const seenKey = `seen_activities_${user.id}`;
+      console.log(`🔍 Loading seen activities with key: ${seenKey}`);
+      
+      // Test AsyncStorage is working
+      const testKey = `test_${user.id}`;
+      await AsyncStorage.setItem(testKey, 'test_value');
+      const testValue = await AsyncStorage.getItem(testKey);
+      console.log(`🧪 AsyncStorage test: ${testValue === 'test_value' ? 'WORKING' : 'FAILED'}`);
+      
+      const seenData = await AsyncStorage.getItem(seenKey);
+      console.log(`🔍 Raw seen data from storage:`, seenData ? `"${seenData}"` : 'null');
+      
+      if (seenData) {
+        const seenIds = JSON.parse(seenData) as string[];
+        setSeenActivityIds(new Set(seenIds));
+        console.log(`📖 Loaded ${seenIds.length} seen activities from storage:`, seenIds.slice(0, 5));
+      } else {
+        console.log('📖 No seen activities found in storage - first time user or empty');
+        setSeenActivityIds(new Set());
+      }
+    } catch (error) {
+      console.error('❌ Error loading seen activities:', error);
+      setSeenActivityIds(new Set()); // Fallback to empty set
+    } finally {
+      setSeenActivitiesLoaded(true);
+      console.log('✅ Seen activities loading completed');
+    }
+  };
+
+  // Save seen activities to storage
+  const saveSeenActivities = async (seenIds: Set<string>) => {
+    if (!user) {
+      console.log('⚠️ No user found, cannot save seen activities');
+      return;
+    }
+    
+    try {
+      const seenKey = `seen_activities_${user.id}`;
+      const seenArray = Array.from(seenIds);
+      await AsyncStorage.setItem(seenKey, JSON.stringify(seenArray));
+      console.log(`💾 Saved ${seenIds.size} seen activities to storage with key: ${seenKey}`);
+      console.log(`💾 Sample saved IDs:`, seenArray.slice(0, 5));
+    } catch (error) {
+      console.error('❌ Error saving seen activities:', error);
+    }
+  };
+
+  // Mark activities as seen when they become visible
+  const markActivitiesAsSeen = (activityIds: string[]) => {
+    if (activityIds.length === 0) return;
+    
+    const updatedSeenIds = new Set(seenActivityIds);
+    const newlySeenIds: string[] = [];
+    
+    for (const id of activityIds) {
+      if (!updatedSeenIds.has(id)) {
+        updatedSeenIds.add(id);
+        newlySeenIds.push(id);
+      }
+    }
+    
+    if (newlySeenIds.length > 0) {
+      console.log(`👁️ Marking ${newlySeenIds.length} activities as seen:`, newlySeenIds.slice(0, 3));
+      setSeenActivityIds(updatedSeenIds);
+      // Save immediately instead of waiting for app state changes
+      saveSeenActivities(updatedSeenIds).catch(error => {
+        console.error('Failed to save seen activities immediately:', error);
+      });
+    }
+  };
+
+
+  // Manual PayPal verification for debugging
+  const runManualPayPalVerification = async () => {
+    if (!user) return;
+    
+    console.log('🔧 Running manual PayPal verification...');
+    try {
+      const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+      const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+      console.log(`🔧 Manual verification completed: ${verifiedCount} payments verified`);
+      
+      // Refresh activities to show updates
+      await loadActivities(true);
+      
+      Alert.alert(
+        'PayPal Verification Complete',
+        `${verifiedCount} payments were verified and updated.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('🔧 Manual PayPal verification failed:', error);
+      Alert.alert('Error', `Verification failed: ${error.message}`);
+    }
+  };
 
   useEffect(() => {
-    loadActivities();
+    const initializeData = async () => {
+      console.log('🚀 Starting data initialization...');
+      await loadSeenActivities(); // Wait for seen activities to load first
+      console.log('📋 Seen activities loaded, now loading fresh activities...');
+    };
+    
+    initializeData();
+
+    // Set up auto-reload every 10 seconds
+    const autoReloadInterval = setInterval(() => {
+      console.log('🔄 Auto-reloading activity history...');
+      loadActivities(true);
+    }, 10000);
+
+    // Set up more frequent checking for processing payments (every 3 seconds)
+    const frequentCheckInterval = setInterval(() => {
+      const hasProcessingPayments = activities.some(activity => 
+        activity.type === 'payment' && 
+        (activity.status === 'initiated' || activity.status === 'pending' || activity.status === 'processing')
+      );
+      
+      if (hasProcessingPayments) {
+        console.log('🔄 Quick check for processing payments...');
+        loadActivities(true);
+      }
+    }, 3000);
+
+    // Set up PayPal auto-verification (every 10 seconds) - will be created later when activities are loaded
+
+    // Clear intervals on component unmount
+    return () => {
+      clearInterval(autoReloadInterval);
+      clearInterval(frequentCheckInterval);
+    };
   }, []);
+
+  // Save seen activities when app goes to background or component unmounts
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        console.log('📱 App going to background, saving seen activities');
+        saveSeenActivities(seenActivityIds);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Also save on component unmount
+    return () => {
+      console.log('🔄 Component unmounting, saving seen activities');
+      saveSeenActivities(seenActivityIds);
+      subscription?.remove();
+    };
+  }, [seenActivityIds]);
+
+  // Load activities only after seen activities are loaded
+  useEffect(() => {
+    if (seenActivitiesLoaded) {
+      console.log('📋 Seen activities are loaded, loading activities now...');
+      loadActivities();
+    }
+  }, [seenActivitiesLoaded]);
+
+  // Set up PayPal auto-verification based on current activities
+  useEffect(() => {
+    if (!user || activities.length === 0) return;
+
+    const hasPayPalProcessing = activities.some(activity => 
+      activity.type === 'payment' && 
+      activity.provider === 'paypal' &&
+      (activity.status === 'initiated' || activity.status === 'pending' || activity.status === 'processing')
+    );
+
+    console.log(`🔍 PayPal verification check: ${hasPayPalProcessing ? 'NEEDED' : 'NOT NEEDED'} (${activities.length} activities total)`);
+
+    let paypalVerifyInterval: NodeJS.Timeout | null = null;
+
+    if (hasPayPalProcessing) {
+      console.log('⚡ Starting PayPal auto-verification timer...');
+      paypalVerifyInterval = setInterval(async () => {
+        console.log('💙 Running scheduled PayPal auto-verification...');
+        try {
+          const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+          const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+          if (verifiedCount > 0) {
+            console.log(`✅ Auto-verified ${verifiedCount} PayPal payments`);
+            loadActivities(true);
+          } else {
+            console.log('💙 No PayPal payments were verified');
+          }
+        } catch (error) {
+          console.error('⚠️ PayPal auto-verification failed:', error);
+        }
+      }, 10000);
+    }
+
+    // Cleanup
+    return () => {
+      if (paypalVerifyInterval) {
+        console.log('🛑 Stopping PayPal auto-verification timer');
+        clearInterval(paypalVerifyInterval);
+      }
+    };
+  }, [activities, user]);
 
   const loadActivities = async (isRefresh = false, forceRefresh = false) => {
     if (!user) return;
@@ -81,10 +298,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         console.log('🔍 Checking for cached activity data...');
         const cachedData = await cache.get(CACHE_CONFIGS.ACTIVITY_HISTORY, user.id);
         
-        if (cachedData) {
-          setActivities(cachedData);
-          setUsingCache(true);
-          setLastCacheLoad(new Date());
+        if (cachedData && Array.isArray(cachedData)) {
+          setActivities(cachedData as ActivityItem[]);
           console.log(`📦 Loaded ${cachedData.length} activities from cache`);
           
           // Start background refresh to get latest data
@@ -96,31 +311,29 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       // Show appropriate loading state
       if (!isRefresh && activities.length === 0) {
         setLoading(true);
-      } else {
-        setBackgroundLoading(true);
       }
       
       console.log(`🔄 Loading activities from database (${isRefresh ? 'refresh' : 'initial'})...`);
       
       const allActivities: ActivityItem[] = [];
-      const studentNamesCache: { [key: string]: string } = {};
 
-      // Load payments with optimized student name caching
+      // Load payments with optimized student name caching - limit to latest 15
       const paymentsQuery = query(
         collection(db, 'payments'),
         where('parent_id', '==', user.id),
-        orderBy('created_at', 'desc')
+        orderBy('created_at', 'desc'),
+        limit(15)
       );
       const paymentsSnapshot = await getDocs(paymentsQuery);
       
-      console.log(`📄 Found ${paymentsSnapshot.size} payments`);
+      console.log(`📄 Found ${paymentsSnapshot.size} payments (latest 15)`);
       
       for (const doc of paymentsSnapshot.docs) {
         const payment = doc.data();
         const studentId = payment.student_id;
         
         // Check cache first for student name
-        let studentName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`);
+        let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
         
         if (!studentName) {
           // Query database for student name
@@ -138,7 +351,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         allActivities.push({
           id: doc.id,
           type: 'payment',
-          timestamp: payment.created_at.toDate(),
+          timestamp: payment.created_at && payment.created_at.toDate ? payment.created_at.toDate() : new Date(),
           amount: payment.intent_cents / 100,
           provider: payment.provider,
           status: payment.status,
@@ -152,18 +365,19 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         const messagesQuery = query(
           collection(db, 'messages'),
           where('from_user_id', '==', user.id),
-          orderBy('created_at', 'desc')
+          orderBy('created_at', 'desc'),
+          limit(10)
         );
         const messagesSnapshot = await getDocs(messagesQuery);
         
-        console.log(`💬 Found ${messagesSnapshot.size} messages`);
+        console.log(`💬 Found ${messagesSnapshot.size} messages (latest 10)`);
         
         for (const doc of messagesSnapshot.docs) {
           const message = doc.data();
           const recipientId = message.to_user_id;
           
           // Check cache first for recipient name
-          let recipientName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${recipientId}`);
+          let recipientName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${recipientId}`)) as string || '';
           
           if (!recipientName) {
             const recipientQuery = query(
@@ -180,7 +394,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           allActivities.push({
             id: doc.id,
             type: 'message',
-            timestamp: message.created_at.toDate(),
+            timestamp: message.created_at && message.created_at.toDate ? message.created_at.toDate() : new Date(),
             status: message.read ? 'read' : 'sent',
             message_content: message.content,
             message_type: message.type || 'message',
@@ -189,56 +403,18 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         }
       } catch (messageError) {
         console.log('Messages query failed, trying fallback...', messageError);
-        // Fallback without orderBy
-        const messagesQuery = query(
-          collection(db, 'messages'),
-          where('from_user_id', '==', user.id)
-        );
-        const messagesSnapshot = await getDocs(messagesQuery);
-        
-        for (const doc of messagesSnapshot.docs) {
-          const message = doc.data();
-          const recipientId = message.to_user_id;
-          
-          let recipientName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${recipientId}`);
-          if (!recipientName) {
-            const recipientQuery = query(
-              collection(db, 'users'),
-              where('id', '==', recipientId)
-            );
-            const recipientSnapshot = await getDocs(recipientQuery);
-            recipientName = recipientSnapshot.docs[0]?.data()?.full_name || 'Student';
-            await cache.set(CACHE_CONFIGS.STUDENT_NAMES, recipientName, `${user.id}_${recipientId}`);
-          }
-
-          allActivities.push({
-            id: doc.id,
-            type: 'message',
-            timestamp: message.created_at.toDate(),
-            status: message.read ? 'read' : 'sent',
-            message_content: message.content,
-            message_type: message.type || 'message',
-            student_name: recipientName
-          });
-        }
       }
 
       // Load item requests
       try {
-        const requestsQuery = query(
-          collection(db, 'item_requests'),
-          where('parent_id', '==', user.id),
-          orderBy('created_at', 'desc')
-        );
-        const requestsSnapshot = await getDocs(requestsQuery);
+        const requests = await getItemRequestsForParent(user.id, 10);
         
-        console.log(`📦 Found ${requestsSnapshot.size} item requests`);
+        console.log(`📦 Found ${requests.length} item requests (latest 10)`);
         
-        for (const doc of requestsSnapshot.docs) {
-          const request = doc.data();
+        for (const request of requests) {
           const studentId = request.student_id;
           
-          let studentName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`);
+          let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
           if (!studentName) {
             const studentQuery = query(
               collection(db, 'users'),
@@ -250,181 +426,149 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           }
 
           allActivities.push({
-            id: doc.id,
+            id: request.id,
             type: 'item_request',
-            timestamp: request.created_at.toDate(),
+            timestamp: request.created_at && request.created_at.toDate ? request.created_at.toDate() : new Date(),
             status: request.status || 'pending',
             item_name: request.item_name,
             item_price: request.item_price,
             item_description: request.item_description,
-            request_reason: request.request_reason,
-            student_name: studentName
+            reason: request.reason,
+            student_name: studentName,
+            student_id: request.student_id
           });
         }
       } catch (requestsError) {
         console.log('Item requests query failed, trying fallback...', requestsError);
-        try {
-          const requestsQuery = query(
-            collection(db, 'item_requests'),
-            where('parent_id', '==', user.id)
-          );
-          const requestsSnapshot = await getDocs(requestsQuery);
-          
-          for (const doc of requestsSnapshot.docs) {
-            const request = doc.data();
-            const studentId = request.student_id;
-            
-            let studentName = await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`);
-            if (!studentName) {
-              const studentQuery = query(
-                collection(db, 'users'),
-                where('id', '==', studentId)
-              );
-              const studentSnapshot = await getDocs(studentQuery);
-              studentName = studentSnapshot.docs[0]?.data()?.full_name || 'Student';
-              await cache.set(CACHE_CONFIGS.STUDENT_NAMES, studentName, `${user.id}_${studentId}`);
-            }
-
-            allActivities.push({
-              id: doc.id,
-              type: 'item_request',
-              timestamp: request.created_at.toDate(),
-              status: request.status || 'pending',
-              item_name: request.item_name,
-              item_price: request.item_price,
-              item_description: request.item_description,
-              request_reason: request.request_reason,
-              student_name: studentName
-            });
-          }
-        } catch (fallbackError) {
-          console.log('Item requests fallback also failed:', fallbackError);
-        }
       }
 
-      // Sort all activities by timestamp
-      allActivities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-      
-      // Cache the results
-      await cache.set(CACHE_CONFIGS.ACTIVITY_HISTORY, allActivities, user.id);
-      
-      // Animate new activities if this is a refresh
-      if (activities.length > 0) {
-        const newIds = allActivities
-          .filter(newActivity => !activities.some(existing => existing.id === newActivity.id))
-          .map(activity => activity.id);
+      // Sort all activities by timestamp (newest first)
+      allActivities.sort((a, b) => {
+        const aTime = a.timestamp && a.timestamp.getTime ? a.timestamp.getTime() : 0;
+        const bTime = b.timestamp && b.timestamp.getTime ? b.timestamp.getTime() : 0;
+        return bTime - aTime;
+      });
+
+      // Only process "new" activities if seen activities have been loaded
+      if (seenActivitiesLoaded) {
+        // Mark truly new activities (not previously seen) for highlighting
+        const existingIds = new Set(activities.map(a => a.id));
+        const allActivityIds = allActivities.map(a => a.id);
         
-        if (newIds.length > 0) {
-          console.log(`🆕 Found ${newIds.length} new activities`);
-          setNewActivityIds(newIds);
-          
-          newIds.forEach(id => {
-            animatedValues.current[id] = new Animated.Value(0);
+        console.log(`🔍 Checking for new activities and status changes:`);
+        console.log(`  - Current activities: ${activities.length}`);
+        console.log(`  - New activities from DB: ${allActivities.length}`);
+        console.log(`  - Previous activities: ${previousActivities.length}`);
+        console.log(`  - Seen activities in memory: ${seenActivityIds.size}`);
+        console.log(`  - Seen activities loaded: ${seenActivitiesLoaded}`);
+        
+        // Find truly new activities
+        const brandNewIds = allActivities
+          .filter(a => !seenActivityIds.has(a.id))
+          .map(a => a.id);
+        
+        // Find activities with status changes
+        const statusChangedIds: string[] = [];
+        if (previousActivities.length > 0) {
+          const previousMap = new Map(previousActivities.map(a => [a.id, a.status]));
+          allActivities.forEach(currentActivity => {
+            const previousStatus = previousMap.get(currentActivity.id);
+            if (previousStatus && previousStatus !== currentActivity.status) {
+              console.log(`📊 Status change detected for ${currentActivity.id.slice(-6)}: ${previousStatus} → ${currentActivity.status}`);
+              statusChangedIds.push(currentActivity.id);
+            }
           });
-          
-          setTimeout(() => {
-            newIds.forEach(id => {
-              Animated.spring(animatedValues.current[id], {
-                toValue: 1,
-                useNativeDriver: false,
-                tension: 100,
-                friction: 8,
-              }).start();
-            });
-          }, 100);
-          
-          setTimeout(() => setNewActivityIds([]), 3000);
         }
+        
+        // Combine new activities and status changes
+        const allHighlightIds = [...new Set([...brandNewIds, ...statusChangedIds])];
+        
+        console.log(`  - Activities not in seen set: ${brandNewIds.length}`);
+        console.log(`  - Activities with status changes: ${statusChangedIds.length}`);
+        console.log(`  - Total to highlight: ${allHighlightIds.length}`);
+        
+        if (allHighlightIds.length > 0) {
+          setNewActivityIds(allHighlightIds);
+          console.log(`✨ Highlighting ${allHighlightIds.length} activities (${brandNewIds.length} new + ${statusChangedIds.length} status changes):`, allHighlightIds.slice(0, 3));
+          
+          // Mark new activities as seen immediately to prevent re-highlighting
+          // But don't mark status changes as "seen" - they should highlight until user sees them
+          if (brandNewIds.length > 0) {
+            markActivitiesAsSeen(brandNewIds);
+          }
+          
+          // Clear new activity indicators after animation
+          setTimeout(() => {
+            setNewActivityIds([]);
+            // Mark status changed activities as seen after the animation
+            if (statusChangedIds.length > 0) {
+              markActivitiesAsSeen(statusChangedIds);
+            }
+          }, 5000);
+        } else {
+          console.log(`✅ No new activities or status changes to highlight`);
+        }
+      } else {
+        console.log(`⏳ Seen activities not loaded yet, skipping new activity detection`);
+        setNewActivityIds([]); // Clear any existing new activity indicators
+      }
+
+      // Store current activities for next comparison
+      setPreviousActivities([...allActivities]);
+
+      setActivities(allActivities);
+      
+      // Cache the fresh data (only cache after successful load)
+      if (!isRefresh || allActivities.length > 0) {
+        await cache.set(CACHE_CONFIGS.ACTIVITY_HISTORY, allActivities, user.id);
+        console.log(`💾 Cached ${allActivities.length} activities`);
       }
       
-      setActivities(allActivities);
-      setUsingCache(false);
-      
-      console.log(`✅ Loaded ${allActivities.length} activities from database`);
-      
-      // Start PayPal verification for both old and new systems
-      setTimeout(async () => {
-        try {
-          console.log('🔄 Auto-verifying pending PayPal payments (both systems)...');
-          
-          // Try old system first
-          const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
-          const oldSystemCount = await autoVerifyPendingPayPalPayments(user.id);
-          
-          // Try P2P system for any remaining payments
-          let p2pCount = 0;
-          try {
-            const { collection, query, where, getDocs } = await import('firebase/firestore');
-            const { db } = await import('../../lib/firebase');
-            const { verifyPayPalP2PPayment } = await import('../../lib/paypalP2P');
-            
-            // Find P2P payments that might need verification
-            const p2pQuery = query(
-              collection(db, 'payments'),
-              where('parent_id', '==', user.id),
-              where('provider', '==', 'paypal'),
-              where('status', '==', 'initiated')
-            );
-            
-            const p2pSnapshot = await getDocs(p2pQuery);
-            console.log(`🔍 Found ${p2pSnapshot.size} potential P2P payments to verify`);
-            
-            for (const doc of p2pSnapshot.docs) {
-              const payment = doc.data();
-              if (payment.p2p_transaction_id && payment.p2p_order_id) {
-                console.log(`🔄 Attempting P2P verification for ${doc.id}`);
-                const result = await verifyPayPalP2PPayment(
-                  payment.p2p_transaction_id,
-                  payment.p2p_order_id
-                );
-                if (result.success) {
-                  p2pCount++;
-                  console.log(`✅ P2P verified payment: ${doc.id}`);
-                }
-              }
-            }
-          } catch (p2pError) {
-            console.log('P2P verification skipped:', p2pError);
-          }
-          
-          const totalVerified = oldSystemCount + p2pCount;
-          if (totalVerified > 0) {
-            console.log(`✅ Total verified: ${totalVerified} payments (${oldSystemCount} old + ${p2pCount} P2P)`);
-            loadActivities(true);
-          }
-          
-        } catch (verifyError: any) {
-          console.error('⚠️ PayPal verification failed:', verifyError);
-          const errorMessage = verifyError?.message || 'Unknown error occurred';
-          
-          if (errorMessage.includes('404') || errorMessage.includes('RESOURCE_NOT_FOUND')) {
-            console.log('ℹ️ PayPal 404 errors are normal - expired orders cleaned up automatically');
-          } else {
-            logError(verifyError, 'PayPal verification', { userId: user.id });
-          }
-        }
-      }, 100); // Minimal delay - almost immediate
-
     } catch (error) {
-      logError(error, 'Loading activity history', { userId: user?.id });
-      const friendlyMessage = getUserFriendlyError(error, 'loading activity history');
-      Alert.alert('Unable to Load Activities', friendlyMessage);
+      console.error('Error loading activities:', error);
+      logError(error, 'Loading activity history', { userId: user.id });
     } finally {
       setLoading(false);
-      setRefreshing(false);
-      setBackgroundLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      }
     }
   };
 
   const onRefresh = () => {
     setRefreshing(true);
+    setCurrentPage(0); // Reset to first page on refresh
     loadActivities(true);
   };
 
-  // Filter activities when period or type changes
+  // Filter activities when period, type, or activities change
   useEffect(() => {
     filterActivities();
   }, [activities, filterPeriod, filterType]);
+
+  // Update displayed activities when filtered activities or page changes
+  useEffect(() => {
+    updateDisplayedActivities();
+  }, [filteredActivities, currentPage]);
+
+  // Mark displayed activities as seen after a short delay (only if not already seen)
+  useEffect(() => {
+    if (displayedActivities.length > 0 && seenActivitiesLoaded) {
+      const unseenVisibleIds = displayedActivities
+        .filter(a => !seenActivityIds.has(a.id))
+        .map(a => a.id);
+      
+      if (unseenVisibleIds.length > 0) {
+        // Mark as seen after 2 seconds of being visible
+        const timer = setTimeout(() => {
+          console.log(`⏰ Auto-marking ${unseenVisibleIds.length} unseen displayed activities as seen`);
+          markActivitiesAsSeen(unseenVisibleIds);
+        }, 2000);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [displayedActivities, seenActivityIds, seenActivitiesLoaded]);
 
   const filterActivities = () => {
     let filtered = [...activities];
@@ -432,43 +576,188 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     // Filter by time period
     if (filterPeriod !== 'all') {
       const now = new Date();
-      const daysBack = filterPeriod === '7days' ? 7 : filterPeriod === '30days' ? 30 : 90;
-      const cutoffDate = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+      let daysBack: number;
       
-      filtered = filtered.filter(activity => activity.timestamp >= cutoffDate);
+      switch (filterPeriod) {
+        case 'day': daysBack = 1; break;
+        case 'week': daysBack = 7; break;
+        case 'month': daysBack = 30; break;
+        default: daysBack = 0;
+      }
+      
+      if (daysBack > 0) {
+        const cutoffDate = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+        filtered = filtered.filter(activity => activity.timestamp >= cutoffDate);
+      }
     }
 
     // Filter by type
     if (filterType !== 'all') {
-      if (filterType === 'requests') {
+      if (filterType === 'items') {
         filtered = filtered.filter(activity => activity.type === 'item_request');
-      } else {
-        filtered = filtered.filter(activity => activity.type === filterType.slice(0, -1)); // Remove 's' from 'payments'/'messages'
+      } else if (filterType === 'payments') {
+        filtered = filtered.filter(activity => activity.type === 'payment');
+      } else if (filterType === 'messages') {
+        filtered = filtered.filter(activity => activity.type === 'message');
       }
     }
 
     setFilteredActivities(filtered);
+    setCurrentPage(0); // Reset to first page when filters change
+  };
+
+  const updateDisplayedActivities = () => {
+    const startIndex = currentPage * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    setDisplayedActivities(filteredActivities.slice(startIndex, endIndex));
+  };
+
+  const nextPage = () => {
+    const maxPages = Math.ceil(filteredActivities.length / itemsPerPage);
+    if (currentPage < maxPages - 1) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const previousPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleDeclineItem = async (requestId: string, itemName: string) => {
+    Alert.alert(
+      'Decline Request',
+      `Are you sure you want to decline the request for "${itemName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Decline', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { success, error } = await updateItemRequestStatus(requestId, 'declined', 'Declined by parent');
+              if (success) {
+                showMessage({
+                  message: 'Request Declined',
+                  description: `The request for "${itemName}" has been declined.`,
+                  type: 'info',
+                  backgroundColor: theme.colors.warning,
+                  color: theme.colors.backgroundSecondary,
+                });
+                loadActivities(true); // Refresh activities
+              } else {
+                throw new Error(error);
+              }
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to decline request. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleApproveItem = async (requestId: string, itemName: string, itemPrice: number, studentId: string, itemDescription?: string) => {
+    // Convert cents to dollars for display
+    const priceInDollars = itemPrice / 100;
+    
+    Alert.alert(
+      'Send Item',
+      `Send $${priceInDollars.toFixed(2)} via PayPal for "${itemName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Send via PayPal', 
+          onPress: () => sendItemPayment(requestId, itemName, itemPrice, studentId, 'paypal', itemDescription)
+        }
+      ]
+    );
+  };
+
+  const sendItemPayment = async (
+    requestId: string, 
+    itemName: string, 
+    itemPrice: number, 
+    studentId: string, 
+    provider: string,
+    itemDescription?: string
+  ) => {
+    if (!user) return;
+
+    console.log('🔍 Starting item payment:', {
+      requestId,
+      itemName,
+      itemPrice,
+      studentId,
+      provider,
+      itemDescription
+    });
+
+    try {
+      // First update the item request status to approved
+      const { success, error: updateError } = await updateItemRequestStatus(requestId, 'approved', 'Payment processing');
+      if (!success) {
+        throw new Error(updateError);
+      }
+
+      console.log('✅ Item request status updated to approved');
+
+      // Use existing PayPal P2P system (same as support payments)
+      const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
+      
+      console.log('🔍 Calling createPayPalP2POrder with:', {
+        studentId,
+        itemPrice,
+        note: `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
+      });
+      
+      const result = await createPayPalP2POrder(
+        studentId,
+        itemPrice, // itemPrice is already in cents from database
+        `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
+      );
+
+      console.log('🔍 PayPal P2P order result:', result);
+
+      if (result.success && result.approvalUrl) {
+        // Store the transaction ID for potential cancellation (same as regular payments)
+        if (result.transactionId) {
+          console.log('✅ Item payment created with ID:', result.transactionId);
+        }
+        
+        // Open PayPal for payment (same as regular payments)
+        const { Linking } = await import('react-native');
+        await Linking.openURL(result.approvalUrl);
+        
+        // Show user what to expect (same as regular payments)
+        Alert.alert(
+          'PayPal Payment Started',
+          `Complete your payment in PayPal, then return to Campus Life. The payment for "${itemName}" will be automatically verified.`,
+          [{ text: 'OK' }]
+        );
+
+        loadActivities(true); // Refresh activities
+      } else {
+        console.error('❌ PayPal order creation failed:', result);
+        throw new Error(result.error || 'Failed to create PayPal order');
+      }
+    } catch (error: any) {
+      console.error('❌ Error sending item payment:', error);
+      Alert.alert('Error', `Failed to make payment: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const getPeriodLabel = (period: FilterPeriod) => {
     switch (period) {
+      case 'day': return 'Past Day';
+      case 'week': return 'Past Week';
+      case 'month': return 'Past Month';
       case 'all': return 'All Time';
-      case '7days': return 'Last 7 Days';
-      case '30days': return 'Last 30 Days';
-      case '90days': return 'Last 90 Days';
       default: return 'All Time';
     }
   };
 
-  const getTypeLabel = (type: FilterType) => {
-    switch (type) {
-      case 'all': return 'All Activities';
-      case 'payments': return 'Payments Only';
-      case 'messages': return 'Messages Only';
-      case 'requests': return 'Item Requests';
-      default: return 'All Activities';
-    }
-  };
 
   const getStatusColor = (type: string, status: string) => {
     if (type === 'payment') {
@@ -530,6 +819,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
   const formatTime = (date: Date) => {
     const now = new Date();
+    if (!date || !date.getTime) {
+      return 'Recently';
+    }
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     
@@ -572,8 +864,108 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     }
   };
 
+  const retryPayment = async (payment: ActivityItem) => {
+    if (!payment.amount || !payment.student_name) {
+      Alert.alert('Error', 'Unable to retry payment - missing payment details.');
+      return;
+    }
+
+    Alert.alert(
+      'Retry Payment',
+      `Retry sending $${payment.amount.toFixed(2)} via ${payment.provider?.charAt(0).toUpperCase()}${payment.provider?.slice(1)} to ${payment.student_name.split(' ')[0]}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Retry Payment',
+          onPress: async () => {
+            try {
+              // Get the student ID from family members or from the original payment
+              const { getFamilyMembers } = useAuthStore.getState();
+              const familyMembers = await getFamilyMembers();
+              const targetStudent = familyMembers.students.find(s => 
+                s.name === payment.student_name
+              );
+
+              if (!targetStudent) {
+                Alert.alert('Error', 'Unable to find student for retry payment.');
+                return;
+              }
+
+              const amountCents = Math.round(payment.amount! * 100);
+              const provider = payment.provider as 'paypal' | 'venmo' | 'cashapp' | 'zelle';
+
+              if (provider === 'paypal') {
+                // Use PayPal P2P system
+                const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
+                const result = await createPayPalP2POrder(
+                  targetStudent.id,
+                  amountCents,
+                  payment.note || `Retry payment: $${payment.amount?.toFixed(2) || '0.00'}`
+                );
+
+                if (result.success && result.approvalUrl) {
+                  // Open PayPal for payment
+                  const { Linking } = await import('react-native');
+                  await Linking.openURL(result.approvalUrl);
+                  
+                  Alert.alert(
+                    'PayPal Payment Started',
+                    'Complete your payment in PayPal, then return to Campus Life.',
+                    [{ text: 'OK' }]
+                  );
+                  
+                  loadActivities(true); // Refresh activities
+                } else {
+                  throw new Error(result.error || 'Failed to create PayPal order');
+                }
+              } else {
+                // Use regular payment intent for other providers
+                const { createPaymentIntent } = await import('../../lib/payments');
+                const result = await createPaymentIntent(
+                  targetStudent.id,
+                  amountCents,
+                  provider,
+                  payment.note || `Retry payment: $${payment.amount?.toFixed(2) || '0.00'}`
+                );
+
+                if (result.success) {
+                  // Open the provider app/website
+                  if (result.redirectUrl) {
+                    const { Linking } = await import('react-native');
+                    await Linking.openURL(result.redirectUrl);
+                  }
+
+                  Alert.alert(
+                    'Payment Started',
+                    `Complete your payment in ${provider.charAt(0).toUpperCase()}${provider.slice(1)}, then return to Campus Life.`,
+                    [{ text: 'OK' }]
+                  );
+                  
+                  loadActivities(true); // Refresh activities
+                } else {
+                  throw new Error(result.error || 'Failed to create payment');
+                }
+              }
+            } catch (error: any) {
+              console.error('Error retrying payment:', error);
+              Alert.alert('Retry Failed', error.message || 'Unable to retry payment. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderActivityItem = (item: ActivityItem) => {
-    const isNew = newActivityIds.includes(item.id);
+    const isInNewList = newActivityIds.includes(item.id);
+    const isNotSeen = !seenActivityIds.has(item.id);
+    const isNew = isInNewList || isNotSeen;
+    
+    // Debug first few items
+    if (activities.indexOf(item) < 3) {
+      console.log(`🎨 Rendering item ${item.id.slice(-6)}: isInNewList=${isInNewList}, isNotSeen=${isNotSeen}, isNew=${isNew}`);
+    }
+    
     const animatedValue = animatedValues.current[item.id] || new Animated.Value(1);
     
     const animatedStyle = isNew ? {
@@ -625,20 +1017,30 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
               <Text style={styles.paymentNote}>"{item.note}"</Text>
             )}
             
-            {/* Timeout Warning and Cancel Button for Processing Payments */}
-            {(item.status === 'initiated' || item.status === 'pending' || item.status === 'processing') && (
+            {/* Payment Actions - Cancel, Retry, or Status Info */}
+            {item.timestamp && (
               (() => {
                 const isTimedOut = isPaymentTimedOut(item.timestamp, item.provider || '');
-                const isNearTimeout = !isTimedOut && isPaymentNearTimeout(item.timestamp, item.provider || '');
+                const isProcessing = item.status === 'initiated' || item.status === 'pending' || item.status === 'processing';
+                const canRetry = item.status === 'failed' || item.status === 'cancelled' || item.status === 'timeout' || isTimedOut;
+                const isNearTimeout = isProcessing && !isTimedOut && isPaymentNearTimeout(item.timestamp, item.provider || '');
                 
-                if (isTimedOut) {
+                if (isTimedOut || item.status === 'timeout') {
                   return (
                     <View style={styles.timeoutWarning}>
                       <Text style={styles.timeoutWarningText}>⏰ Payment Expired</Text>
                       <Text style={styles.timeoutWarningSubtext}>This payment has been automatically cancelled</Text>
+                      
+                      {/* Retry Button for Timed Out Payments */}
+                      <TouchableOpacity
+                        style={styles.retryPaymentButton}
+                        onPress={() => retryPayment(item)}
+                      >
+                        <Text style={styles.retryPaymentButtonText}>🔄 Retry Payment</Text>
+                      </TouchableOpacity>
                     </View>
                   );
-                } else {
+                } else if (isProcessing) {
                   return (
                     <View style={styles.processingActions}>
                       {isNearTimeout && (
@@ -648,7 +1050,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                         </View>
                       )}
                       
-                      {/* Cancel Button */}
+                      {/* Cancel Button for Processing Payments */}
                       <TouchableOpacity
                         style={styles.cancelPaymentButton}
                         onPress={() => {
@@ -666,7 +1068,26 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                       </TouchableOpacity>
                     </View>
                   );
+                } else if (canRetry) {
+                  return (
+                    <View style={styles.failedPaymentActions}>
+                      <Text style={styles.failedPaymentText}>
+                        {item.status === 'failed' ? '❌ Payment Failed' : 
+                         item.status === 'cancelled' ? '🚫 Payment Cancelled' : '⏰ Payment Expired'}
+                      </Text>
+                      
+                      {/* Retry Button for Failed/Cancelled Payments */}
+                      <TouchableOpacity
+                        style={styles.retryPaymentButton}
+                        onPress={() => retryPayment(item)}
+                      >
+                        <Text style={styles.retryPaymentButtonText}>🔄 Retry Payment</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
                 }
+                
+                return null;
               })()
             )}
           </View>
@@ -686,7 +1107,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         {item.type === 'item_request' && (
           <View style={styles.requestDetails}>
             <Text style={styles.requestItem}>
-              {item.item_name} - ${item.item_price?.toFixed(2)}
+              {item.item_name} - ${item.item_price ? (item.item_price / 100).toFixed(2) : '0.00'}
             </Text>
             {item.item_description && (
               <Text style={styles.requestDescription} numberOfLines={2}>
@@ -694,8 +1115,32 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
               </Text>
             )}
             <Text style={styles.requestReason}>
-              Reason: {item.request_reason}
+              Reason: {item.reason}
             </Text>
+            
+            {/* Approval buttons for pending requests */}
+            {item.status === 'pending' && (
+              <View style={styles.requestActions}>
+                <TouchableOpacity
+                  style={styles.declineButton}
+                  onPress={() => handleDeclineItem(item.id, item.item_name || 'item')}
+                >
+                  <Text style={styles.declineButtonText}>Decline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.approveButton}
+                  onPress={() => handleApproveItem(
+                    item.id, 
+                    item.item_name || 'item', 
+                    item.item_price || 0,
+                    item.student_id || '',
+                    item.item_description
+                  )}
+                >
+                  <Text style={styles.approveButtonText}>Approve & Send</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
         </TouchableOpacity>
@@ -707,60 +1152,17 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     <View style={styles.container}>
       <StatusHeader title="Activity" />
       <View style={[styles.header, { paddingTop: 50 }]}>
-        <Text style={styles.title}>Activity History</Text>
-        <Text style={styles.subtitle}>Payments and messages sent</Text>
-        
-        {/* Filter Controls */}
-        <View style={styles.filterContainer}>
-          <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>Time:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
-              {(['all', '7days', '30days', '90days'] as FilterPeriod[]).map((period) => (
-                <TouchableOpacity
-                  key={period}
-                  style={[
-                    styles.filterButton,
-                    filterPeriod === period && styles.filterButtonActive
-                  ]}
-                  onPress={() => setFilterPeriod(period)}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    filterPeriod === period && styles.filterButtonTextActive
-                  ]}>
-                    {getPeriodLabel(period)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-          
-          <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>Type:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
-              {(['all', 'payments', 'messages', 'requests'] as FilterType[]).map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.filterButton,
-                    filterType === type && styles.filterButtonActive
-                  ]}
-                  onPress={() => setFilterType(type)}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    filterType === type && styles.filterButtonTextActive
-                  ]}>
-                    {getTypeLabel(type)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        <View style={styles.titleContainer}>
+          <View>
+            <Text style={styles.title}>Activity History</Text>
+            <Text style={styles.subtitle}>All your family activity in one place</Text>
           </View>
         </View>
+        
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
@@ -770,6 +1172,29 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           />
         }
       >
+        {/* Quick Stats */}
+        <View style={styles.quickStats}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activities?.length || 0}</Text>
+            <Text style={styles.statLabel}>Total Activity</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activities?.filter(a => a.type === 'payment').length || 0}</Text>
+            <Text style={styles.statLabel}>Payments</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activities?.filter(a => a.type === 'item_request').length || 0}</Text>
+            <Text style={styles.statLabel}>Requests</Text>
+          </View>
+        </View>
+        
+        {/* Activity List Header */}
+        <View ref={allActivityRef} style={styles.activityListHeader}>
+          <Text style={styles.activityListTitle}>All Activity</Text>
+        </View>
+        
         {loading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Loading activity...</Text>
@@ -783,12 +1208,64 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           </View>
         ) : (
           <View style={styles.activitiesContainer}>
-            <View style={styles.resultsHeader}>
-              <Text style={styles.resultsCount}>
-                {filteredActivities.length} of {activities.length} activities
-              </Text>
-              <Text style={styles.resultsFilter}>
-                {getPeriodLabel(filterPeriod)} • {getTypeLabel(filterType)}
+            {/* Time Period Filter */}
+            <View style={styles.filterSection}>
+              <View style={styles.segmentedControl}>
+                {(['all', 'day', 'week', 'month'] as FilterPeriod[]).map((period, index) => (
+                  <TouchableOpacity
+                    key={period}
+                    style={[
+                      styles.segment,
+                      index === 0 && styles.segmentFirst,
+                      index === 3 && styles.segmentLast,
+                      filterPeriod === period && styles.segmentActive
+                    ]}
+                    onPress={() => setFilterPeriod(period)}
+                  >
+                    <Text style={[
+                      styles.segmentText,
+                      filterPeriod === period && styles.segmentTextActive
+                    ]}>
+                      {period === 'all' ? 'All' :
+                       period === 'day' ? '24h' : 
+                       period === 'week' ? '7d' : '30d'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Activity Type Filter */}
+            <View style={styles.filterSection}>
+              <View style={styles.segmentedControl}>
+                {(['all', 'payments', 'messages', 'items'] as FilterType[]).map((type, index) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.segment,
+                      index === 0 && styles.segmentFirst,
+                      index === 3 && styles.segmentLast,
+                      filterType === type && styles.segmentActive
+                    ]}
+                    onPress={() => setFilterType(type)}
+                  >
+                    <Text style={[
+                      styles.segmentText,
+                      filterType === type && styles.segmentTextActive
+                    ]}>
+                      {type === 'all' ? 'All' : 
+                       type === 'payments' ? 'Payments' :
+                       type === 'messages' ? 'Messages' : 'Items'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Results Info */}
+            <View style={styles.resultsInfo}>
+              <Text style={styles.resultsText}>
+                {filteredActivities.length} {filteredActivities.length === 1 ? 'activity' : 'activities'}
               </Text>
             </View>
             
@@ -800,7 +1277,38 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                 </Text>
               </View>
             ) : (
-              filteredActivities.map(renderActivityItem)
+              <>
+                {displayedActivities.map(renderActivityItem)}
+                
+                {/* Pagination Controls */}
+                {filteredActivities.length > itemsPerPage && (
+                  <View style={styles.paginationContainer}>
+                    <TouchableOpacity
+                      style={[styles.paginationButton, currentPage === 0 && styles.paginationButtonDisabled]}
+                      onPress={previousPage}
+                      disabled={currentPage === 0}
+                    >
+                      <Text style={[styles.paginationButtonText, currentPage === 0 && styles.paginationButtonTextDisabled]}>
+                        Previous
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    <Text style={styles.paginationInfo}>
+                      Page {currentPage + 1} of {Math.ceil(filteredActivities.length / itemsPerPage)}
+                    </Text>
+                    
+                    <TouchableOpacity
+                      style={[styles.paginationButton, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonDisabled]}
+                      onPress={nextPage}
+                      disabled={currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1}
+                    >
+                      <Text style={[styles.paginationButtonText, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonTextDisabled]}>
+                        Next
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}
@@ -814,7 +1322,7 @@ const styles = StyleSheet.create({
     ...commonStyles.container,
   },
   header: {
-    marginBottom: 30,
+    marginBottom: 20,
     paddingTop: 10,
     paddingHorizontal: 24,
   },
@@ -826,7 +1334,8 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: theme.spacing.sm,
   },
   title: {
@@ -834,6 +1343,48 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: theme.colors.textPrimary,
     marginBottom: 8,
+  },
+  activityListHeader: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    marginTop: 8,
+  },
+  activityListTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  quickStats: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+    padding: 16,
+    marginHorizontal: 24,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: theme.colors.border,
+    marginHorizontal: 16,
   },
   headerLoader: {
     marginLeft: 12,
@@ -976,6 +1527,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
   },
+  failedPaymentActions: {
+    backgroundColor: '#fef2f2', // Light red background
+    borderColor: '#fecaca',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+  },
+  failedPaymentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#dc2626',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  retryPaymentButton: {
+    backgroundColor: '#059669', // Green background for retry
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignSelf: 'center',
+    marginTop: 4,
+  },
+  retryPaymentButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
+  },
   messageDetails: {
     marginTop: theme.spacing.sm,
   },
@@ -987,66 +1566,56 @@ const styles = StyleSheet.create({
   messageType: {
     ...theme.typography.caption,
   },
-  filterContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+  filterSection: {
+    marginBottom: 16,
   },
-  filterRow: {
+  segmentedControl: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    minWidth: 50,
-    marginRight: 12,
-  },
-  filterScrollView: {
-    flex: 1,
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 20,
     backgroundColor: theme.colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderRadius: 8,
+    padding: 2,
   },
-  filterButtonActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
+  segment: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  filterButtonText: {
-    fontSize: 12,
+  segmentFirst: {
+    borderTopLeftRadius: 6,
+    borderBottomLeftRadius: 6,
+  },
+  segmentLast: {
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  segmentActive: {
+    backgroundColor: theme.colors.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  segmentText: {
+    fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textSecondary,
   },
-  filterButtonTextActive: {
-    color: 'white',
+  segmentTextActive: {
+    color: theme.colors.textPrimary,
     fontWeight: '600',
   },
-  resultsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+  resultsInfo: {
     paddingBottom: 12,
+    marginBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  resultsCount: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  resultsFilter: {
-    fontSize: 12,
-    color: theme.colors.textTertiary,
+  resultsText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
   },
   emptyFilterContainer: {
     alignItems: 'center',
@@ -1082,5 +1651,75 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textTertiary,
     lineHeight: 18,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    gap: 12,
+  },
+  declineButton: {
+    flex: 1,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  declineButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.error,
+  },
+  approveButton: {
+    flex: 1,
+    backgroundColor: theme.colors.success,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  approveButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  paginationButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: theme.colors.primary,
+    minWidth: 80,
+  },
+  paginationButtonDisabled: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  paginationButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
+    textAlign: 'center',
+  },
+  paginationButtonTextDisabled: {
+    color: theme.colors.textSecondary,
+  },
+  paginationInfo: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textPrimary,
   },
 });

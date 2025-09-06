@@ -10,6 +10,12 @@ service cloud.firestore {
              userDoc.data.family_id == targetDoc.data.family_id;
     }
     
+    // Helper function to check if user's email is verified
+    function isEmailVerified(userId) {
+      let userDoc = get(/databases/$(database)/documents/users/$(userId));
+      return userDoc.data.email_verified == true;
+    }
+    
     // Verification tokens - allow public read/write for email verification
     match /verification_tokens/{tokenId} {
       allow read, write: if true; // Public access for email verification
@@ -19,20 +25,25 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && request.auth.uid == userId;
-      // Allow email verification updates
-      allow update: if request.resource.data.email_verified == true;
+      // Allow email verification updates from any authenticated user (for email verification process)
+      allow update: if request.resource.data.keys().hasOnly(['email_verified', 'updated_at']) && 
+                       request.resource.data.email_verified == true;
       // Allow reading for password reset lookup (need to query by email)
       allow read: if true;
       // Allow password reset updates
       allow update: if request.resource.data.keys().hasAny(['password_reset_pending', 'password_reset_token', 'password_reset_requested_at', 'updated_at']);
+      // Allow push token and notification preference updates for authenticated users
+      allow update: if request.auth != null && request.auth.uid == userId &&
+                       request.resource.data.keys().hasAny(['pushToken', 'pushTokenUpdatedAt', 'deviceInfo', 'notificationPreferences', 'updated_at']);
     }
     
     // Profiles collection - allow own access and email verification  
     match /profiles/{profileId} {
       allow read, write: if request.auth != null && request.auth.uid == profileId;
       allow create: if request.auth != null && request.auth.uid == profileId;
-      // Allow email verification updates (only email_verified field)
-      allow update: if request.resource.data.email_verified == true;
+      // Allow email verification updates (only email_verified field) from any authenticated user
+      allow update: if request.resource.data.keys().hasOnly(['email_verified', 'updated_at']) && 
+                       request.resource.data.email_verified == true;
     }
     
     // Family-based access control
@@ -41,6 +52,13 @@ service cloud.firestore {
         (resource.data.parentIds.hasAny([request.auth.uid]) || 
          resource.data.studentIds.hasAny([request.auth.uid]));
       allow create: if request.auth != null;
+      // Allow reading families for invite code lookup (needed for joining)
+      allow read: if request.auth != null;
+      // Allow students to join families (add themselves to studentIds array)
+      allow update: if request.auth != null && 
+        request.resource.data.studentIds.hasAny([request.auth.uid]) &&
+        !resource.data.studentIds.hasAny([request.auth.uid]) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['studentIds', 'updated_at']);
     }
     
     // Wellness entries - user can access their own, family members can read
@@ -78,14 +96,15 @@ service cloud.firestore {
         request.auth.uid == request.resource.data.user_id;
     }
     
-    // Payments - strict validation and access control
+    // Payments - strict validation and access control (requires email verification)
     match /payments/{paymentId} {
       allow read: if request.auth != null && 
         (resource.data.parent_id == request.auth.uid || 
          resource.data.student_id == request.auth.uid);
       allow create: if request.auth != null && 
         request.resource.data.parent_id == request.auth.uid &&
-        validatePaymentData(request.resource.data);
+        validatePaymentData(request.resource.data) &&
+        isEmailVerified(request.auth.uid);
       allow update: if request.auth != null && 
         resource.data.parent_id == request.auth.uid &&
         validatePaymentUpdate(resource.data, request.resource.data);
@@ -124,14 +143,15 @@ service cloud.firestore {
         request.resource.data.parent_id == request.auth.uid;
     }
 
-    // Messages - users can read their own messages and write to family members
+    // Messages - users can read their own messages and write to family members (requires email verification)
     match /messages/{messageId} {
       allow read: if request.auth != null && 
         (resource.data.from_user_id == request.auth.uid || 
          resource.data.to_user_id == request.auth.uid);
       allow create: if request.auth != null && 
         request.resource.data.from_user_id == request.auth.uid &&
-        isInSameFamily(request.auth.uid, request.resource.data.to_user_id);
+        isInSameFamily(request.auth.uid, request.resource.data.to_user_id) &&
+        isEmailVerified(request.auth.uid);
       allow update: if request.auth != null && 
         resource.data.to_user_id == request.auth.uid;
     }
@@ -150,16 +170,30 @@ service cloud.firestore {
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.family_id == resource.data.family_id);
     }
 
-    // Transactions (PayPal P2P) - parents and students can read their own transactions
+    // Transactions (PayPal P2P) - parents and students can read their own transactions (requires email verification for creation)
     match /transactions/{transactionId} {
       allow read: if request.auth != null && 
         (resource.data.parentId == request.auth.uid || 
          resource.data.studentId == request.auth.uid);
       allow create: if request.auth != null && 
         request.resource.data.parentId == request.auth.uid &&
-        isInSameFamily(request.auth.uid, request.resource.data.studentId);
+        isInSameFamily(request.auth.uid, request.resource.data.studentId) &&
+        isEmailVerified(request.auth.uid);
       allow update: if request.auth != null && 
         resource.data.parentId == request.auth.uid;
+    }
+
+    // User progress - users can read/write their own progress
+    match /user_progress/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+
+
+    // Push tokens collection - allow users to create their own push token records
+    match /push_tokens/{tokenId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }
 }

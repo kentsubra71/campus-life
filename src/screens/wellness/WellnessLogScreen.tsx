@@ -8,11 +8,14 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { showMessage } from 'react-native-flash-message';
 import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
+import { getTodayDateString, formatDateForDisplay } from '../../utils/dateUtils';
 
 interface WellnessLogScreenProps {
   navigation: any;
@@ -33,7 +36,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateString();
     const existingEntry = getEntryByDate(today);
     
     if (existingEntry) {
@@ -52,7 +55,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   }, []);
 
   const handleSave = async () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateString();
     
     try {
       if (isEditing && todayEntry) {
@@ -81,7 +84,12 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         });
       }
       
-      navigation.goBack();
+      // Use canGoBack() to check if we can go back, otherwise navigate to Dashboard
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Dashboard');
+      }
     } catch (error) {
       showMessage({
         message: 'Error',
@@ -91,6 +99,16 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         color: theme.colors.backgroundSecondary,
       });
     }
+  };
+
+  const getMetricIcon = (label: string) => {
+    if (label.includes('Sleep')) return 'S';
+    if (label.includes('Exercise')) return 'E';
+    if (label.includes('Nutrition')) return 'N';
+    if (label.includes('Water')) return 'W';
+    if (label.includes('Social')) return 'So';
+    if (label.includes('Academic')) return 'A';
+    return 'M';
   };
 
   const renderSlider = (
@@ -103,10 +121,13 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     step: number = 1
   ) => {
     return (
-      <View style={styles.sliderContainer}>
-        <View style={styles.sliderHeader}>
-          <Text style={styles.sliderLabel}>{label}</Text>
-          <Text style={styles.sliderValue}>{value} {unit}</Text>
+      <View style={styles.metricItem}>
+        <View style={styles.metricHeader}>
+          <View style={styles.metricLabelContainer}>
+            <Text style={styles.metricIcon}>{getMetricIcon(label)}</Text>
+            <Text style={styles.metricLabel}>{label}</Text>
+          </View>
+          <Text style={styles.metricValue}>{value} {unit}</Text>
         </View>
         
         <View style={styles.sliderWrapper}>
@@ -120,6 +141,8 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             minimumTrackTintColor={theme.colors.primary}
             maximumTrackTintColor={theme.colors.backgroundTertiary}
             thumbTintColor={theme.colors.primary}
+            thumbStyle={styles.sliderThumb}
+            trackStyle={styles.sliderTrack}
           />
         </View>
         
@@ -129,6 +152,14 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         </View>
       </View>
     );
+  };
+
+  const getMoodColor = (moodValue: number) => {
+    if (moodValue <= 3) return '#ef4444'; // Red for low mood
+    if (moodValue <= 5) return '#f97316'; // Orange for okay mood  
+    if (moodValue <= 7) return '#eab308'; // Yellow for decent mood
+    if (moodValue <= 9) return '#22c55e'; // Green for good mood
+    return '#10b981'; // Emerald for amazing mood
   };
 
   const renderMoodSlider = () => {
@@ -141,14 +172,17 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
       if (moodValue <= 5) return 'Okay, could be better';
       if (moodValue <= 7) return 'Pretty good';
       if (moodValue <= 9) return 'Great day';
-      return 'Amazing day';
+      return 'Amazing day!';
     };
     
     return (
-      <View style={styles.sliderContainer}>
-        <View style={styles.sliderHeader}>
-          <Text style={styles.sliderLabel}>How are you feeling today?</Text>
-          <Text style={styles.sliderValue}>{formData.mood}/10</Text>
+      <View style={styles.metricItem}>
+        <View style={styles.metricHeader}>
+          <View style={styles.metricLabelContainer}>
+            <Text style={styles.metricIcon}>M</Text>
+            <Text style={styles.metricLabel}>How are you feeling today?</Text>
+          </View>
+          <Text style={[styles.metricValue, { color: getMoodColor(formData.mood) }]}>{formData.mood}/10</Text>
         </View>
         
         <View style={styles.sliderWrapper}>
@@ -159,9 +193,11 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
             value={formData.mood}
             onValueChange={handleMoodChange}
             step={1}
-            minimumTrackTintColor={theme.colors.primary}
+            minimumTrackTintColor={getMoodColor(formData.mood)}
             maximumTrackTintColor={theme.colors.backgroundTertiary}
-            thumbTintColor={theme.colors.primary}
+            thumbTintColor={getMoodColor(formData.mood)}
+            thumbStyle={[styles.sliderThumb, styles.moodSliderThumb]}
+            trackStyle={styles.sliderTrack}
           />
         </View>
         
@@ -180,100 +216,136 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('Dashboard');
+          }
+        }} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Daily Wellness Log</Text>
+        <Text style={styles.title}>Daily Wellness</Text>
         <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.dateContainer}>
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.dateSection}>
+          <Text style={styles.greeting}>Today</Text>
           <Text style={styles.dateText}>
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
+            {formatDateForDisplay(getTodayDateString())}
+          </Text>
+          <Text style={styles.subtitle}>Track your daily wellness</Text>
+        </View>
+
+        {/* Current Score Preview */}
+        <View style={styles.scoreSection}>
+          <View style={styles.scoreHeader}>
+            <Text style={styles.scoreTitle}>Your wellness score</Text>
+            <View style={styles.scoreBadge}>
+              <Text style={styles.scoreValue}>
+                {Math.round(
+                  (formData.mood * 0.25 +
+                   Math.min(formData.sleep / 8, 1) * 10 * 0.20 +
+                   Math.min(formData.exercise / 60, 1) * 10 * 0.15 +
+                   formData.nutrition * 0.15 +
+                   Math.min(formData.water / 8, 1) * 10 * 0.10 +
+                   formData.social * 0.10 +
+                   formData.academic * 0.05) * 10
+                ) / 10}/10
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.scoreSubtitle}>
+            {isEditing ? 'Update your metrics below to adjust your score' : 'Complete all sections for your wellness score'}
           </Text>
         </View>
 
-        {/* Mood */}
-        {renderMoodSlider()}
+        {/* Wellness Metrics */}
+        <View style={styles.metricsSection}>
+          <Text style={styles.sectionTitle}>Wellness Metrics</Text>
+          
+          {/* Mood */}
+          {renderMoodSlider()}
 
-        {/* Sleep */}
-        {renderSlider(
-          'Hours of Sleep',
-          formData.sleep,
-          0,
-          12,
-          'hours',
-          (value) => setFormData({ ...formData, sleep: value }),
-          0.5
-        )}
+          {/* Sleep */}
+          {renderSlider(
+            'Hours of Sleep',
+            formData.sleep,
+            0,
+            12,
+            'hours',
+            (value) => setFormData({ ...formData, sleep: value }),
+            0.5
+          )}
 
-        {/* Exercise */}
-        {renderSlider(
-          'Exercise Minutes',
-          formData.exercise,
-          0,
-          120,
-          'min',
-          (value) => setFormData({ ...formData, exercise: value }),
-          5
-        )}
+          {/* Exercise */}
+          {renderSlider(
+            'Exercise Minutes',
+            formData.exercise,
+            0,
+            120,
+            'min',
+            (value) => setFormData({ ...formData, exercise: value }),
+            5
+          )}
 
-        {/* Nutrition */}
-        {renderSlider(
-          'Nutrition Quality',
-          formData.nutrition,
-          1,
-          10,
-          '/10',
-          (value) => setFormData({ ...formData, nutrition: value })
-        )}
+          {/* Nutrition */}
+          {renderSlider(
+            'Nutrition Quality',
+            formData.nutrition,
+            1,
+            10,
+            '/10',
+            (value) => setFormData({ ...formData, nutrition: value })
+          )}
 
-        {/* Water */}
-        {renderSlider(
-          'Water Intake',
-          formData.water,
-          0,
-          12,
-          'glasses',
-          (value) => setFormData({ ...formData, water: value })
-        )}
+          {/* Water */}
+          {renderSlider(
+            'Water Intake',
+            formData.water,
+            0,
+            12,
+            'glasses',
+            (value) => setFormData({ ...formData, water: value })
+          )}
 
-        {/* Social */}
-        {renderSlider(
-          'Social Connection',
-          formData.social,
-          1,
-          10,
-          '/10',
-          (value) => setFormData({ ...formData, social: value })
-        )}
+          {/* Social */}
+          {renderSlider(
+            'Social Connection',
+            formData.social,
+            1,
+            10,
+            '/10',
+            (value) => setFormData({ ...formData, social: value })
+          )}
 
-        {/* Academic */}
-        {renderSlider(
-          'Academic Progress',
-          formData.academic,
-          1,
-          10,
-          '/10',
-          (value) => setFormData({ ...formData, academic: value })
-        )}
+          {/* Academic */}
+          {renderSlider(
+            'Academic Progress',
+            formData.academic,
+            1,
+            10,
+            '/10',
+            (value) => setFormData({ ...formData, academic: value })
+          )}
+        </View>
 
-        {/* Notes */}
-        <View style={styles.notesContainer}>
-          <Text style={styles.notesLabel}>Additional Notes (Optional)</Text>
+        {/* Notes Section */}
+        <View style={styles.notesSection}>
+          <Text style={styles.sectionTitle}>Additional Notes</Text>
+          <Text style={styles.notesSubtitle}>How was your day? Any highlights or challenges? (Optional)</Text>
           <TextInput
             style={styles.notesInput}
             value={formData.notes}
             onChangeText={(text) => setFormData({ ...formData, notes: text })}
-            placeholder="How was your day? Any highlights or challenges?"
+            placeholder="Write about your day..."
             placeholderTextColor={theme.colors.textTertiary}
             multiline
             numberOfLines={4}
@@ -281,21 +353,9 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
           />
         </View>
 
-        <View style={styles.previewContainer}>
-          <Text style={styles.previewTitle}>Today's Wellness Score</Text>
-          <Text style={styles.previewScore}>
-            {Math.round(
-              (formData.mood * 0.25 +
-               Math.min(formData.sleep / 8, 1) * 10 * 0.20 +
-               Math.min(formData.exercise / 60, 1) * 10 * 0.15 +
-               formData.nutrition * 0.15 +
-               Math.min(formData.water / 8, 1) * 10 * 0.10 +
-               formData.social * 0.10 +
-               formData.academic * 0.05) * 10
-            ) / 10}/10
-          </Text>
-        </View>
-      </ScrollView>
+        <View style={styles.bottomPadding} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -305,11 +365,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  keyboardContainer: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingVertical: 15,
     backgroundColor: theme.colors.backgroundCard,
     borderBottomWidth: 1,
@@ -320,7 +383,7 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '500',
   },
   title: {
@@ -335,52 +398,129 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   saveButtonText: {
-    color: '#fff',
+    color: theme.colors.backgroundSecondary,
     fontSize: 16,
     fontWeight: '600',
   },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 24,
   },
-  dateContainer: {
-    alignItems: 'center',
-    marginBottom: 30,
+  
+  // Header Section
+  dateSection: {
+    paddingVertical: 20,
+    marginBottom: 20,
   },
-  dateText: {
+  greeting: {
     fontSize: 16,
     color: theme.colors.textSecondary,
     fontWeight: '500',
+    marginBottom: 4,
   },
-  sliderContainer: {
-    marginBottom: 30,
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 20,
-    borderRadius: 12,
+  dateText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    lineHeight: 22,
+  },
+  
+  // Score Section 
+  scoreSection: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  sliderHeader: {
+  scoreHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  scoreTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    flex: 1,
+    marginRight: 12,
+  },
+  scoreBadge: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  scoreValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: theme.colors.backgroundSecondary,
+  },
+  scoreSubtitle: {
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  
+  // Metrics Section
+  metricsSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 12,
+  },
+  metricItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  metricHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
-  sliderLabel: {
-    fontSize: 16,
+  metricLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  metricIcon: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.primary,
+    backgroundColor: theme.colors.backgroundSecondary,
+    width: 20,
+    height: 20,
+    textAlign: 'center',
+    lineHeight: 20,
+    borderRadius: 10,
+    marginRight: 12,
+  },
+  metricLabel: {
+    fontSize: 15,
     fontWeight: '600',
     color: theme.colors.textPrimary,
     flex: 1,
   },
-  sliderValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'theme.colors.primary',
+  metricValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.primary,
   },
   sliderWrapper: {
     marginVertical: 16,
@@ -391,9 +531,19 @@ const styles = StyleSheet.create({
     height: 40,
   },
   sliderThumb: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     width: 24,
     height: 24,
+    borderRadius: 12,
+  },
+  moodSliderThumb: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  sliderTrack: {
+    height: 6,
+    borderRadius: 3,
   },
   sliderLabels: {
     flexDirection: 'row',
@@ -406,64 +556,41 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   moodDescription: {
-    marginTop: 10,
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-  },
-  notesContainer: {
-    marginBottom: 30,
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  notesLabel: {
+    marginTop: 12,
     fontSize: 16,
     fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: 10,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+  },
+  
+  // Notes Section
+  notesSection: {
+    marginBottom: 20,
+  },
+  notesSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+    lineHeight: 18,
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: theme.colors.borderSecondary,
+    borderColor: theme.colors.border,
     borderRadius: 8,
-    padding: 12,
+    padding: 16,
     fontSize: 16,
     minHeight: 100,
-    backgroundColor: theme.colors.backgroundTertiary,
+    backgroundColor: theme.colors.backgroundSecondary,
     color: theme.colors.textPrimary,
+    textAlignVertical: 'top',
   },
-  previewContainer: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 30,
-  },
-  previewTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 10,
-  },
-  previewScore: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: theme.colors.success,
+  
+  bottomPadding: {
+    height: 40,
   },
 });
 

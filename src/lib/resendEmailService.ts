@@ -1,7 +1,8 @@
-import { emailTemplates } from './emailTemplates';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from './firebase';
 
-const RESEND_API_KEY = process.env.EXPO_PUBLIC_RESEND_API_KEY;
-const FROM_EMAIL = 'Campus Life <noreply@ronaldli.ca>'; // Using verified domain
+// Initialize Firebase Functions
+const functions = getFunctions(app);
 
 export interface EmailData {
   to: string;
@@ -13,89 +14,34 @@ export interface EmailData {
   };
 }
 
-// Send email using Resend API
+// Send email using secure Cloud Function (API key is now server-side)
 export const sendEmailWithResend = async (emailData: EmailData): Promise<{
   success: boolean;
   messageId?: string;
   error?: string;
 }> => {
   try {
-    // Check if API key is loaded
-    if (!RESEND_API_KEY) {
-      console.error('❌ Resend API key not found in environment variables');
-      return { success: false, error: 'Resend API key not configured' };
-    }
+    console.log('📧 Sending email via secure Cloud Function:', { to: emailData.to, type: emailData.type });
     
-    console.log('🔑 Using API key:', RESEND_API_KEY.substring(0, 10) + '...');
+    // Call the Firebase Cloud Function instead of direct API call
+    const sendEmail = httpsCallable(functions, 'sendEmail');
     
-    const { to, type, data } = emailData;
-    
-    let subject: string;
-    let html: string;
-    let text: string;
-    
-    if (type === 'email_verification') {
-      subject = emailTemplates.emailVerification.subject;
-      html = emailTemplates.emailVerification.html(data.name, data.verificationUrl);
-      text = emailTemplates.emailVerification.text(data.name, data.verificationUrl);
-    } else if (type === 'password_reset') {
-      subject = emailTemplates.passwordReset.subject;
-      html = emailTemplates.passwordReset.html(data.name, data.verificationUrl);
-      text = emailTemplates.passwordReset.text(data.name, data.verificationUrl);
-    } else {
-      return { success: false, error: 'Invalid email type' };
-    }
-
-    const payload = {
-      from: FROM_EMAIL,
-      to: [to],
-      subject,
-      html,
-      text
-    };
-
-    console.log('Sending email via Resend:', { to, subject, type });
-
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+    const result = await sendEmail({
+      to: emailData.to,
+      type: emailData.type,
+      emailData: emailData.data
     });
 
-    if (!response.ok) {
-      let errorData;
-      try {
-        errorData = await response.json();
-      } catch (e) {
-        errorData = await response.text();
-      }
-      
-      console.error('Resend API Error Details:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorData,
-        payload
-      });
-      
-      const errorMessage = typeof errorData === 'object' ? 
-        (errorData.message || errorData.error || 'Unknown API error') : 
-        errorData || response.statusText;
-        
-      throw new Error(`Resend API error (${response.status}): ${errorMessage}`);
-    }
-
-    const result = await response.json();
-    console.log('✅ Email sent successfully:', result);
+    const data = result.data as any;
+    console.log('✅ Email sent via Cloud Function:', data);
 
     return {
-      success: true,
-      messageId: result.id
+      success: data.success,
+      messageId: data.messageId,
+      error: data.error
     };
   } catch (error: any) {
-    console.error('❌ Failed to send email:', error);
+    console.error('❌ Failed to send email via Cloud Function:', error);
     return {
       success: false,
       error: error.message
@@ -103,7 +49,7 @@ export const sendEmailWithResend = async (emailData: EmailData): Promise<{
   }
 };
 
-// Test function to verify Resend integration
+// Test function to verify Resend integration via Cloud Function
 export const testResendIntegration = async (): Promise<{
   success: boolean;
   error?: string;
@@ -114,7 +60,7 @@ export const testResendIntegration = async (): Promise<{
       type: 'email_verification',
       data: {
         name: 'Test User',
-        verificationUrl: 'https://your-website.com/verify/email_verification/test-token-123',
+        verificationUrl: 'https://campus-life-verification.vercel.app/verify/email_verification/test-token-123',
         token: 'test-token-123'
       }
     };

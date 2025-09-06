@@ -59,6 +59,7 @@ export interface UserProfile {
 export interface WellnessEntry {
   id?: string;
   user_id: string;
+  date: string; // YYYY-MM-DD format
   mood: number;
   sleep_hours: number;
   exercise_minutes: number;
@@ -89,7 +90,7 @@ export interface Family {
 }
 
 // Auth functions
-export const signUpUser = async (email: string, password: string, fullName: string, userType: 'student' | 'parent') => {
+export const signUpUser = async (email: string, password: string, fullName: string, userType: 'student' | 'parent', sendVerificationEmail: boolean = true) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -129,25 +130,56 @@ export const signUpUser = async (email: string, password: string, fullName: stri
       });
     }
 
-    // Use custom email verification system (future-proof)
+    // Only send verification email if requested (allows deferring until all steps succeed)
+    let emailSent = false;
+    let verificationToken = '';
+    
+    if (sendVerificationEmail) {
+      // Use custom email verification system (future-proof)
+      const { createVerificationToken, sendVerificationEmail: sendEmail } = await import('./emailVerification');
+      
+      const tokenResult = await createVerificationToken(user.uid, email, 'email_verification');
+      if (tokenResult.error) {
+        console.error('Failed to create verification token:', tokenResult.error);
+        return { user, error: null, emailSent: false };
+      }
+      
+      const emailResult = await sendEmail(email, fullName, tokenResult.token, 'email_verification');
+      emailSent = emailResult.success;
+      verificationToken = tokenResult.token;
+    }
+    
+    return { 
+      user, 
+      error: null, 
+      emailSent,
+      verificationToken 
+    };
+  } catch (error: any) {
+    return { user: null, error: error.message, emailSent: false };
+  }
+};
+
+export const sendUserVerificationEmail = async (userId: string, email: string, fullName: string) => {
+  try {
+    // Use custom email verification system
     const { createVerificationToken, sendVerificationEmail } = await import('./emailVerification');
     
-    const tokenResult = await createVerificationToken(user.uid, email, 'email_verification');
+    const tokenResult = await createVerificationToken(userId, email, 'email_verification');
     if (tokenResult.error) {
       console.error('Failed to create verification token:', tokenResult.error);
-      return { user, error: null, emailSent: false };
+      return { success: false, error: tokenResult.error };
     }
     
     const emailResult = await sendVerificationEmail(email, fullName, tokenResult.token, 'email_verification');
     
     return { 
-      user, 
-      error: null, 
-      emailSent: emailResult.success,
+      success: emailResult.success, 
+      error: emailResult.error,
       verificationToken: tokenResult.token 
     };
   } catch (error: any) {
-    return { user: null, error: error.message, emailSent: false };
+    return { success: false, error: error.message };
   }
 };
 
@@ -448,10 +480,10 @@ export const joinFamily = async (inviteCode: string, studentId: string): Promise
     
     // Add student to family
     const updatedStudentIds = [...familyData.studentIds, studentId];
-    await setDoc(doc(db, 'families', familyDoc.id), {
+    await updateDoc(doc(db, 'families', familyDoc.id), {
       studentIds: updatedStudentIds,
       updated_at: Timestamp.now()
-    }, { merge: true });
+    });
     
     // Update the student's profile with the family ID
     await updateUserProfile(studentId, { family_id: familyDoc.id });
@@ -575,6 +607,15 @@ export interface Payment {
 // Message functions
 export const sendMessage = async (messageData: Omit<Message, 'id' | 'created_at'>): Promise<{ success: boolean; error?: string; messageId?: string }> => {
   try {
+    // Check if sender's email is verified
+    const senderProfile = await getUserProfile(messageData.from_user_id);
+    if (!senderProfile?.email_verified) {
+      return { 
+        success: false, 
+        error: 'Email verification required. Please verify your email address before sending messages.' 
+      };
+    }
+
     const message = {
       ...messageData,
       created_at: Timestamp.now(),
@@ -715,5 +756,234 @@ export const markMessageAsRead = async (messageId: string): Promise<{ success: b
   } catch (error: any) {
     console.error('Error marking message as read:', error);
     return { success: false, error: error.message };
+  }
+};
+
+// Item Request functions
+export interface ItemRequest {
+  id: string;
+  student_id: string;
+  parent_id: string;
+  item_name: string;
+  item_price?: number;
+  item_description?: string;
+  reason?: string;
+  status: 'pending' | 'approved' | 'declined';
+  created_at: any;
+  response_at?: any;
+}
+
+export const getItemRequestsForParent = async (parentId: string, limitCount: number = 50): Promise<ItemRequest[]> => {
+  try {
+    const q = query(
+      collection(db, 'item_requests'),
+      where('parent_id', '==', parentId),
+      orderBy('created_at', 'desc'),
+      limit(limitCount)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as ItemRequest));
+  } catch (error: any) {
+    // If orderBy fails due to missing index, fallback to client-side sorting
+    if (error.code === 'failed-precondition') {
+      console.log('Firestore index missing for item requests, using fallback query');
+      try {
+        const fallbackQuery = query(
+          collection(db, 'item_requests'),
+          where('parent_id', '==', parentId)
+        );
+        const querySnapshot = await getDocs(fallbackQuery);
+        const requests: ItemRequest[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          requests.push({ id: doc.id, ...doc.data() } as ItemRequest);
+        });
+        
+        return requests
+          .sort((a, b) => b.created_at.seconds - a.created_at.seconds)
+          .slice(0, limitCount);
+      } catch (fallbackError: any) {
+        console.error('Item requests fallback query failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
+    
+    // Handle permissions or other errors gracefully
+    if (error.code === 'permission-denied' || error.code === 'not-found') {
+      console.log('No permission or item requests not found, returning empty array');
+      return [];
+    }
+    
+    console.error('Error getting item requests for parent:', error);
+    throw error;
+  }
+};
+
+export const getItemRequestsForStudent = async (studentId: string, limitCount: number = 50): Promise<ItemRequest[]> => {
+  try {
+    const q = query(
+      collection(db, 'item_requests'),
+      where('student_id', '==', studentId),
+      orderBy('created_at', 'desc'),
+      limit(limitCount)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    } as ItemRequest));
+  } catch (error: any) {
+    // If orderBy fails due to missing index, fallback to client-side sorting
+    if (error.code === 'failed-precondition') {
+      console.log('Firestore index missing for student item requests, using fallback query');
+      try {
+        const fallbackQuery = query(
+          collection(db, 'item_requests'),
+          where('student_id', '==', studentId)
+        );
+        const querySnapshot = await getDocs(fallbackQuery);
+        const requests: ItemRequest[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          requests.push({ id: doc.id, ...doc.data() } as ItemRequest);
+        });
+        
+        return requests
+          .sort((a, b) => b.created_at.seconds - a.created_at.seconds)
+          .slice(0, limitCount);
+      } catch (fallbackError: any) {
+        console.error('Student item requests fallback query failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
+    
+    // Handle permissions or other errors gracefully  
+    if (error.code === 'permission-denied' || error.code === 'not-found') {
+      console.log('No permission or student item requests not found, returning empty array');
+      return [];
+    }
+    
+    console.error('Error getting item requests for student:', error);
+    throw error;
+  }
+};
+
+// Create a new item request
+export const createItemRequest = async (request: {
+  student_id: string;
+  parent_id: string;
+  item_name: string;
+  item_price?: number;
+  item_description?: string;
+  reason?: string;
+}): Promise<{ id: string; error?: string }> => {
+  try {
+    // Check if student's email is verified
+    const studentProfile = await getUserProfile(request.student_id);
+    if (!studentProfile?.email_verified) {
+      return { 
+        id: '', 
+        error: 'Email verification required. Please verify your email address before making requests.' 
+      };
+    }
+
+    // Debug logging
+    console.log('Creating item request with data:', {
+      student_id: request.student_id,
+      parent_id: request.parent_id,
+      item_name: request.item_name
+    });
+    
+    const itemRequest: any = {
+      student_id: request.student_id,
+      parent_id: request.parent_id,
+      item_name: request.item_name,
+      reason: request.reason,
+      status: 'pending' as const,
+      created_at: Timestamp.now(),
+    };
+    
+    // Only add optional fields if they have values
+    if (request.item_price !== undefined) {
+      itemRequest.item_price = request.item_price;
+    }
+    if (request.item_description !== undefined && request.item_description.trim() !== '') {
+      itemRequest.item_description = request.item_description;
+    }
+    
+    const docRef = await addDoc(collection(db, 'item_requests'), itemRequest);
+    console.log('Item request created with ID:', docRef.id);
+    return { id: docRef.id };
+  } catch (error: any) {
+    console.error('Error creating item request:', error);
+    return { id: '', error: error.message };
+  }
+};
+
+// Update item request status (approve/decline)
+export const updateItemRequestStatus = async (
+  requestId: string, 
+  status: 'approved' | 'declined',
+  responseNote?: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    await updateDoc(doc(db, 'item_requests', requestId), {
+      status,
+      response_at: Timestamp.now(),
+      response_note: responseNote,
+      updated_at: Timestamp.now()
+    });
+    
+    console.log(`Item request ${requestId} updated to ${status}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating item request:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Send item (create payment with item context)
+export const sendItemAsPayment = async (request: {
+  item_request_id: string;
+  parent_id: string;
+  student_id: string;
+  amount_cents: number;
+  provider: string;
+  item_name: string;
+  item_description?: string;
+  note?: string;
+}): Promise<{ id: string; error?: string }> => {
+  try {
+    const payment = {
+      parent_id: request.parent_id,
+      student_id: request.student_id,
+      intent_cents: request.amount_cents,
+      provider: request.provider,
+      status: 'initiated',
+      item_context: {
+        item_request_id: request.item_request_id,
+        item_name: request.item_name,
+        item_description: request.item_description,
+      },
+      note: request.note || `Item: ${request.item_name}`,
+      created_at: Timestamp.now(),
+      type: 'item_purchase'
+    };
+    
+    const docRef = await addDoc(collection(db, 'payments'), payment);
+    
+    // Update the item request to approved status
+    await updateItemRequestStatus(request.item_request_id, 'approved', 'Payment sent');
+    
+    console.log('Item payment created with ID:', docRef.id);
+    return { id: docRef.id };
+  } catch (error: any) {
+    console.error('Error sending item as payment:', error);
+    return { id: '', error: error.message };
   }
 };

@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 7.0.0"
+    "version": ">= 7.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -16,8 +17,23 @@
     },
     "preview": {
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "ios": {
         "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyC8j70Zk-rxngvd6eOHlrsQ0dIePKj4nks",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "campus-life-b0fd3.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "campus-life-b0fd3",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "campus-life-b0fd3.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "1028408297935",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:1028408297935:web:45a5f47a3a2d14f7482aba",
+        "EXPO_PUBLIC_RESEND_API_KEY": "re_9b7uhhxy_7dpYZtuYvahgXryuVXXS7rMz",
+        "EXPO_PUBLIC_PAYPAL_CLIENT_ID": "AUwfzm6qAkoeoQRjK--9ovv36PKtRndoZYnFIoACjhSCA8fqAuC-uXYC7nM06eS7eDcsheQg2wSpivQM",
+        "EXPO_PUBLIC_PAYPAL_CLIENT_SECRET": "EJgB1tqYXJCFxEmuZDT7hoTJSMvfm-_EsskwIKWmQZOoiUy4NgOf2TWwqZ7pYN_iPcHk7cx-ivFwjedM",
+        "EXPO_PUBLIC_PAYPAL_ENVIRONMENT": "sandbox"
       }
     },
     "production": {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { theme } from '../../styles/theme';
+import { formatDateForDisplay } from '../../utils/dateUtils';
 import { commonStyles } from '../../styles/components';
 import {
   View,
@@ -34,11 +35,10 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
+    return formatDateForDisplay(dateString, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -58,54 +58,52 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
 
   const renderStatsCard = () => (
     <View style={styles.statsContainer}>
-      <Text style={styles.statsTitle}>Your Wellness Stats</Text>
-      <View style={styles.statsGrid}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.currentStreak}</Text>
-          <Text style={styles.statLabel}>Day Streak</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.averageScore}</Text>
-          <Text style={styles.statLabel}>Avg Score</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.totalEntries}</Text>
-          <Text style={styles.statLabel}>Total Entries</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.weeklyAverage}</Text>
-          <Text style={styles.statLabel}>Weekly Avg</Text>
+      <View style={styles.statsHeader}>
+        <Text style={styles.statsTitle}>Wellness Overview</Text>
+        <View style={[styles.statusBadge, { 
+          backgroundColor: stats.currentStreak >= 3 ? '#10b981' : 
+                          stats.currentStreak >= 1 ? '#3b82f6' : '#f59e0b'
+        }]}>
+          <Text style={styles.statusBadgeText}>
+            {stats.currentStreak >= 3 ? 'ON TRACK' : 
+             stats.currentStreak >= 1 ? 'BUILDING' : 'GET STARTED'}
+          </Text>
         </View>
       </View>
+      <Text style={styles.statsSubtitle}>
+        {stats.currentStreak}-day streak • {stats.averageScore} avg score • {stats.totalEntries} total entries
+      </Text>
     </View>
   );
 
   const renderTimeFilter = () => (
-    <View style={styles.filterContainer}>
-      <TouchableOpacity
-        style={[styles.filterButton, timeFilter === 'week' && styles.filterButtonActive]}
-        onPress={() => setTimeFilter('week')}
-      >
-        <Text style={[styles.filterButtonText, timeFilter === 'week' && styles.filterButtonTextActive]}>
-          Week
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.filterButton, timeFilter === 'month' && styles.filterButtonActive]}
-        onPress={() => setTimeFilter('month')}
-      >
-        <Text style={[styles.filterButtonText, timeFilter === 'month' && styles.filterButtonTextActive]}>
-          Month
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.filterButton, timeFilter === 'all' && styles.filterButtonActive]}
-        onPress={() => setTimeFilter('all')}
-      >
-        <Text style={[styles.filterButtonText, timeFilter === 'all' && styles.filterButtonTextActive]}>
-          All Time
-        </Text>
-      </TouchableOpacity>
+    <View style={styles.filterSection}>
+      <View style={styles.segmentedControl}>
+        <TouchableOpacity
+          style={[styles.segment, styles.segmentFirst, timeFilter === 'week' && styles.segmentActive]}
+          onPress={() => setTimeFilter('week')}
+        >
+          <Text style={[styles.segmentText, timeFilter === 'week' && styles.segmentTextActive]}>
+            Week
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segment, timeFilter === 'month' && styles.segmentActive]}
+          onPress={() => setTimeFilter('month')}
+        >
+          <Text style={[styles.segmentText, timeFilter === 'month' && styles.segmentTextActive]}>
+            Month
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segment, styles.segmentLast, timeFilter === 'all' && styles.segmentActive]}
+          onPress={() => setTimeFilter('all')}
+        >
+          <Text style={[styles.segmentText, timeFilter === 'all' && styles.segmentTextActive]}>
+            All Time
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -113,8 +111,8 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
     <View style={styles.entryCard}>
       <View style={styles.entryHeader}>
         <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
-        <View style={styles.entryScore}>
-          <Text style={[styles.scoreText, { color: getScoreColor(item.wellnessScore) }]}>
+        <View style={[styles.statusBadge, { backgroundColor: getScoreColor(item.wellnessScore) }]}>
+          <Text style={styles.scoreText}>
             {item.wellnessScore}/10
           </Text>
         </View>
@@ -143,7 +141,7 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
 
       {item.notes && (
         <View style={styles.notesContainer}>
-          <Text style={styles.notesText}>{item.notes}</Text>
+          <Text style={styles.notesText}>"{item.notes}"</Text>
         </View>
       )}
     </View>
@@ -225,86 +223,84 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   statsContainer: {
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    paddingVertical: 12,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 15,
-  },
-  statsGrid: {
+  statsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  statCard: {
     alignItems: 'center',
-    flex: 1,
+    marginBottom: 4,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'theme.colors.primary',
+  statsTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
   },
-  statLabel: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginTop: 4,
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.backgroundCard,
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 4,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  filterButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
+    textTransform: 'uppercase',
+  },
+  statsSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    lineHeight: 16,
+  },
+  filterSection: {
+    marginBottom: 16,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 8,
+    padding: 2,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  filterButtonActive: {
-    backgroundColor: 'theme.colors.primary',
+  segmentFirst: {
+    borderTopLeftRadius: 6,
+    borderBottomLeftRadius: 6,
   },
-  filterButtonText: {
+  segmentLast: {
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  segmentActive: {
+    backgroundColor: theme.colors.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  segmentText: {
     fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textSecondary,
   },
-  filterButtonTextActive: {
-    color: '#fff',
+  segmentTextActive: {
+    color: theme.colors.textPrimary,
+    fontWeight: '600',
   },
   entryCard: {
-    backgroundColor: theme.colors.backgroundCard,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    paddingVertical: 16,
+    paddingHorizontal: 0,
   },
   entryHeader: {
     flexDirection: 'row',
@@ -317,15 +313,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.textPrimary,
   },
-  entryScore: {
-    backgroundColor: theme.colors.backgroundTertiary,
-    paddingHorizontal: 12,
+  statusBadge: {
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 16,
+    borderRadius: 12,
+    minWidth: 50,
+    alignItems: 'center',
   },
   scoreText: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '600',
+    color: 'white',
+    textTransform: 'uppercase',
   },
   entryDetails: {
     marginBottom: 8,
@@ -348,11 +347,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     paddingTop: 8,
+    marginTop: 8,
   },
   notesText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
+    fontSize: 13,
+    color: theme.colors.textTertiary,
     fontStyle: 'italic',
+    lineHeight: 16,
   },
   emptyContainer: {
     alignItems: 'center',

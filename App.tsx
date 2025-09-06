@@ -21,6 +21,7 @@ import { LoginScreen } from './src/screens/auth/LoginScreen';
 import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/auth/ResetPasswordScreen';
 import { PrivacyPolicyScreen } from './src/screens/shared/PrivacyPolicyScreen';
+import { NetworkStatusIndicator } from './src/components/NetworkStatusIndicator';
 
 const Stack = createStackNavigator<AuthStackParamList>();
 
@@ -212,6 +213,7 @@ export default function App() {
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Loading CampusLife...</Text>
         </View>
+        <NetworkStatusIndicator position="top" />
       </SafeAreaProvider>
     );
   }
@@ -270,6 +272,7 @@ export default function App() {
           </View>
         )}
       </NavigationContainer>
+      <NetworkStatusIndicator position="top" />
     </SafeAreaProvider>
   );
 }

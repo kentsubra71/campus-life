@@ -93,8 +93,8 @@ exports.createPayPalOrder = functions
                     }
                 }],
             application_context: {
-                return_url: `https://campus-life-verification.vercel.app/api/paypal-success`,
-                cancel_url: `https://campus-life-verification.vercel.app/api/paypal-cancel`,
+                return_url: `https://campus-life-auth-website.vercel.app/api/paypal-success`,
+                cancel_url: `https://campus-life-auth-website.vercel.app/api/paypal-cancel`,
                 brand_name: 'Campus Life',
                 user_action: 'PAY_NOW'
             }
@@ -229,7 +229,9 @@ exports.verifyPayPalPayment = functions
                 updateData.status = 'failed';
                 debugLog('verifyPayPalPayment', 'Payment capture failed', { captureStatus });
             }
+            // Update payment status immediately with faster write
             await paymentRef.update(updateData);
+            debugLog('verifyPayPalPayment', 'Payment status updated in database', { status: updateData.status });
             return {
                 success: captureStatus === 'COMPLETED' || captureStatus === 'PENDING',
                 status: captureStatus,

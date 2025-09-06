@@ -108,8 +108,8 @@ export const createPayPalOrder = functions
         }
       }],
       application_context: {
-        return_url: `https://campus-life-verification.vercel.app/api/paypal-success`,
-        cancel_url: `https://campus-life-verification.vercel.app/api/paypal-cancel`,
+        return_url: `https://campus-life-auth-website.vercel.app/api/paypal-success`,
+        cancel_url: `https://campus-life-auth-website.vercel.app/api/paypal-cancel`,
         brand_name: 'Campus Life',
         user_action: 'PAY_NOW'
       }

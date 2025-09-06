@@ -25,10 +25,10 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   const { addEntry, updateEntry, getEntryByDate, todayEntry, loadEntries } = useWellnessStore();
   const [formData, setFormData] = useState({
     rankings: {
-      sleep: 2,      
-      nutrition: 2,  
-      academics: 2,  
-      social: 2,     
+      sleep: 1,      // Best performing (rank 1)
+      nutrition: 2,  // Second best (rank 2) 
+      academics: 3,  // Third best (rank 3)
+      social: 4,     // Worst performing (rank 4)
     },
     overallMood: 5, // 1-10 mood slider
   });
@@ -76,7 +76,13 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
   const handleSave = async () => {
     const today = getTodayDateString();
     
-    console.log('💾 Saving wellness entry:', { formData, isEditing, todayEntry });
+    console.log('💾 Saving wellness entry:', { 
+      formData, 
+      rankings: formData.rankings,
+      overallMood: formData.overallMood,
+      isEditing, 
+      todayEntry 
+    });
     
     try {
       if (isEditing && todayEntry) {

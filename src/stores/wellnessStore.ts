@@ -417,29 +417,52 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           }
           
           // Convert Firebase entries to local format
-          const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
-            id: entry.id || '',
-            date: entry.date || getLocalDateString(entry.created_at.toDate()), // Use stored date or fallback to created_at
-            rankings: {
-              sleep: entry.sleep_ranking || 2, // Default to middle if not set
+          const entries: WellnessEntry[] = firebaseEntries.map(entry => {
+
+            // Use actual ranking data from Firebase or default to unique rankings
+            const rankings = {
+              sleep: entry.sleep_ranking || 1,
               nutrition: entry.nutrition_ranking || 2,
-              academics: entry.academics_ranking || 2,
-              social: entry.social_ranking || 2,
-            },
-            overallMood: entry.overall_mood || 5, // Default to middle mood
-            notes: entry.notes,
+              academics: entry.academics_ranking || 3,
+              social: entry.social_ranking || 4,
+            };
+            
+            // Validate rankings are unique (1-4) - if not, fix them
+            const usedRanks = new Set();
+            const validatedRankings = { sleep: 1, nutrition: 2, academics: 3, social: 4 };
+            
+            // Check if we have duplicate rankings
+            const rankValues = Object.values(rankings);
+            const hasDuplicates = rankValues.length !== new Set(rankValues).size;
+            
+            if (hasDuplicates) {
+              // Assign unique rankings 1-4
+              const categories = ['sleep', 'nutrition', 'academics', 'social'] as const;
+              categories.forEach((category, index) => {
+                validatedRankings[category] = index + 1;
+              });
+              console.warn('⚠️  Fixed duplicate rankings for entry:', entry.id, 'Original:', rankings, 'Fixed:', validatedRankings);
+            } else {
+              // Use original rankings if they're already unique
+              Object.assign(validatedRankings, rankings);
+            }
+            
+            const convertedEntry = {
+              id: entry.id || '',
+              date: entry.date || getLocalDateString(entry.created_at.toDate()), // Use stored date or fallback to created_at
+              rankings: validatedRankings,
+              overallMood: entry.overall_mood || 5, // Default to middle mood
+              notes: entry.notes,
             overallScore: calculateOverallScore({
               date: entry.date || getLocalDateString(entry.created_at.toDate()),
-              rankings: {
-                sleep: entry.sleep_ranking || 2,
-                nutrition: entry.nutrition_ranking || 2,
-                academics: entry.academics_ranking || 2,
-                social: entry.social_ranking || 2,
-              },
+              rankings: validatedRankings,
               overallMood: entry.overall_mood || 5,
               notes: entry.notes,
             }),
-          }));
+            };
+            
+            return convertedEntry;
+          });
 
           const today = getTodayDateString();
           const todayEntry = entries.find(entry => entry.date === today) || null;

@@ -52,23 +52,23 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
   }
 
   // Always prepare all data arrays, shift down by 1 to align with grid lines
-  const primaryData = data.map((point) => ({
-    value: point.sleep - 1, // Move down one position
+  const sleepData = data.map((point) => ({
+    value: point.sleep - 1,
     label: formatDateForChart(point.date, period),
   }));
 
   const nutritionData = data.map((point) => ({
-    value: point.nutrition - 1, // Move down one position
+    value: point.nutrition - 1,
     label: formatDateForChart(point.date, period),
   }));
 
   const academicsData = data.map((point) => ({
-    value: point.academics - 1, // Move down one position
+    value: point.academics - 1,
     label: formatDateForChart(point.date, period),
   }));
 
   const socialData = data.map((point) => ({
-    value: point.social - 1, // Move down one position
+    value: point.social - 1,
     label: formatDateForChart(point.date, period),
   }));
 
@@ -84,7 +84,8 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
       
       <View style={styles.chartContainer}>
         <LineChart
-          data={primaryData}
+          key={`${period}-${data.length}-${data[0]?.date || 'empty'}`}
+          data={sleepData}
           width={chartWidth}
           height={240}
           spacing={(chartWidth - 60) / Math.max(data.length - 1, 1)}
@@ -92,38 +93,34 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
           endSpacing={20}
           yAxisOffset={0}
           
-          // Primary line (Sleep) - Sharp lines, no curves
-          color='#64748b'
-          thickness={2.5}
-          hideLine1={!visibleSeries.sleep}
-          
-          // Multi-line configuration - Control visibility with hideLine properties
-          data2={nutritionData}
-          color2='#10b981'
-          thickness2={2.5}
-          hideLine2={!visibleSeries.nutrition}
-          
-          data3={academicsData}
-          color3='#f59e0b' 
-          thickness3={2.5}
-          hideLine3={!visibleSeries.academics}
-          
-          data4={socialData}
-          color4='#f43f5e'
-          thickness4={2.5}
-          hideLine4={!visibleSeries.social}
-          
-          // Enhanced data points
-          dataPointsColor1='#64748b'
-          dataPointsColor2='#10b981'
-          dataPointsColor3='#f59e0b'
-          dataPointsColor4='#f43f5e'
+          // Sleep line - Always visible, controlled by opacity
+          color={colors.sleep}
+          thickness={visibleSeries.sleep ? 2.5 : 0}
+          hideDataPoints={!visibleSeries.sleep}
+          dataPointsColor1={colors.sleep}
           dataPointsRadius={3}
           focusedDataPointRadius={5}
-          hideDataPoints1={!visibleSeries.sleep}
+          
+          // Nutrition line
+          data2={nutritionData}
+          color2={colors.nutrition}
+          thickness2={visibleSeries.nutrition ? 2.5 : 0}
           hideDataPoints2={!visibleSeries.nutrition}
+          dataPointsColor2={colors.nutrition}
+          
+          // Academics line  
+          data3={academicsData}
+          color3={colors.academics}
+          thickness3={visibleSeries.academics ? 2.5 : 0}
           hideDataPoints3={!visibleSeries.academics}
+          dataPointsColor3={colors.academics}
+          
+          // Social line
+          data4={socialData}
+          color4={colors.social}
+          thickness4={visibleSeries.social ? 2.5 : 0}
           hideDataPoints4={!visibleSeries.social}
+          dataPointsColor4={colors.social}
           
           // Subtle grid styling
           showVerticalLines={false}

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 import { theme } from '../../styles/theme';
 import { ChartDataPoint, formatDateForChart, getCategoryChartConfig } from '../../utils/chartDataTransform';
@@ -10,8 +10,33 @@ interface CategoriesChartProps {
 }
 
 const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
+  // Interactive legend state
+  const [visibleSeries, setVisibleSeries] = useState({
+    sleep: true,
+    nutrition: true,
+    academics: true,
+    social: true,
+  });
+
+  // Professional color palette
+  const colors = {
+    sleep: '#64748b', // slate
+    nutrition: '#10b981', // emerald 
+    academics: '#f59e0b', // amber
+    social: '#f43f5e', // rose
+  };
+  // Fixed container approach - chart must fit in card
   const screenWidth = Dimensions.get('window').width;
-  const chartWidth = screenWidth - 80; // Card padding (32) + chart margins (48)
+  const cardPadding = 32; // Total card padding
+  const containerWidth = screenWidth - cardPadding;
+  const chartWidth = containerWidth - 60; // Leave room for Y-axis and margins
+  
+  console.log('📊 Chart sizing:', { 
+    screenWidth, 
+    containerWidth, 
+    chartWidth, 
+    dataPoints: data.length
+  });
   const categoryConfig = getCategoryChartConfig();
 
   if (data.length === 0) {
@@ -26,26 +51,30 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
     );
   }
 
-  // Prepare data for multi-line chart
-  const primaryData = data.map((point, index) => ({
-    value: point.sleep,
+  // Always prepare all data arrays, shift down by 1 to align with grid lines
+  const primaryData = data.map((point) => ({
+    value: point.sleep - 1, // Move down one position
     label: formatDateForChart(point.date, period),
   }));
 
-  const nutritionData = data.map((point, index) => ({
-    value: point.nutrition,
+  const nutritionData = data.map((point) => ({
+    value: point.nutrition - 1, // Move down one position
     label: formatDateForChart(point.date, period),
   }));
 
-  const academicsData = data.map((point, index) => ({
-    value: point.academics,
+  const academicsData = data.map((point) => ({
+    value: point.academics - 1, // Move down one position
     label: formatDateForChart(point.date, period),
   }));
 
-  const socialData = data.map((point, index) => ({
-    value: point.social,
+  const socialData = data.map((point) => ({
+    value: point.social - 1, // Move down one position
     label: formatDateForChart(point.date, period),
   }));
+
+  const toggleSeries = (series: keyof typeof visibleSeries) => {
+    setVisibleSeries(prev => ({ ...prev, [series]: !prev[series] }));
+  };
 
 
   return (
@@ -56,71 +85,65 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
       <View style={styles.chartContainer}>
         <LineChart
           data={primaryData}
-          
           width={chartWidth}
           height={260}
-          spacing={data.length > 1 ? Math.max(40, (chartWidth - 100) / data.length) : 60}
-          initialSpacing={30}
-          endSpacing={30}
+          spacing={(chartWidth - 40) / Math.max(data.length - 1, 1)}
+          initialSpacing={0}
+          endSpacing={0}
+          yAxisOffset={0}
+          xAxisOffset={0}
           
           // Primary line (Sleep)
-          color={categoryConfig.sleep.color}
-          thickness={3}
-          curved
-          curvature={0.3}
-          areaChart
-          startFillColor={`${categoryConfig.sleep.color}20`}
-          endFillColor={`${categoryConfig.sleep.color}05`}
-          startOpacity={0.4}
-          endOpacity={0.1}
+          color='#64748b'
+          thickness={2}
           
-          // Second line (Nutrition)
-          data2={nutritionData}
-          color2={categoryConfig.nutrition.color}
-          thickness2={3}
-          curved2
-          curvature2={0.3}
+          // Multi-line configuration - Control visibility with colors
+          data2={visibleSeries.nutrition ? nutritionData : []}
+          color2='#10b981'
+          thickness2={2}
           
-          // Third line (Academics)
-          data3={academicsData}
-          color3={categoryConfig.academics.color}
-          thickness3={3}
-          curved3
-          curvature3={0.3}
+          data3={visibleSeries.academics ? academicsData : []}
+          color3='#f59e0b'
+          thickness3={2}
           
-          // Fourth line (Social)
-          data4={socialData}
-          color4={categoryConfig.social.color}
-          thickness4={3}
-          curved4
-          curvature4={0.3}
+          data4={visibleSeries.social ? socialData : []}
+          color4='#f43f5e'
+          thickness4={2}
           
-          // Data points
-          dataPointsColor1={categoryConfig.sleep.color}
-          dataPointsColor2={categoryConfig.nutrition.color}
-          dataPointsColor3={categoryConfig.academics.color}
-          dataPointsColor4={categoryConfig.social.color}
-          dataPointsRadius={4}
-          hideDataPoints1={false}
-          hideDataPoints2={false}
-          hideDataPoints3={false}
-          hideDataPoints4={false}
+          // Enhanced data points
+          dataPointsColor1='#64748b'
+          dataPointsColor2='#10b981'
+          dataPointsColor3='#f59e0b'
+          dataPointsColor4='#f43f5e'
+          dataPointsRadius={3}
+          focusedDataPointRadius={5}
+          hideDataPoints1={!visibleSeries.sleep}
+          hideDataPoints2={!visibleSeries.nutrition}
+          hideDataPoints3={!visibleSeries.academics}
+          hideDataPoints4={!visibleSeries.social}
           
-          // Grid and axes
+          // Subtle grid styling
           showVerticalLines={false}
           showHorizontalLines={true}
-          horizontalLinesColor={theme.colors.border}
-          yAxisColor={theme.colors.border}
-          xAxisColor={theme.colors.border}
+          horizontalLinesColor={`${theme.colors.border}25`}
+          yAxisColor={`${theme.colors.border}60`}
+          xAxisColor={`${theme.colors.border}60`}
           
-          // Y-axis configuration (1-4 scale)
+          // Y-axis configuration - Simple 1-4 scale
           yAxisMinValue={1}
           yAxisMaxValue={4}
           noOfSections={3}
+          stepValue={1}
           yAxisLabelTexts={['1', '2', '3', '4']}
           yAxisTextStyle={{
             color: theme.colors.textTertiary,
-            fontSize: 12,
+            fontSize: 10,
+            fontWeight: '500',
+          }}
+          xAxisLabelTextStyle={{
+            color: theme.colors.textTertiary,
+            fontSize: 9,
+            fontWeight: '400',
           }}
           
           // X-axis labels
@@ -139,38 +162,37 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
           tooltipBgColor={theme.colors.backgroundCard}
           tooltipTextColor={theme.colors.textPrimary}
           
-          // Responsive sizing
-          adjustToWidth={true}
         />
       </View>
       
-      {/* Legend */}
-      <View style={styles.legend}>
-        <View style={styles.legendRow}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: categoryConfig.sleep.color }]} />
-            <Text style={styles.legendText}>Sleep</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: categoryConfig.nutrition.color }]} />
-            <Text style={styles.legendText}>Nutrition</Text>
-          </View>
-        </View>
-        <View style={styles.legendRow}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: categoryConfig.academics.color }]} />
-            <Text style={styles.legendText}>Academics</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: categoryConfig.social.color }]} />
-            <Text style={styles.legendText}>Social</Text>
-          </View>
-        </View>
+      {/* Interactive Legend */}
+      <View style={styles.interactiveLegend}>
+        {Object.entries(colors).map(([key, color]) => {
+          const isVisible = visibleSeries[key as keyof typeof visibleSeries];
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.legendButton,
+                { opacity: isVisible ? 1 : 0.4 }
+              ]}
+              onPress={() => toggleSeries(key as keyof typeof visibleSeries)}
+              accessibilityRole="button"
+              accessibilityState={{ pressed: isVisible }}
+              accessibilityLabel={`${isVisible ? 'Hide' : 'Show'} ${key} data`}
+            >
+              <View style={[styles.legendDot, { backgroundColor: color }]} />
+              <Text style={[styles.legendLabel, { opacity: isVisible ? 1 : 0.6 }]}>
+                {key.charAt(0).toUpperCase() + key.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
       
-      {/* Performance Note */}
-      <View style={styles.noteContainer}>
-        <Text style={styles.noteText}>Higher position = better performance in that area</Text>
+      {/* Rank explanation */}
+      <View style={styles.rankExplanation}>
+        <Text style={styles.rankText}>Rank 4 = Best Performance • Rank 1 = Needs Improvement</Text>
       </View>
     </View>
   );
@@ -182,6 +204,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   title: {
     fontSize: 18,
@@ -198,43 +225,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 16,
     paddingBottom: 20,
+    overflow: 'hidden',
   },
-  legend: {
-    marginTop: 16,
-  },
-  legendRow: {
+  interactiveLegend: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-around',
-    marginBottom: 8,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: `${theme.colors.border}15`,
   },
-  legendItem: {
+  legendButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
   },
-  legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 2,
-    marginRight: 6,
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
   },
-  legendText: {
+  legendLabel: {
     fontSize: 12,
     color: theme.colors.textSecondary,
     fontWeight: '500',
   },
-  noteContainer: {
+  rankExplanation: {
+    alignItems: 'center',
     marginTop: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
   },
-  noteText: {
-    fontSize: 11,
+  rankText: {
+    fontSize: 10,
     color: theme.colors.textTertiary,
-    textAlign: 'center',
-    fontStyle: 'italic',
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   emptyState: {
     alignItems: 'center',

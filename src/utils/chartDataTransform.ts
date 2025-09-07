@@ -48,6 +48,42 @@ export const transformEntriesForCharts = (entries: WellnessEntry[]): ChartDataPo
     }));
 };
 
+// Filter entries by date range based on period
+export const filterEntriesByPeriod = (
+  entries: WellnessEntry[],
+  period: 'daily' | 'weekly' | 'monthly'
+): WellnessEntry[] => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  let cutoffDate: Date;
+  
+  switch (period) {
+    case 'daily':
+      // Last 7 days
+      cutoffDate = new Date(today);
+      cutoffDate.setDate(today.getDate() - 6); // 7 days including today
+      break;
+    case 'weekly':
+      // Last 4 weeks (1 month)
+      cutoffDate = new Date(today);
+      cutoffDate.setDate(today.getDate() - 28); // 4 weeks
+      break;
+    case 'monthly':
+      // Last 12 months
+      cutoffDate = new Date(today);
+      cutoffDate.setMonth(today.getMonth() - 11); // 12 months including current
+      break;
+    default:
+      cutoffDate = new Date(0); // Return all entries
+  }
+
+  return entries.filter(entry => {
+    const entryDate = new Date(entry.date);
+    return entryDate >= cutoffDate;
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+};
+
 // Group entries by time period
 export const groupEntriesByPeriod = (
   entries: WellnessEntry[], 

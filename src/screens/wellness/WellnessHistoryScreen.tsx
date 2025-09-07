@@ -16,6 +16,7 @@ import CategoriesChart from '../../components/charts/CategoriesChart';
 import WellnessInsightsCard from '../../components/charts/WellnessInsightsCard';
 import { 
   transformEntriesForCharts, 
+  filterEntriesByPeriod,
   groupEntriesByPeriod, 
   calculateWellnessInsights 
 } from '../../utils/chartDataTransform';
@@ -55,20 +56,17 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
       overallMood: e.overallMood
     })));
 
-    // Get entries for the selected time period (last 30 days max for performance)
-    const recentEntries = entries
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 30);
-
-    console.log('📅 Recent entries for', timeFilter, ':', recentEntries.length);
+    // Filter entries by appropriate date range for each period
+    const dateFilteredEntries = filterEntriesByPeriod(entries, timeFilter);
+    console.log('📅 Date filtered entries for', timeFilter, ':', dateFilteredEntries.length);
     
-    const filteredEntries = groupEntriesByPeriod(recentEntries, timeFilter);
+    const filteredEntries = groupEntriesByPeriod(dateFilteredEntries, timeFilter);
     console.log('📈 Filtered entries:', filteredEntries.length);
     
     const chartData = transformEntriesForCharts(filteredEntries);
     console.log('📊 Chart data generated:', chartData.length, 'points');
     
-    const insights = calculateWellnessInsights(recentEntries, timeFilter);
+    const insights = calculateWellnessInsights(dateFilteredEntries, timeFilter);
 
     return { filteredEntries, chartData, insights };
   }, [entries, timeFilter]);

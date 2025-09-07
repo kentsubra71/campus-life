@@ -87,6 +87,19 @@ export interface Family {
   updated_at: Timestamp;
 }
 
+export interface FamilyJoinRequest {
+  id: string;
+  familyId: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  status: 'pending' | 'approved' | 'denied';
+  requestedAt: Timestamp;
+  processedAt?: Timestamp;
+  processedBy?: string; // Parent ID who approved/denied
+  reason?: string; // Reason for denial
+}
+
 // Auth functions
 export const signUpUser = async (email: string, password: string, fullName: string, userType: 'student' | 'parent', sendVerificationEmail: boolean = true) => {
   try {
@@ -458,6 +471,74 @@ export const createFamily = async (familyName: string, parentId: string): Promis
   }
 };
 
+export const requestToJoinFamily = async (
+  inviteCode: string,
+  studentId: string,
+  studentName: string,
+  studentEmail: string
+): Promise<{ requestId?: string; familyName?: string; error?: string }> => {
+  try {
+    // Find family by invite code
+    const q = query(collection(db, 'families'), where('inviteCode', '==', inviteCode));
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) {
+      return { error: 'Invalid invite code' };
+    }
+    
+    const familyDoc = querySnapshot.docs[0];
+    const familyData = familyDoc.data() as Family;
+    
+    // Check if student is already in the family
+    if (familyData.studentIds.includes(studentId)) {
+      return { error: 'Student is already a member of this family' };
+    }
+    
+    // Check if family has reached the 10 student limit
+    if (familyData.studentIds.length >= 10) {
+      return { error: 'This family has reached the maximum limit of 10 students' };
+    }
+    
+    // Check if there's already a pending request for this student and family
+    const existingRequestQuery = query(
+      collection(db, 'family_join_requests'),
+      where('familyId', '==', familyDoc.id),
+      where('studentId', '==', studentId),
+      where('status', '==', 'pending')
+    );
+    const existingRequests = await getDocs(existingRequestQuery);
+    
+    if (!existingRequests.empty) {
+      return { error: 'You already have a pending request to join this family' };
+    }
+    
+    // Create join request
+    const requestData: Omit<FamilyJoinRequest, 'id'> = {
+      familyId: familyDoc.id,
+      studentId,
+      studentName,
+      studentEmail,
+      status: 'pending',
+      requestedAt: Timestamp.now()
+    };
+    
+    const requestDoc = await addDoc(collection(db, 'family_join_requests'), requestData);
+    
+    console.log(`📝 Created family join request ${requestDoc.id} for student ${studentName} to join ${familyData.name}`);
+    
+    // Send notification to parents about the new join request
+    await notifyParentsOfJoinRequest(familyDoc.id, studentName, familyData.name);
+    
+    return { 
+      requestId: requestDoc.id,
+      familyName: familyData.name
+    };
+  } catch (error: any) {
+    console.error('Error creating family join request:', error);
+    return { error: error.message };
+  }
+};
+
 export const joinFamily = async (inviteCode: string, studentId: string): Promise<{ familyId?: string; error?: string }> => {
   try {
     // Find family by invite code
@@ -490,6 +571,138 @@ export const joinFamily = async (inviteCode: string, studentId: string): Promise
   } catch (error: any) {
     console.error('Error joining family:', error);
     return { error: error.message };
+  }
+};
+
+// Notify parents of new join request
+const notifyParentsOfJoinRequest = async (familyId: string, studentName: string, familyName: string) => {
+  try {
+    // This would integrate with your push notification system
+    console.log(`🔔 Would notify parents of ${familyName} about join request from ${studentName}`);
+    // TODO: Implement actual push notification to parents
+  } catch (error) {
+    console.error('Error notifying parents:', error);
+  }
+};
+
+// Get pending family join requests for a parent
+export const getPendingFamilyJoinRequests = async (familyId: string): Promise<FamilyJoinRequest[]> => {
+  try {
+    const q = query(
+      collection(db, 'family_join_requests'),
+      where('familyId', '==', familyId),
+      where('status', '==', 'pending')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const requests: FamilyJoinRequest[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      requests.push({ id: doc.id, ...doc.data() } as FamilyJoinRequest);
+    });
+    
+    console.log(`📋 Found ${requests.length} pending join requests for family ${familyId}`);
+    return requests;
+  } catch (error: any) {
+    console.error('Error getting pending join requests:', error);
+    return [];
+  }
+};
+
+// Approve a family join request
+export const approveJoinRequest = async (
+  requestId: string,
+  parentId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Get the request details
+    const requestDoc = await getDoc(doc(db, 'family_join_requests', requestId));
+    if (!requestDoc.exists()) {
+      return { success: false, error: 'Join request not found' };
+    }
+    
+    const requestData = requestDoc.data() as FamilyJoinRequest;
+    
+    if (requestData.status !== 'pending') {
+      return { success: false, error: 'This request has already been processed' };
+    }
+    
+    // Add student to family using existing joinFamily logic
+    const familyDoc = await getDoc(doc(db, 'families', requestData.familyId));
+    if (!familyDoc.exists()) {
+      return { success: false, error: 'Family not found' };
+    }
+    
+    const familyData = familyDoc.data() as Family;
+    
+    // Check if family has reached the 10 student limit
+    if (familyData.studentIds.length >= 10) {
+      return { success: false, error: 'This family has reached the maximum limit of 10 students' };
+    }
+    
+    // Add student to family
+    const updatedStudentIds = [...familyData.studentIds, requestData.studentId];
+    await updateDoc(doc(db, 'families', requestData.familyId), {
+      studentIds: updatedStudentIds,
+      updated_at: Timestamp.now()
+    });
+    
+    // Update the student's profile with the family ID
+    await updateUserProfile(requestData.studentId, { family_id: requestData.familyId });
+    
+    // Update the request status
+    await updateDoc(doc(db, 'family_join_requests', requestId), {
+      status: 'approved',
+      processedAt: Timestamp.now(),
+      processedBy: parentId
+    });
+    
+    console.log(`✅ Approved join request ${requestId} for student ${requestData.studentName}`);
+    
+    // TODO: Send notification to student about approval
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error approving join request:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Deny a family join request
+export const denyJoinRequest = async (
+  requestId: string,
+  parentId: string,
+  reason?: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // Get the request details
+    const requestDoc = await getDoc(doc(db, 'family_join_requests', requestId));
+    if (!requestDoc.exists()) {
+      return { success: false, error: 'Join request not found' };
+    }
+    
+    const requestData = requestDoc.data() as FamilyJoinRequest;
+    
+    if (requestData.status !== 'pending') {
+      return { success: false, error: 'This request has already been processed' };
+    }
+    
+    // Update the request status
+    await updateDoc(doc(db, 'family_join_requests', requestId), {
+      status: 'denied',
+      processedAt: Timestamp.now(),
+      processedBy: parentId,
+      reason: reason || 'Request denied by parent'
+    });
+    
+    console.log(`❌ Denied join request ${requestId} for student ${requestData.studentName}`);
+    
+    // TODO: Send notification to student about denial
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error denying join request:', error);
+    return { success: false, error: error.message };
   }
 };
 

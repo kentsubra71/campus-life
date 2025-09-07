@@ -31,7 +31,7 @@ import { cache, CACHE_CONFIGS } from '../../utils/universalCache';
 
 interface ActivityItem {
   id: string;
-  type: 'payment' | 'message' | 'item_request';
+  type: 'payment' | 'message' | 'item_request' | 'support_request';
   timestamp: Date;
   amount?: number;
   provider?: string;
@@ -57,7 +57,7 @@ interface ActivityHistoryScreenProps {
 }
 
 type FilterPeriod = 'day' | 'week' | 'month' | 'all';
-type FilterType = 'all' | 'payments' | 'messages' | 'items';
+type FilterType = 'all' | 'payments' | 'messages' | 'items' | 'support';
 
 export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
@@ -66,6 +66,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   const [displayedActivities, setDisplayedActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('month');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [currentPage, setCurrentPage] = useState(0);
@@ -192,13 +193,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     
     initializeData();
 
-    // Set up auto-reload every 10 seconds
+    // Set up auto-reload every 15 seconds (reduced from 10)
     const autoReloadInterval = setInterval(() => {
       console.log('🔄 Auto-reloading activity history...');
       loadActivities(true);
-    }, 10000);
+    }, 15000);
 
-    // Set up more frequent checking for processing payments (every 3 seconds)
+    // Set up more frequent checking for processing payments (every 2 seconds - increased frequency)
     const frequentCheckInterval = setInterval(() => {
       const hasProcessingPayments = activities.some(activity => 
         activity.type === 'payment' && 
@@ -209,7 +210,23 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         console.log('🔄 Quick check for processing payments...');
         loadActivities(true);
       }
-    }, 3000);
+    }, 2000);
+
+    // Set up ultra-frequent checking for very recent processing payments (every 1 second for first 30 seconds)
+    const ultraFrequentCheckInterval = setInterval(() => {
+      const now = new Date();
+      const recentProcessingPayments = activities.some(activity => 
+        activity.type === 'payment' && 
+        (activity.status === 'initiated' || activity.status === 'pending' || activity.status === 'processing') &&
+        activity.timestamp &&
+        (now.getTime() - activity.timestamp.getTime()) < 30000 // Within last 30 seconds
+      );
+      
+      if (recentProcessingPayments) {
+        console.log('⚡ Ultra-quick check for very recent processing payments...');
+        loadActivities(true);
+      }
+    }, 1000);
 
     // Set up PayPal auto-verification (every 10 seconds) - will be created later when activities are loaded
 
@@ -217,15 +234,20 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     return () => {
       clearInterval(autoReloadInterval);
       clearInterval(frequentCheckInterval);
+      clearInterval(ultraFrequentCheckInterval);
     };
   }, []);
 
   // Save seen activities when app goes to background or component unmounts
+  // Also refresh when app comes back to foreground (user might have completed payments)
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
         console.log('📱 App going to background, saving seen activities');
         saveSeenActivities(seenActivityIds);
+      } else if (nextAppState === 'active') {
+        console.log('📱 App returning to foreground, refreshing activities...');
+        loadActivities(true); // Immediate refresh when app becomes active
       }
     };
 
@@ -263,6 +285,20 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
     if (hasPayPalProcessing) {
       console.log('⚡ Starting PayPal auto-verification timer...');
+      
+      // Check if there are very recent PayPal payments (last 2 minutes) - use faster verification
+      const now = new Date();
+      const hasRecentPayPalProcessing = activities.some(activity => 
+        activity.type === 'payment' && 
+        activity.provider === 'paypal' &&
+        (activity.status === 'initiated' || activity.status === 'pending' || activity.status === 'processing') &&
+        activity.timestamp &&
+        (now.getTime() - activity.timestamp.getTime()) < 120000 // Within last 2 minutes
+      );
+      
+      const verificationInterval = hasRecentPayPalProcessing ? 3000 : 10000; // 3s for recent, 10s for older
+      console.log(`💙 Using ${verificationInterval/1000}s PayPal verification interval (recent payments: ${hasRecentPayPalProcessing})`);
+      
       paypalVerifyInterval = setInterval(async () => {
         console.log('💙 Running scheduled PayPal auto-verification...');
         try {
@@ -277,7 +313,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         } catch (error) {
           console.error('⚠️ PayPal auto-verification failed:', error);
         }
-      }, 10000);
+      }, verificationInterval);
     }
 
     // Cleanup
@@ -311,6 +347,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       // Show appropriate loading state
       if (!isRefresh && activities.length === 0) {
         setLoading(true);
+      } else if (isRefresh && activities.length > 0) {
+        setBackgroundRefreshing(true);
       }
       
       console.log(`🔄 Loading activities from database (${isRefresh ? 'refresh' : 'initial'})...`);
@@ -356,7 +394,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           provider: payment.provider,
           status: payment.status,
           note: payment.note,
-          student_name: studentName
+          student_name: studentName,
+          student_id: studentId // Include student ID for reliable retry payments
         });
       }
 
@@ -440,6 +479,53 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         }
       } catch (requestsError) {
         console.log('Item requests query failed, trying fallback...', requestsError);
+      }
+
+      // Load support requests - limit to latest 10
+      try {
+        const { getUserProfile } = await import('../../lib/firebase');
+        const userProfile = await getUserProfile(user.id);
+        
+        if (userProfile?.family_id) {
+          const supportRequestsQuery = query(
+            collection(db, 'support_requests'),
+            where('family_id', '==', userProfile.family_id),
+            orderBy('created_at', 'desc'),
+            limit(10)
+          );
+          const supportRequestsSnapshot = await getDocs(supportRequestsQuery);
+          
+          console.log(`🆘 Found ${supportRequestsSnapshot.size} support requests (latest 10)`);
+          
+          for (const doc of supportRequestsSnapshot.docs) {
+            const supportRequest = doc.data();
+            const requesterId = supportRequest.from_user_id;
+            
+            // Check cache first for requester name
+            let requesterName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${requesterId}`)) as string || '';
+            if (!requesterName) {
+              const requesterQuery = query(
+                collection(db, 'users'),
+                where('id', '==', requesterId)
+              );
+              const requesterSnapshot = await getDocs(requesterQuery);
+              requesterName = requesterSnapshot.docs[0]?.data()?.full_name || 'Student';
+              await cache.set(CACHE_CONFIGS.STUDENT_NAMES, requesterName, `${user.id}_${requesterId}`);
+            }
+
+            allActivities.push({
+              id: doc.id,
+              type: 'support_request',
+              timestamp: supportRequest.created_at && supportRequest.created_at.toDate ? supportRequest.created_at.toDate() : new Date(),
+              status: supportRequest.acknowledged ? 'acknowledged' : 'pending',
+              message_content: supportRequest.message,
+              student_name: requesterName,
+              student_id: requesterId
+            });
+          }
+        }
+      } catch (supportRequestsError) {
+        console.log('Support requests query failed:', supportRequestsError);
       }
 
       // Sort all activities by timestamp (newest first)
@@ -529,6 +615,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       logError(error, 'Loading activity history', { userId: user.id });
     } finally {
       setLoading(false);
+      setBackgroundRefreshing(false);
       if (isRefresh) {
         setRefreshing(false);
       }
@@ -599,6 +686,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         filtered = filtered.filter(activity => activity.type === 'payment');
       } else if (filterType === 'messages') {
         filtered = filtered.filter(activity => activity.type === 'message');
+      } else if (filterType === 'support') {
+        filtered = filtered.filter(activity => activity.type === 'support_request');
       }
     }
 
@@ -748,6 +837,41 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     }
   };
 
+  const handleAcknowledgeSupport = async (requestId: string, studentName: string) => {
+    Alert.alert(
+      'Acknowledge Support Request',
+      `Let ${studentName} know you've seen their support request and will help them.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Acknowledge', 
+          onPress: async () => {
+            try {
+              const { doc, updateDoc } = await import('firebase/firestore');
+              await updateDoc(doc(db, 'support_requests', requestId), {
+                acknowledged: true,
+                acknowledged_at: new Date(),
+                acknowledged_by: user?.id
+              });
+              
+              // Refresh activities to show updated status
+              loadActivities(true);
+              
+              Alert.alert(
+                'Support Acknowledged',
+                `${studentName} will be notified that you've seen their request.`,
+                [{ text: 'OK' }]
+              );
+            } catch (error) {
+              console.error('Error acknowledging support request:', error);
+              Alert.alert('Error', 'Failed to acknowledge support request. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const getPeriodLabel = (period: FilterPeriod) => {
     switch (period) {
       case 'day': return 'Past Day';
@@ -779,6 +903,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         case 'pending': return '#f59e0b';
         default: return '#9ca3af';
       }
+    } else if (type === 'support_request') {
+      switch (status) {
+        case 'acknowledged': return '#10b981';
+        case 'pending': return '#dc2626';
+        default: return '#9ca3af';
+      }
     } else {
       switch (status) {
         case 'read': return '#10b981';
@@ -806,6 +936,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         case 'approved': return 'Approved';
         case 'denied': return 'Denied';
         case 'pending': return 'Pending';
+        default: return status;
+      }
+    } else if (type === 'support_request') {
+      switch (status) {
+        case 'acknowledged': return 'Acknowledged';
+        case 'pending': return 'Needs Response';
         default: return status;
       }
     } else {
@@ -870,6 +1006,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       return;
     }
 
+    console.log('🔄 Starting retry payment for:', {
+      amount: payment.amount,
+      student_name: payment.student_name,
+      provider: payment.provider,
+      payment_id: payment.id
+    });
+
     Alert.alert(
       'Retry Payment',
       `Retry sending $${payment.amount.toFixed(2)} via ${payment.provider?.charAt(0).toUpperCase()}${payment.provider?.slice(1)} to ${payment.student_name.split(' ')[0]}?`,
@@ -879,31 +1022,72 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           text: 'Retry Payment',
           onPress: async () => {
             try {
-              // Get the student ID from family members or from the original payment
-              const { getFamilyMembers } = useAuthStore.getState();
-              const familyMembers = await getFamilyMembers();
-              const targetStudent = familyMembers.students.find(s => 
-                s.name === payment.student_name
-              );
+              let targetStudent: { id: string; name: string } | undefined;
+              
+              // First try using direct student_id if available (most reliable)
+              if (payment.student_id) {
+                console.log('🎯 Using direct student ID:', payment.student_id);
+                targetStudent = { id: payment.student_id, name: payment.student_name || 'Student' };
+              } else {
+                // Fallback to family member lookup by name
+                console.log('👥 Loading family members for name lookup...');
+                const { getFamilyMembers } = useAuthStore.getState();
+                const familyMembers = await getFamilyMembers();
+                console.log('👥 Family members loaded:', {
+                  students: familyMembers.students.map(s => ({ id: s.id, name: s.name }))
+                });
+                
+                // Try exact match first, then partial match
+                targetStudent = familyMembers.students.find(s => 
+                  s.name === payment.student_name
+                );
+                
+                if (!targetStudent) {
+                  console.log('🔍 Exact match failed, trying partial match...');
+                  // Try partial match (in case names are formatted differently)
+                  targetStudent = familyMembers.students.find(s => 
+                    s.name.includes(payment.student_name || '') || 
+                    (payment.student_name && payment.student_name.includes(s.name)) ||
+                    s.name.toLowerCase() === payment.student_name?.toLowerCase()
+                  );
+                }
 
-              if (!targetStudent) {
-                Alert.alert('Error', 'Unable to find student for retry payment.');
-                return;
+                if (!targetStudent) {
+                  console.error('❌ No student found for retry payment:', {
+                    searching_for: payment.student_name,
+                    available_students: familyMembers.students.map(s => s.name)
+                  });
+                  Alert.alert('Error', `Unable to find student "${payment.student_name}" in your family. Please try creating a new payment instead.`);
+                  return;
+                }
               }
+              
+              console.log('✅ Found target student:', targetStudent);
 
               const amountCents = Math.round(payment.amount! * 100);
               const provider = payment.provider as 'paypal' | 'venmo' | 'cashapp' | 'zelle';
+              
+              console.log('💰 Creating retry payment:', {
+                studentId: targetStudent.id,
+                amountCents,
+                provider,
+                note: payment.note
+              });
 
               if (provider === 'paypal') {
                 // Use PayPal P2P system
+                console.log('💙 Creating PayPal P2P order...');
                 const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
                 const result = await createPayPalP2POrder(
                   targetStudent.id,
                   amountCents,
                   payment.note || `Retry payment: $${payment.amount?.toFixed(2) || '0.00'}`
                 );
+                
+                console.log('💙 PayPal P2P result:', result);
 
                 if (result.success && result.approvalUrl) {
+                  console.log('✅ PayPal order created, opening URL:', result.approvalUrl);
                   // Open PayPal for payment
                   const { Linking } = await import('react-native');
                   await Linking.openURL(result.approvalUrl);
@@ -916,10 +1100,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                   
                   loadActivities(true); // Refresh activities
                 } else {
+                  console.error('❌ PayPal order creation failed:', result);
                   throw new Error(result.error || 'Failed to create PayPal order');
                 }
               } else {
                 // Use regular payment intent for other providers
+                console.log(`💳 Creating ${provider} payment intent...`);
                 const { createPaymentIntent } = await import('../../lib/payments');
                 const result = await createPaymentIntent(
                   targetStudent.id,
@@ -927,10 +1113,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                   provider,
                   payment.note || `Retry payment: $${payment.amount?.toFixed(2) || '0.00'}`
                 );
+                
+                console.log(`💳 ${provider} payment intent result:`, result);
 
                 if (result.success) {
                   // Open the provider app/website
                   if (result.redirectUrl) {
+                    console.log(`🔗 Opening ${provider} URL:`, result.redirectUrl);
                     const { Linking } = await import('react-native');
                     await Linking.openURL(result.redirectUrl);
                   }
@@ -943,12 +1132,28 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                   
                   loadActivities(true); // Refresh activities
                 } else {
+                  console.error(`❌ ${provider} payment creation failed:`, result);
                   throw new Error(result.error || 'Failed to create payment');
                 }
               }
             } catch (error: any) {
-              console.error('Error retrying payment:', error);
-              Alert.alert('Retry Failed', error.message || 'Unable to retry payment. Please try again.');
+              console.error('❌ Error retrying payment:', error);
+              
+              // More specific error messages
+              let errorMessage = 'Unable to retry payment. Please try again.';
+              if (error.message) {
+                if (error.message.includes('permission')) {
+                  errorMessage = 'Permission denied. Please make sure you are logged in.';
+                } else if (error.message.includes('network') || error.message.includes('fetch')) {
+                  errorMessage = 'Network error. Please check your internet connection.';
+                } else if (error.message.includes('student')) {
+                  errorMessage = error.message; // Keep student-related error messages as is
+                } else {
+                  errorMessage = error.message;
+                }
+              }
+              
+              Alert.alert('Retry Failed', errorMessage);
             }
           }
         }
@@ -966,8 +1171,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           <View style={styles.activityInfo}>
             <Text style={styles.activityType}>
               {item.type === 'payment' ? 'Payment' : 
-               item.type === 'item_request' ? 'Item Request' : 'Message'}
-              {item.student_name && ` ${item.type === 'item_request' ? 'from' : 'to'} ${item.student_name.split(' ')[0]}`}
+               item.type === 'item_request' ? 'Item Request' : 
+               item.type === 'support_request' ? 'Support Request' : 'Message'}
+              {item.student_name && ` ${item.type === 'item_request' ? 'from' : item.type === 'support_request' ? 'from' : 'to'} ${item.student_name.split(' ')[0]}`}
             </Text>
             <Text style={styles.activityTime}>{formatTime(item.timestamp)}</Text>
           </View>
@@ -1043,14 +1249,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                         {item.status === 'failed' ? '❌ Payment Failed' : 
                          item.status === 'cancelled' ? '🚫 Payment Cancelled' : '⏰ Payment Expired'}
                       </Text>
-                      
-                      {/* Retry Button for Failed/Cancelled Payments */}
-                      <TouchableOpacity
-                        style={styles.retryPaymentButton}
-                        onPress={() => retryPayment(item)}
-                      >
-                        <Text style={styles.retryPaymentButtonText}>🔄 Retry Payment</Text>
-                      </TouchableOpacity>
                     </View>
                   );
                 }
@@ -1111,6 +1309,24 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             )}
           </View>
         )}
+
+        {item.type === 'support_request' && (
+          <View style={styles.supportDetails}>
+            <Text style={styles.supportMessage}>
+              "{item.message_content}"
+            </Text>
+            
+            {/* Acknowledge button for pending support requests */}
+            {item.status === 'pending' && (
+              <TouchableOpacity
+                style={styles.acknowledgeButton}
+                onPress={() => handleAcknowledgeSupport(item.id, item.student_name || 'Student')}
+              >
+                <Text style={styles.acknowledgeButtonText}>Acknowledge & Respond</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
         </TouchableOpacity>
       </View>
     );
@@ -1132,8 +1348,20 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>All Activity</Text>
-          <Text style={styles.subtitle}>Your family connections and support</Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>All Activity</Text>
+            {backgroundRefreshing && (
+              <ActivityIndicator 
+                size="small" 
+                color={theme.colors.primary} 
+                style={styles.backgroundRefreshIndicator}
+              />
+            )}
+          </View>
+          <Text style={styles.subtitle}>
+            Your family connections and support
+            {backgroundRefreshing && <Text style={styles.refreshingText}> • Refreshing...</Text>}
+          </Text>
         </View>
 
         {/* Quick Stats */}
@@ -1195,13 +1423,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             {/* Activity Type Filter */}
             <View style={styles.filterSection}>
               <View style={styles.segmentedControl}>
-                {(['all', 'payments', 'messages', 'items'] as FilterType[]).map((type, index) => (
+                {(['all', 'payments', 'messages', 'items', 'support'] as FilterType[]).map((type, index) => (
                   <TouchableOpacity
                     key={type}
                     style={[
                       styles.segment,
                       index === 0 && styles.segmentFirst,
-                      index === 3 && styles.segmentLast,
+                      index === 4 && styles.segmentLast,
                       filterType === type && styles.segmentActive
                     ]}
                     onPress={() => setFilterType(type)}
@@ -1212,7 +1440,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                     ]}>
                       {type === 'all' ? 'All' : 
                        type === 'payments' ? 'Payments' :
-                       type === 'messages' ? 'Messages' : 'Items'}
+                       type === 'messages' ? 'Messages' : 
+                       type === 'items' ? 'Items' : 'Support'}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -1290,9 +1519,17 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: theme.spacing.sm,
+  },
+  backgroundRefreshIndicator: {
+    marginLeft: 12,
+  },
+  refreshingText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '500',
   },
   title: {
     fontSize: 28,
@@ -1687,5 +1924,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textPrimary,
+  },
+  // Support request styles
+  supportDetails: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+  },
+  supportMessage: {
+    fontSize: 14,
+    color: theme.colors.text,
+    fontStyle: 'italic',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  acknowledgeButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  acknowledgeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });

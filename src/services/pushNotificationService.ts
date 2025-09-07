@@ -433,6 +433,28 @@ class PushNotificationService {
         return;
       }
 
+      // Check if already scheduled today (prevent duplicates)
+      const lastScheduledKey = `wellness_reminder_scheduled_${userId}`;
+      const lastScheduled = await import('@react-native-async-storage/async-storage').then(module => 
+        module.default.getItem(lastScheduledKey)
+      );
+      
+      const today = new Date().toDateString();
+      if (lastScheduled === today) {
+        console.log('📅 Wellness reminder already scheduled for today');
+        return;
+      }
+
+      // Cancel any existing wellness reminder notifications first
+      const existingNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const wellnessNotifications = existingNotifications.filter(
+        notif => notif.content.data?.type === 'wellness_reminder' && notif.content.data?.userId === userId
+      );
+      
+      for (const notif of wellnessNotifications) {
+        await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+      }
+
       // Schedule notification for 8 PM daily
       const now = new Date();
       const reminderTime = new Date();
@@ -455,8 +477,14 @@ class PushNotificationService {
         },
         trigger: {
           date: reminderTime,
+          repeats: true,
         },
       });
+
+      // Mark as scheduled for today
+      await import('@react-native-async-storage/async-storage').then(module => 
+        module.default.setItem(lastScheduledKey, today)
+      );
 
       console.log('📅 Scheduled daily wellness reminder for', reminderTime);
     } catch (error) {
@@ -473,6 +501,28 @@ class PushNotificationService {
       const userProfile = await getUserProfile(userId);
       
       if (!userProfile) return;
+
+      // Check if already scheduled today (prevent duplicates)
+      const lastScheduledKey = `daily_summary_scheduled_${userId}`;
+      const lastScheduled = await import('@react-native-async-storage/async-storage').then(module => 
+        module.default.getItem(lastScheduledKey)
+      );
+      
+      const today = new Date().toDateString();
+      if (lastScheduled === today) {
+        console.log('📅 Daily summary already scheduled for today');
+        return;
+      }
+
+      // Cancel any existing daily summary notifications first
+      const existingNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const dailySummaryNotifications = existingNotifications.filter(
+        notif => notif.content.data?.type === 'daily_summary' && notif.content.data?.userId === userId
+      );
+      
+      for (const notif of dailySummaryNotifications) {
+        await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+      }
 
       // Schedule notification for 9 PM daily
       const now = new Date();
@@ -500,6 +550,11 @@ class PushNotificationService {
         },
       });
 
+      // Mark as scheduled for today
+      await import('@react-native-async-storage/async-storage').then(module => 
+        module.default.setItem(lastScheduledKey, today)
+      );
+
       console.log('📅 Scheduled daily summary notification for', summaryTime);
     } catch (error) {
       console.error('❌ Error scheduling daily summary:', error);
@@ -516,8 +571,34 @@ class PushNotificationService {
       
       if (!userProfile) return;
 
-      // Schedule for next Sunday at 7 PM
+      // Check if already scheduled this week (prevent duplicates)
+      const lastScheduledKey = `weekly_summary_scheduled_${userId}`;
+      const lastScheduled = await import('@react-native-async-storage/async-storage').then(module => 
+        module.default.getItem(lastScheduledKey)
+      );
+      
+      // Get current week identifier (year + week number)
       const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const weekNumber = Math.ceil((((now.getTime() - startOfYear.getTime()) / 86400000) + startOfYear.getDay() + 1) / 7);
+      const thisWeek = `${now.getFullYear()}-${weekNumber}`;
+      
+      if (lastScheduled === thisWeek) {
+        console.log('📊 Weekly summary already scheduled for this week');
+        return;
+      }
+
+      // Cancel any existing weekly summary notifications first
+      const existingNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const weeklySummaryNotifications = existingNotifications.filter(
+        notif => notif.content.data?.type === 'weekly_report' && notif.content.data?.userId === userId
+      );
+      
+      for (const notif of weeklySummaryNotifications) {
+        await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+      }
+
+      // Schedule for next Sunday at 7 PM
       const weeklyTime = new Date();
       const daysUntilSunday = (7 - now.getDay()) % 7;
       
@@ -539,6 +620,11 @@ class PushNotificationService {
           repeats: true,
         },
       });
+
+      // Mark as scheduled for this week
+      await import('@react-native-async-storage/async-storage').then(module => 
+        module.default.setItem(lastScheduledKey, thisWeek)
+      );
 
       console.log('📊 Scheduled weekly summary notification for', weeklyTime);
     } catch (error) {

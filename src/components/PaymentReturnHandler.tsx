@@ -86,6 +86,19 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
       // If this is a PayPal return with verification data, verify first
       if (payment.provider === 'paypal' && token && status === 'success') {
         console.log('🔄 Auto-verifying PayPal payment:', paymentId, 'with token:', token);
+        
+        // Check authentication state before proceeding
+        const { getCurrentUser } = await import('../lib/firebase');
+        const currentUser = getCurrentUser();
+        if (!currentUser) {
+          Alert.alert(
+            'Authentication Required',
+            'Please log in to complete the payment verification.',
+            [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+          );
+          return;
+        }
+        
         const { verifyPayPalPayment } = await import('../lib/paypalIntegration');
         const verificationResult = await verifyPayPalPayment(paymentId, token);
         
@@ -93,6 +106,19 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
         
         if (!verificationResult.success) {
           console.error('❌ PayPal verification failed:', verificationResult.error);
+          
+          // Check if it's an authentication error
+          if (verificationResult.error?.includes('Authentication required')) {
+            Alert.alert(
+              'Authentication Required', 
+              'Please make sure you are logged in and try again.',
+              [
+                { text: 'OK', onPress: () => navigation.navigate('ParentTabs') }
+              ]
+            );
+            return;
+          }
+          
           Alert.alert('Verification Failed', verificationResult.error || 'Could not verify PayPal payment');
           return;
         }

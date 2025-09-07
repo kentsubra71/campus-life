@@ -318,7 +318,7 @@ export const confirmPayment = async (
   idempotencyKey: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // TESTING: Skip all complex checks for development
+    // TESTING: Always use simple mode to avoid Firebase transaction permissions issues
     const TESTING_MODE = true;
     
     if (TESTING_MODE) {

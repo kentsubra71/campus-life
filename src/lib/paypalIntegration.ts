@@ -299,12 +299,23 @@ export const verifyPayPalPayment = async (
     }
     
     // Update our payment record
-    await updateDoc(doc(db, 'payments', paymentId), {
-      status: 'completed',
-      provider_transaction_id: orderId,
-      completed_at: Timestamp.now(),
-      verification_method: 'paypal_api'
-    });
+    try {
+      await updateDoc(doc(db, 'payments', paymentId), {
+        status: 'completed',
+        provider_transaction_id: orderId,
+        completed_at: Timestamp.now(),
+        verification_method: 'paypal_api'
+      });
+      console.log('✅ Payment document updated successfully');
+    } catch (updateError: any) {
+      console.error('❌ Failed to update payment document:', updateError);
+      // Check if it's a permission error
+      if (updateError.code === 'permission-denied') {
+        console.log('🔧 Permission denied - user may not be properly authenticated');
+        return { success: false, error: 'Authentication required. Please log in and try again.' };
+      }
+      throw updateError; // Re-throw other errors
+    }
     
     // Send push notification to student about payment received
     try {

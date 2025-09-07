@@ -32,17 +32,13 @@ export const PayPalP2PReturnHandler: React.FC<PayPalP2PReturnHandlerProps> = ({
     debugLog('Component mounted', { transactionId, orderId, payerID, status });
     loadTransaction();
     
-    // Auto-verify if we have success status
-    if (status === 'success') {
-      // Immediate verification attempt
-      handleVerifyPayment();
-      
-      // Backup verification after 1 second
-      setTimeout(() => {
-        if (!verificationComplete) {
-          handleVerifyPayment();
-        }
-      }, 1000);
+    // Handle different statuses - simplified approach
+    if (status === 'cancelled') {
+      // Handle cancelled payment immediately
+      handleCancelledPayment();
+    } else if (status === 'success') {
+      // Just show success message, let activity history handle verification
+      handleSuccessReturn();
     }
   }, []);
 
@@ -64,6 +60,40 @@ export const PayPalP2PReturnHandler: React.FC<PayPalP2PReturnHandlerProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancelledPayment = () => {
+    debugLog('Payment was cancelled by user');
+    
+    Alert.alert(
+      'Payment Cancelled',
+      'You cancelled the PayPal payment. No money was sent.',
+      [
+        { 
+          text: 'OK', 
+          onPress: () => navigation.navigate('ParentTabs')
+        }
+      ]
+    );
+  };
+
+  const handleSuccessReturn = () => {
+    debugLog('Payment completed, showing success message');
+    
+    Alert.alert(
+      'Payment Sent! 🎉',
+      'Your PayPal payment has been sent successfully. You can view the details in your activity history.',
+      [
+        { 
+          text: 'View Activity', 
+          onPress: () => navigation.navigate('ParentTabs', { screen: 'Activity' })
+        },
+        { 
+          text: 'Done', 
+          onPress: () => navigation.navigate('ParentTabs')
+        }
+      ]
+    );
   };
 
   const handleVerifyPayment = async () => {
@@ -247,6 +277,42 @@ export const PayPalP2PReturnHandler: React.FC<PayPalP2PReturnHandlerProps> = ({
     );
   }
 
+  if (status === 'cancelled') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.emoji}>❌</Text>
+          <Text style={styles.title}>Payment Cancelled</Text>
+          <Text style={styles.subtitle}>
+            You cancelled the PayPal payment. No money was sent.
+          </Text>
+          
+          <View style={styles.detailsCard}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Amount:</Text>
+              <Text style={styles.detailValue}>{formatPaymentAmount(transaction.amountCents)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>To:</Text>
+              <Text style={styles.detailValue}>{transaction.recipientEmail}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Status:</Text>
+              <Text style={styles.detailValue}>Cancelled</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.button, styles.primaryButton]}
+            onPress={() => navigation.navigate('ParentTabs')}
+          >
+            <Text style={styles.buttonText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   if (verificationComplete) {
     return (
       <View style={styles.container}>
@@ -294,15 +360,16 @@ export const PayPalP2PReturnHandler: React.FC<PayPalP2PReturnHandlerProps> = ({
     );
   }
 
+  // Default success state - just show simple success message
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.emoji}>💙</Text>
-        <Text style={styles.title}>Verifying PayPal Payment</Text>
+        <Text style={styles.emoji}>✅</Text>
+        <Text style={styles.title}>Payment Processing</Text>
         <Text style={styles.subtitle}>
-          Checking if your {formatPaymentAmount(transaction.amountCents)} payment was completed...
+          Your {formatPaymentAmount(transaction.amountCents)} PayPal payment is being processed. Check your activity history for updates.
         </Text>
-
+        
         <View style={styles.detailsCard}>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Amount:</Text>
@@ -312,46 +379,22 @@ export const PayPalP2PReturnHandler: React.FC<PayPalP2PReturnHandlerProps> = ({
             <Text style={styles.detailLabel}>To:</Text>
             <Text style={styles.detailValue}>{transaction.recipientEmail}</Text>
           </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Status:</Text>
-            <Text style={styles.detailValue}>{transaction.status}</Text>
-          </View>
         </View>
 
-        {verifying ? (
-          <View style={styles.verifyingContainer}>
-            <ActivityIndicator size="large" color="#6366f1" />
-            <Text style={styles.verifyingText}>Verifying with PayPal...</Text>
-          </View>
-        ) : (
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity 
-              style={[styles.button, styles.primaryButton]}
-              onPress={handleVerifyPayment}
-            >
-              <Text style={styles.buttonText}>Verify Payment</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.button}
-              onPress={handleTestVerification}
-            >
-              <Text style={styles.buttonText}>Test Verification</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.button, styles.secondaryButton]}
-              onPress={() => navigation.navigate('ParentTabs')}
-            >
-              <Text style={[styles.buttonText, styles.secondaryButtonText]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.infoCard}>
-          <Text style={styles.infoText}>
-            🔍 This screen verifies that your PayPal payment was successfully completed and captures the funds.
-          </Text>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={[styles.button, styles.primaryButton]}
+            onPress={() => navigation.navigate('ParentTabs', { screen: 'Activity' })}
+          >
+            <Text style={styles.buttonText}>View Activity</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={() => navigation.navigate('ParentTabs')}
+          >
+            <Text style={styles.buttonText}>Done</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>

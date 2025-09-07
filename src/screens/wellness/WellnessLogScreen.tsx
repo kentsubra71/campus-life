@@ -22,57 +22,71 @@ interface WellnessLogScreenProps {
 }
 
 const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => {
-  const { addEntry, updateEntry, getEntryByDate, todayEntry, calculateOverallScore } = useWellnessStore();
+  const { addEntry, updateEntry, getEntryByDate, todayEntry, loadEntries } = useWellnessStore();
   const [formData, setFormData] = useState({
     rankings: {
-      sleep: 2,      
-      nutrition: 2,  
-      academics: 2,  
-      social: 2,     
+      sleep: 1,      // Best performing (rank 1)
+      nutrition: 2,  // Second best (rank 2) 
+      academics: 3,  // Third best (rank 3)
+      social: 4,     // Worst performing (rank 4)
     },
     overallMood: 5, // 1-10 mood slider
-    notes: '',
   });
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    const today = getTodayDateString();
-    const existingEntry = getEntryByDate(today);
-    
-    if (existingEntry) {
-      setFormData({
-        rankings: {
-          sleep: existingEntry.rankings.sleep,
-          nutrition: existingEntry.rankings.nutrition,
-          academics: existingEntry.rankings.academics,
-          social: existingEntry.rankings.social,
-        },
-        overallMood: existingEntry.overallMood,
-        notes: existingEntry.notes || '',
-      });
+    const initializeData = async () => {
+      // Load entries first to ensure they're available
+      await loadEntries();
       
-      // Reorder categories based on existing rankings
-      const categoryMap = {
-        sleep: { key: 'sleep', title: 'Sleep' },
-        nutrition: { key: 'nutrition', title: 'Nutrition' },
-        academics: { key: 'academics', title: 'Academics' },
-        social: { key: 'social', title: 'Social' },
-      };
+      const today = getTodayDateString();
+      const existingEntry = getEntryByDate(today);
       
-      const sortedCategories = Object.entries(existingEntry.rankings)
-        .sort(([,a], [,b]) => a - b) // Sort by ranking (1=best, 4=worst)
-        .map(([key]) => categoryMap[key as keyof typeof categoryMap]);
+      if (existingEntry) {
+        setFormData({
+          rankings: {
+            sleep: existingEntry.rankings.sleep,
+            nutrition: existingEntry.rankings.nutrition,
+            academics: existingEntry.rankings.academics,
+            social: existingEntry.rankings.social,
+          },
+          overallMood: existingEntry.overallMood,
+        });
         
-      setOrderedCategories(sortedCategories);
-      setIsEditing(true);
-    }
-  }, []);
+        // Reorder categories based on existing rankings
+        const categoryMap = {
+          sleep: { key: 'sleep', title: 'Sleep' },
+          nutrition: { key: 'nutrition', title: 'Nutrition' },
+          academics: { key: 'academics', title: 'Academics' },
+          social: { key: 'social', title: 'Social' },
+        };
+        
+        const sortedCategories = Object.entries(existingEntry.rankings)
+          .sort(([,a], [,b]) => a - b) // Sort by ranking (1=best, 4=worst)
+          .map(([key]) => categoryMap[key as keyof typeof categoryMap]);
+          
+        setOrderedCategories(sortedCategories);
+        setIsEditing(true);
+      }
+    };
+
+    initializeData();
+  }, [loadEntries, getEntryByDate]);
 
   const handleSave = async () => {
     const today = getTodayDateString();
     
+    console.log('💾 Saving wellness entry:', { 
+      formData, 
+      rankings: formData.rankings,
+      overallMood: formData.overallMood,
+      isEditing, 
+      todayEntry 
+    });
+    
     try {
       if (isEditing && todayEntry) {
+        console.log('🔄 Updating existing entry:', todayEntry.id);
         await updateEntry(todayEntry.id, {
           ...formData,
           date: today,
@@ -85,6 +99,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
           color: theme.colors.backgroundSecondary,
         });
       } else {
+        console.log('➕ Adding new entry');
         await addEntry({
           ...formData,
           date: today,
@@ -105,6 +120,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         navigation.navigate('Dashboard');
       }
     } catch (error) {
+      console.error('❌ Failed to save wellness entry:', error);
       showMessage({
         message: 'Error',
         description: 'Failed to save wellness entry. Please try again.',

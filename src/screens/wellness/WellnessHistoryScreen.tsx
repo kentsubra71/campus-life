@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { theme } from '../../styles/theme';
 import { formatDateForDisplay } from '../../utils/dateUtils';
-import { commonStyles } from '../../styles/components';
 import {
   View,
   Text,
@@ -12,27 +11,67 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
+import WellnessLineChart from '../../components/charts/WellnessLineChart';
+import CategoriesChart from '../../components/charts/CategoriesChart';
+import WellnessInsightsCard from '../../components/charts/WellnessInsightsCard';
+import { 
+  transformEntriesForCharts, 
+  groupEntriesByPeriod, 
+  calculateWellnessInsights 
+} from '../../utils/chartDataTransform';
 
 interface WellnessHistoryScreenProps {
   navigation: any;
 }
 
 const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigation }) => {
-  const { entries, stats, getWeeklyEntries, getMonthlyEntries } = useWellnessStore();
-  const [timeFilter, setTimeFilter] = useState<'week' | 'month' | 'all'>('week');
+  const { entries, stats } = useWellnessStore();
+  const [timeFilter, setTimeFilter] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [viewMode, setViewMode] = useState<'charts' | 'list'>('charts');
 
-  const getFilteredEntries = () => {
-    switch (timeFilter) {
-      case 'week':
-        return getWeeklyEntries();
-      case 'month':
-        return getMonthlyEntries();
-      case 'all':
-        return entries;
-      default:
-        return getWeeklyEntries();
+  // Memoized data processing for better performance
+  const processedData = useMemo(() => {
+    console.log('🔄 Processing wellness data:', entries.length, 'total entries');
+    
+    if (entries.length === 0) {
+      console.log('❌ No entries found');
+      return {
+        filteredEntries: [],
+        chartData: [],
+        insights: {
+          trends: [],
+          overallTrend: { current: 0, previous: 0, change: 0, direction: 'stable' as const },
+          bestCategory: 'sleep',
+          improvingCategory: null,
+        },
+      };
     }
-  };
+
+    // Log first few entries to see their structure
+    console.log('📊 Sample entries:', entries.slice(0, 2).map(e => ({
+      date: e.date,
+      rankings: e.rankings,
+      overallScore: e.overallScore,
+      overallMood: e.overallMood
+    })));
+
+    // Get entries for the selected time period (last 30 days max for performance)
+    const recentEntries = entries
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 30);
+
+    console.log('📅 Recent entries for', timeFilter, ':', recentEntries.length);
+    
+    const filteredEntries = groupEntriesByPeriod(recentEntries, timeFilter);
+    console.log('📈 Filtered entries:', filteredEntries.length);
+    
+    const chartData = transformEntriesForCharts(filteredEntries);
+    console.log('📊 Chart data generated:', chartData.length, 'points');
+    
+    const insights = calculateWellnessInsights(recentEntries, timeFilter);
+
+    return { filteredEntries, chartData, insights };
+  }, [entries, timeFilter]);
 
   const formatDate = (dateString: string) => {
     return formatDateForDisplay(dateString, {
@@ -80,62 +119,97 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
     <View style={styles.filterSection}>
       <View style={styles.segmentedControl}>
         <TouchableOpacity
-          style={[styles.segment, styles.segmentFirst, timeFilter === 'week' && styles.segmentActive]}
-          onPress={() => setTimeFilter('week')}
+          style={[styles.segment, styles.segmentFirst, timeFilter === 'daily' && styles.segmentActive]}
+          onPress={() => setTimeFilter('daily')}
         >
-          <Text style={[styles.segmentText, timeFilter === 'week' && styles.segmentTextActive]}>
-            Week
+          <Text style={[styles.segmentText, timeFilter === 'daily' && styles.segmentTextActive]}>
+            Daily
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.segment, timeFilter === 'month' && styles.segmentActive]}
-          onPress={() => setTimeFilter('month')}
+          style={[styles.segment, timeFilter === 'weekly' && styles.segmentActive]}
+          onPress={() => setTimeFilter('weekly')}
         >
-          <Text style={[styles.segmentText, timeFilter === 'month' && styles.segmentTextActive]}>
-            Month
+          <Text style={[styles.segmentText, timeFilter === 'weekly' && styles.segmentTextActive]}>
+            Weekly
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.segment, styles.segmentLast, timeFilter === 'all' && styles.segmentActive]}
-          onPress={() => setTimeFilter('all')}
+          style={[styles.segment, styles.segmentLast, timeFilter === 'monthly' && styles.segmentActive]}
+          onPress={() => setTimeFilter('monthly')}
         >
-          <Text style={[styles.segmentText, timeFilter === 'all' && styles.segmentTextActive]}>
-            All Time
+          <Text style={[styles.segmentText, timeFilter === 'monthly' && styles.segmentTextActive]}>
+            Monthly
           </Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 
+  const renderViewModeToggle = () => (
+    <View style={styles.viewToggle}>
+      <TouchableOpacity
+        style={[styles.toggleButton, viewMode === 'charts' && styles.toggleButtonActive]}
+        onPress={() => setViewMode('charts')}
+      >
+        <Text style={[styles.toggleText, viewMode === 'charts' && styles.toggleTextActive]}>
+          Analytics
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.toggleButton, viewMode === 'list' && styles.toggleButtonActive]}
+        onPress={() => setViewMode('list')}
+      >
+        <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>
+          History
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const getRankingText = (ranking: number) => {
+    switch (ranking) {
+      case 1: return 'Best';
+      case 2: return 'Good';
+      case 3: return 'Fair';
+      case 4: return 'Worst';
+      default: return 'Unknown';
+    }
+  };
+
   const renderEntryItem = ({ item }: { item: WellnessEntry }) => (
     <View style={styles.entryCard}>
       <View style={styles.entryHeader}>
         <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getScoreColor(item.wellnessScore) }]}>
+        <View style={[styles.statusBadge, { backgroundColor: getScoreColor(item.overallScore) }]}>
           <Text style={styles.scoreText}>
-            {item.wellnessScore}/10
+            {item.overallScore}/10
           </Text>
         </View>
       </View>
       
       <View style={styles.entryDetails}>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Mood:</Text>
+          <Text style={styles.detailLabel}>Overall Mood:</Text>
           <Text style={styles.detailValue}>
-            {getMoodLevel(item.mood)} ({item.mood}/10)
+            {getMoodLevel(item.overallMood)} ({item.overallMood}/10)
           </Text>
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Sleep:</Text>
-          <Text style={styles.detailValue}>{item.sleep}h</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.sleep)} (#{item.rankings.sleep})</Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Exercise:</Text>
-          <Text style={styles.detailValue}>{item.exercise}m</Text>
+          <Text style={styles.detailLabel}>Nutrition:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.nutrition)} (#{item.rankings.nutrition})</Text>
         </View>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Water:</Text>
-          <Text style={styles.detailValue}>{item.water} glasses</Text>
+          <Text style={styles.detailLabel}>Academics:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.academics)} (#{item.rankings.academics})</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Social:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.social)} (#{item.rankings.social})</Text>
         </View>
       </View>
 
@@ -147,27 +221,27 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
     </View>
   );
 
-  const filteredEntries = getFilteredEntries();
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Wellness History</Text>
+        <Text style={styles.title}>Wellness Analytics</Text>
         <View style={{ width: 50 }} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {renderStatsCard()}
+      <View style={styles.controls}>
         {renderTimeFilter()}
+        {renderViewModeToggle()}
+      </View>
 
-        {filteredEntries.length === 0 ? (
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {processedData.filteredEntries.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No entries yet</Text>
+            <Text style={styles.emptyTitle}>No wellness data yet</Text>
             <Text style={styles.emptySubtitle}>
-              Start logging your daily wellness to see your progress here!
+              Start logging your daily wellness to see analytics and trends!
             </Text>
             <TouchableOpacity
               style={styles.addEntryButton}
@@ -176,14 +250,36 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
               <Text style={styles.addEntryButtonText}>Log Today's Wellness</Text>
             </TouchableOpacity>
           </View>
+        ) : viewMode === 'charts' ? (
+          <>
+            <WellnessInsightsCard 
+              insights={processedData.insights} 
+              period={timeFilter}
+            />
+            
+            <WellnessLineChart
+              data={processedData.chartData}
+              period={timeFilter}
+              title="Overall Wellness Score"
+              subtitle="Your daily wellness journey over time"
+            />
+            
+            <CategoriesChart
+              data={processedData.chartData}
+              period={timeFilter}
+            />
+          </>
         ) : (
-          <FlatList
-            data={filteredEntries}
-            renderItem={renderEntryItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            showsVerticalScrollIndicator={false}
-          />
+          <>
+            {renderStatsCard()}
+            <FlatList
+              data={processedData.filteredEntries}
+              renderItem={renderEntryItem}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
+            />
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -210,13 +306,20 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 16,
-    color: 'theme.colors.primary',
+    color: theme.colors.primary,
     fontWeight: '500',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
     color: theme.colors.textPrimary,
+  },
+  controls: {
+    backgroundColor: theme.colors.backgroundCard,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   content: {
     flex: 1,
@@ -256,7 +359,39 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   filterSection: {
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+    padding: 2,
+    marginTop: 8,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 6,
+  },
+  toggleButtonActive: {
+    backgroundColor: theme.colors.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+  },
+  toggleTextActive: {
+    color: theme.colors.textPrimary,
+    fontWeight: '600',
   },
   segmentedControl: {
     flexDirection: 'row',
@@ -373,7 +508,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   addEntryButton: {
-    backgroundColor: 'theme.colors.primary',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

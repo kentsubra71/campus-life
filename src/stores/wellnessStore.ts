@@ -103,11 +103,13 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     
     // Check if entry for today already exists
     const today = entryData.date;
-    const existingEntry = get().entries.find(entry => entry.date === today);
+    const state = get();
+    const entries = state.entries || [];
+    const existingEntry = entries.find(entry => entry.date === today);
     
     if (existingEntry) {
       // Update existing entry instead of creating new one
-      await get().updateEntry(existingEntry.id, entryData);
+      await state.updateEntry(existingEntry.id, entryData);
       return;
     }
     
@@ -120,7 +122,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       academics_ranking: entryData.rankings.academics,
       social_ranking: entryData.rankings.social,
       overall_mood: entryData.overallMood,
-      notes: entryData.notes,
+      notes: entryData.notes || null, // Convert undefined to null for Firestore
     };
 
     try {
@@ -137,7 +139,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       };
 
       set((state) => ({
-        entries: [...state.entries, newEntry],
+        entries: [...(state.entries || []), newEntry],
         todayEntry: newEntry,
       }));
       
@@ -265,10 +267,11 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       }
 
       set((state) => {
-        const updatedEntries = state.entries.map((entry) => {
+        const entriesArray = state.entries || [];
+        const updatedEntries = entriesArray.map((entry) => {
           if (entry.id === id) {
             const updatedEntry = { ...entry, ...updates };
-            if (updates.rankings) {
+            if (updates.rankings || updates.overallMood !== undefined) {
               updatedEntry.overallScore = calculateOverallScore(updatedEntry);
             }
             return updatedEntry;
@@ -294,22 +297,25 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
   },
 
   getEntryByDate: (date) => {
-    return get().entries.find(entry => entry.date === date) || null;
+    const state = get();
+    if (!state || !state.entries) return null;
+    return state.entries.find(entry => entry.date === date) || null;
   },
 
   calculateOverallScore,
 
   calculateStats: () => {
     const { entries } = get();
+    const entriesArray = entries || [];
     const today = getTodayDateString();
-    const sortedEntries = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedEntries = [...entriesArray].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Calculate current streak
     let currentStreak = 0;
     
     for (let i = 0; i < 30; i++) { // Check last 30 days
       const dateStr = getDateStringDaysAgo(i);
-      const entry = entries.find(e => e.date === dateStr);
+      const entry = entriesArray.find(e => e.date === dateStr);
       
       if (entry) {
         currentStreak++;
@@ -337,17 +343,17 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     }
 
     // Calculate overall score averages
-    const totalScore = entries.reduce((sum, entry) => sum + entry.overallScore, 0);
-    const averageScore = entries.length > 0 ? totalScore / entries.length : 0;
+    const totalScore = entriesArray.reduce((sum, entry) => sum + entry.overallScore, 0);
+    const averageScore = entriesArray.length > 0 ? totalScore / entriesArray.length : 0;
 
     // Weekly average (last 7 days)
     const weekAgoDateStr = getDateStringDaysAgo(7);
-    const weeklyEntries = entries.filter(entry => entry.date >= weekAgoDateStr);
+    const weeklyEntries = entriesArray.filter(entry => entry.date >= weekAgoDateStr);
     const weeklyScore = weeklyEntries.reduce((sum, entry) => sum + entry.overallScore, 0);
     const weeklyAverage = weeklyEntries.length > 0 ? weeklyScore / weeklyEntries.length : 0;
     
     // Calculate category averages
-    const categoryTotals = entries.reduce((totals, entry) => {
+    const categoryTotals = entriesArray.reduce((totals, entry) => {
       totals.sleep += entry.rankings.sleep;
       totals.nutrition += entry.rankings.nutrition;
       totals.academics += entry.rankings.academics;
@@ -356,17 +362,17 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     }, { sleep: 0, nutrition: 0, academics: 0, social: 0 });
 
     const categoryAverages = {
-      sleep: entries.length > 0 ? Math.round((categoryTotals.sleep / entries.length) * 10) / 10 : 0,
-      nutrition: entries.length > 0 ? Math.round((categoryTotals.nutrition / entries.length) * 10) / 10 : 0,
-      academics: entries.length > 0 ? Math.round((categoryTotals.academics / entries.length) * 10) / 10 : 0,
-      social: entries.length > 0 ? Math.round((categoryTotals.social / entries.length) * 10) / 10 : 0,
+      sleep: entriesArray.length > 0 ? Math.round((categoryTotals.sleep / entriesArray.length) * 10) / 10 : 0,
+      nutrition: entriesArray.length > 0 ? Math.round((categoryTotals.nutrition / entriesArray.length) * 10) / 10 : 0,
+      academics: entriesArray.length > 0 ? Math.round((categoryTotals.academics / entriesArray.length) * 10) / 10 : 0,
+      social: entriesArray.length > 0 ? Math.round((categoryTotals.social / entriesArray.length) * 10) / 10 : 0,
     };
 
     const stats: WellnessStats = {
       currentStreak,
       longestStreak,
       averageScore: Math.round(averageScore * 10) / 10,
-      totalEntries: entries.length,
+      totalEntries: entriesArray.length,
       weeklyAverage: Math.round(weeklyAverage * 10) / 10,
       categoryAverages,
     };
@@ -377,14 +383,16 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
 
   getWeeklyEntries: () => {
     const { entries } = get();
+    const entriesArray = entries || [];
     const weekAgoDateStr = getDateStringDaysAgo(7);
-    return entries.filter(entry => entry.date >= weekAgoDateStr);
+    return entriesArray.filter(entry => entry.date >= weekAgoDateStr);
   },
 
   getMonthlyEntries: () => {
     const { entries } = get();
+    const entriesArray = entries || [];
     const monthAgoDateStr = getDateStringDaysAgo(30);
-    return entries.filter(entry => entry.date >= monthAgoDateStr);
+    return entriesArray.filter(entry => entry.date >= monthAgoDateStr);
   },
 
   loadEntries: async (studentId?: string) => {
@@ -402,30 +410,59 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           console.log('🔄 Loading fresh wellness entries...');
           const firebaseEntries = await getWellnessEntries(targetUserId);
           
+          // Validate that firebaseEntries is an array
+          if (!Array.isArray(firebaseEntries)) {
+            console.error('❌ Firebase entries is not an array:', firebaseEntries);
+            return { entries: [], todayEntry: null };
+          }
+          
           // Convert Firebase entries to local format
-          const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
-            id: entry.id || '',
-            date: entry.date || getLocalDateString(entry.created_at.toDate()), // Use stored date or fallback to created_at
-            rankings: {
-              sleep: entry.sleep_ranking || 2, // Default to middle if not set
+          const entries: WellnessEntry[] = firebaseEntries.map(entry => {
+
+            // Use actual ranking data from Firebase or default to unique rankings
+            const rankings = {
+              sleep: entry.sleep_ranking || 1,
               nutrition: entry.nutrition_ranking || 2,
-              academics: entry.academics_ranking || 2,
-              social: entry.social_ranking || 2,
-            },
-            overallMood: entry.overall_mood || 5, // Default to middle mood
-            notes: entry.notes,
+              academics: entry.academics_ranking || 3,
+              social: entry.social_ranking || 4,
+            };
+            
+            // Validate rankings are unique (1-4) - if not, fix them
+            const usedRanks = new Set();
+            const validatedRankings = { sleep: 1, nutrition: 2, academics: 3, social: 4 };
+            
+            // Check if we have duplicate rankings
+            const rankValues = Object.values(rankings);
+            const hasDuplicates = rankValues.length !== new Set(rankValues).size;
+            
+            if (hasDuplicates) {
+              // Assign unique rankings 1-4
+              const categories = ['sleep', 'nutrition', 'academics', 'social'] as const;
+              categories.forEach((category, index) => {
+                validatedRankings[category] = index + 1;
+              });
+              console.warn('⚠️  Fixed duplicate rankings for entry:', entry.id, 'Original:', rankings, 'Fixed:', validatedRankings);
+            } else {
+              // Use original rankings if they're already unique
+              Object.assign(validatedRankings, rankings);
+            }
+            
+            const convertedEntry = {
+              id: entry.id || '',
+              date: entry.date || getLocalDateString(entry.created_at.toDate()), // Use stored date or fallback to created_at
+              rankings: validatedRankings,
+              overallMood: entry.overall_mood || 5, // Default to middle mood
+              notes: entry.notes,
             overallScore: calculateOverallScore({
               date: entry.date || getLocalDateString(entry.created_at.toDate()),
-              rankings: {
-                sleep: entry.sleep_ranking || 2,
-                nutrition: entry.nutrition_ranking || 2,
-                academics: entry.academics_ranking || 2,
-                social: entry.social_ranking || 2,
-              },
+              rankings: validatedRankings,
               overallMood: entry.overall_mood || 5,
               notes: entry.notes,
             }),
-          }));
+            };
+            
+            return convertedEntry;
+          });
 
           const today = getTodayDateString();
           const todayEntry = entries.find(entry => entry.date === today) || null;
@@ -435,19 +472,48 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         targetUserId
       );
 
-      // Set the data from cache or fresh fetch
-      set({ entries: wellnessData.entries, todayEntry: wellnessData.todayEntry });
+      // Validate cached data before setting it to state
+      if (!wellnessData || !Array.isArray(wellnessData.entries)) {
+        console.error('❌ Invalid wellness data from cache/fetch:', wellnessData);
+        set({ entries: [], todayEntry: null });
+      } else {
+        // Set the data from cache or fresh fetch
+        set({ entries: wellnessData.entries, todayEntry: wellnessData.todayEntry });
+      }
       
       // Calculate and update stats
       const stats = get().calculateStats();
       set({ stats });
       
       console.log('📦 Loaded wellness data', { 
-        entriesCount: wellnessData.entries.length, 
-        hasTodayEntry: !!wellnessData.todayEntry 
+        entriesCount: wellnessData?.entries?.length || 0, 
+        hasTodayEntry: !!wellnessData?.todayEntry 
       });
     } catch (error) {
-      console.error('Failed to load wellness entries:', error);
+      console.error('❌ Failed to load wellness entries:', error);
+      
+      // Clear potentially corrupted cache data and set safe defaults
+      try {
+        await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, targetUserId);
+        console.log('🧹 Cleared corrupted wellness cache');
+      } catch (clearError) {
+        console.error('❌ Failed to clear cache:', clearError);
+      }
+      
+      // Set safe default state
+      set({ entries: [], todayEntry: null, stats: {
+        currentStreak: 0,
+        longestStreak: 0,
+        averageScore: 0,
+        totalEntries: 0,
+        weeklyAverage: 0,
+        categoryAverages: {
+          sleep: 0,
+          nutrition: 0,
+          academics: 0,
+          social: 0,
+        },
+      }});
     }
   },
 })); 

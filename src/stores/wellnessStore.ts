@@ -54,28 +54,8 @@ interface WellnessStore {
 }
 
 const calculateOverallScore = (entry: Omit<WellnessEntry, 'id' | 'overallScore'>): number => {
-  const { rankings, overallMood } = entry;
-  
-  // Convert rankings to points (1=best=4pts, 2=3pts, 3=2pts, 4=worst=1pt)
-  const points = {
-    sleep: 5 - rankings.sleep,      // Inverts: 1->4, 2->3, 3->2, 4->1
-    nutrition: 5 - rankings.nutrition,
-    academics: 5 - rankings.academics, 
-    social: 5 - rankings.social,
-  };
-  
-  // Rankings component (40% weight): average of category points, scaled to 4
-  const rankingsScore = (points.sleep + points.nutrition + points.academics + points.social) / 4;
-  
-  // Overall mood component (60% weight): direct 1-10 scale
-  const moodScore = overallMood;
-  
-  // Weighted combination: 40% rankings + 60% mood
-  const combinedScore = (rankingsScore * 0.4 * 2.5) + (moodScore * 0.6);
-  
-  // Ensure score is between 1-10
-  const finalScore = Math.max(1, Math.min(10, combinedScore));
-  return Math.round(finalScore * 10) / 10; // Round to 1 decimal place
+  // Simply return the user's direct input for "How was your day overall?"
+  return entry.overallMood;
 };
 
 export const useWellnessStore = create<WellnessStore>((set, get) => ({

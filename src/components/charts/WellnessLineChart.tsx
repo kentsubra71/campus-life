@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 import { theme } from '../../styles/theme';
 import { ChartDataPoint, formatDateForChart } from '../../utils/chartDataTransform';
+import { parseLocalDateString, getLocalDateString } from '../../utils/dateUtils';
 
 interface WellnessLineChartProps {
   data: ChartDataPoint[];
@@ -43,20 +44,69 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
     );
   }
 
-  // Transform data for chart
-  const chartData = data.map((point, index) => ({
-    value: point.overallScore,
-    label: formatDateForChart(point.date, period),
-    labelTextStyle: {
-      color: theme.colors.textTertiary,
-      fontSize: 10,
-      marginTop: 5,
-    },
-  }));
+  // Create continuous date range for proper X-axis spacing - only for daily view
+  const createContinuousData = (data: ChartDataPoint[]) => {
+    if (data.length === 0) return [];
+    
+    // Only create continuous data for daily view, weekly/monthly should use actual data points
+    if (period !== 'daily') {
+      return data.map(point => ({
+        value: point.overallScore - 1, // Adjust for chart library's 0-based scaling
+        label: formatDateForChart(point.date, period),
+        labelTextStyle: {
+          color: theme.colors.textTertiary,
+          fontSize: 10,
+          marginTop: 5,
+        },
+      }));
+    }
+    
+    const sortedData = [...data].sort((a, b) => parseLocalDateString(a.date).getTime() - parseLocalDateString(b.date).getTime());
+    const firstDate = parseLocalDateString(sortedData[0].date);
+    const lastDate = parseLocalDateString(sortedData[sortedData.length - 1].date);
+    
+    const dataMap = new Map(sortedData.map(d => [d.date, d]));
+    const continuousData = [];
+    
+    // Use a safer date iteration to avoid timezone issues
+    const currentDate = new Date(firstDate);
+    while (currentDate <= lastDate) {
+      const dateStr = getLocalDateString(currentDate);
+      const existing = dataMap.get(dateStr);
+      
+      const label = formatDateForChart(dateStr, period);
+      
+      if (existing) {
+        continuousData.push({
+          value: existing.overallScore - 1, // Adjust for chart library's 0-based scaling
+          label,
+          labelTextStyle: {
+            color: theme.colors.textTertiary,
+            fontSize: 10,
+            marginTop: 5,
+          },
+        });
+      } else {
+        // Add placeholder for missing date (no data point will be shown)
+        continuousData.push({
+          value: null,
+          label,
+          labelTextStyle: {
+            color: theme.colors.textTertiary,
+            fontSize: 10,
+            marginTop: 5,
+          },
+        });
+      }
+      
+      // Increment date safely
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return continuousData;
+  };
 
-  // Force Y domain to 1-10 for consistency
-  const yAxisLabels = ['1', '3', '5', '7', '9'];
-  const maxTicksX = Math.min(6, data.length); // Limit X-axis ticks to max 6
+  const chartData = createContinuousData(data);
 
   return (
     <View style={styles.container}>
@@ -70,7 +120,7 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
           data={chartData}
           width={chartWidth}
           height={220}
-          spacing={(chartWidth - 60) / Math.max(data.length - 1, 1)}
+          spacing={(chartWidth - 60) / Math.max(chartData.length - 1, 1)}
           initialSpacing={20}
           endSpacing={20}
           yAxisOffset={0}
@@ -92,14 +142,16 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
           showVerticalLines={false}
           showHorizontalLines={true}
           horizontalLinesColor={`${theme.colors.border}30`}
+          rulesLength={chartWidth - 60}
           yAxisColor={`${theme.colors.border}60`}
           xAxisColor={`${theme.colors.border}60`}
           
-          // Y-axis configuration - Force 1-10 scale
-          yAxisMinValue={1}
-          yAxisMaxValue={10}
-          noOfSections={4}
-          yAxisLabelTexts={yAxisLabels}
+          // Y-axis configuration - Force 1-10 scale (but chart uses 0-9 values)
+          yAxisMinValue={0}
+          yAxisMaxValue={9}
+          noOfSections={9}
+          stepValue={1}
+          yAxisLabelTexts={['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']}
           yAxisLabelPrefix=""
           yAxisLabelSuffix=""
           yAxisTextStyle={{

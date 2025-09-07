@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-nati
 import { LineChart } from 'react-native-gifted-charts';
 import { theme } from '../../styles/theme';
 import { ChartDataPoint, formatDateForChart, getCategoryChartConfig } from '../../utils/chartDataTransform';
+import { parseLocalDateString, getLocalDateString } from '../../utils/dateUtils';
 
 interface CategoriesChartProps {
   data: ChartDataPoint[];
@@ -51,26 +52,63 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
     );
   }
 
-  // Always prepare all data arrays, shift down by 1 to align with grid lines
-  const sleepData = data.map((point) => ({
-    value: point.sleep - 1,
-    label: formatDateForChart(point.date, period),
-  }));
+  // Create continuous date range for proper X-axis spacing - only for daily view
+  const createContinuousData = (data: ChartDataPoint[], category: string) => {
+    if (data.length === 0) return [];
+    
+    // Only create continuous data for daily view, weekly/monthly should use actual data points
+    if (period !== 'daily') {
+      return data.map(point => {
+        const categoryValue = point[category as keyof ChartDataPoint] as number;
+        const reInverted = 5 - categoryValue; // Un-invert: 4→1, 1→4
+        return {
+          value: reInverted - 1, // Convert to 0-3 for chart library
+          label: formatDateForChart(point.date, period),
+        };
+      });
+    }
+    
+    const sortedData = [...data].sort((a, b) => parseLocalDateString(a.date).getTime() - parseLocalDateString(b.date).getTime());
+    const firstDate = parseLocalDateString(sortedData[0].date);
+    const lastDate = parseLocalDateString(sortedData[sortedData.length - 1].date);
+    
+    const dataMap = new Map(sortedData.map(d => [d.date, d]));
+    const continuousData = [];
+    
+    const currentDate = new Date(firstDate);
+    while (currentDate <= lastDate) {
+      const dateStr = getLocalDateString(currentDate);
+      const existing = dataMap.get(dateStr);
+      
+      if (existing) {
+        // Category values are already inverted by transformEntriesForCharts
+        // Original: 1(worst)→4, 4(best)→1. We want: 4(best)→top, 1(worst)→bottom
+        // So we need to re-invert them, then subtract 1 for chart library
+        const categoryValue = existing[category as keyof ChartDataPoint] as number;
+        const reInverted = 5 - categoryValue; // Un-invert: 4→1, 1→4
+        continuousData.push({
+          value: reInverted - 1, // Convert to 0-3 for chart library
+          label: formatDateForChart(dateStr, period),
+        });
+      } else {
+        // Add placeholder for missing date
+        continuousData.push({
+          value: null,
+          label: formatDateForChart(dateStr, period),
+        });
+      }
+      
+      // Increment date safely
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return continuousData;
+  };
 
-  const nutritionData = data.map((point) => ({
-    value: point.nutrition - 1,
-    label: formatDateForChart(point.date, period),
-  }));
-
-  const academicsData = data.map((point) => ({
-    value: point.academics - 1,
-    label: formatDateForChart(point.date, period),
-  }));
-
-  const socialData = data.map((point) => ({
-    value: point.social - 1,
-    label: formatDateForChart(point.date, period),
-  }));
+  const sleepData = createContinuousData(data, 'sleep');
+  const nutritionData = createContinuousData(data, 'nutrition');  
+  const academicsData = createContinuousData(data, 'academics');
+  const socialData = createContinuousData(data, 'social');
 
   const toggleSeries = (series: keyof typeof visibleSeries) => {
     setVisibleSeries(prev => ({ ...prev, [series]: !prev[series] }));
@@ -88,14 +126,16 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
           data={sleepData}
           width={chartWidth}
           height={240}
-          spacing={(chartWidth - 60) / Math.max(data.length - 1, 1)}
+          spacing={(chartWidth - 60) / Math.max(sleepData.length - 1, 1)}
           initialSpacing={20}
           endSpacing={20}
           yAxisOffset={0}
           
-          // Sleep line - Always visible, controlled by opacity
+          // Sleep line - Subtle curves
           color={colors.sleep}
           thickness={visibleSeries.sleep ? 2.5 : 0}
+          curved
+          curvature={0.1}
           hideDataPoints={!visibleSeries.sleep}
           dataPointsColor1={colors.sleep}
           dataPointsRadius={3}
@@ -105,6 +145,8 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
           data2={nutritionData}
           color2={colors.nutrition}
           thickness2={visibleSeries.nutrition ? 2.5 : 0}
+          curved2
+          curvature2={0.1}
           hideDataPoints2={!visibleSeries.nutrition}
           dataPointsColor2={colors.nutrition}
           
@@ -112,6 +154,8 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
           data3={academicsData}
           color3={colors.academics}
           thickness3={visibleSeries.academics ? 2.5 : 0}
+          curved3
+          curvature3={0.1}
           hideDataPoints3={!visibleSeries.academics}
           dataPointsColor3={colors.academics}
           
@@ -119,6 +163,8 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
           data4={socialData}
           color4={colors.social}
           thickness4={visibleSeries.social ? 2.5 : 0}
+          curved4
+          curvature4={0.1}
           hideDataPoints4={!visibleSeries.social}
           dataPointsColor4={colors.social}
           
@@ -126,12 +172,13 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
           showVerticalLines={false}
           showHorizontalLines={true}
           horizontalLinesColor={`${theme.colors.border}25`}
+          rulesLength={chartWidth - 60}
           yAxisColor={`${theme.colors.border}60`}
           xAxisColor={`${theme.colors.border}60`}
           
-          // Y-axis configuration - Simple 1-4 scale
-          yAxisMinValue={1}
-          yAxisMaxValue={4}
+          // Y-axis configuration - Simple 1-4 scale (but chart uses 0-3 values)
+          yAxisMinValue={0}
+          yAxisMaxValue={3}
           noOfSections={3}
           stepValue={1}
           yAxisLabelTexts={['1', '2', '3', '4']}

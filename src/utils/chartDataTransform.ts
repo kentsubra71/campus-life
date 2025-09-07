@@ -1,4 +1,5 @@
 import { WellnessEntry } from '../stores/wellnessStore';
+import { parseLocalDateString, getLocalDateString } from './dateUtils';
 
 export interface ChartDataPoint {
   date: string;
@@ -36,7 +37,7 @@ const invertRanking = (ranking: number): number => 5 - ranking;
 // Transform wellness entries for chart consumption
 export const transformEntriesForCharts = (entries: WellnessEntry[]): ChartDataPoint[] => {
   return entries
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .sort((a, b) => parseLocalDateString(a.date).getTime() - parseLocalDateString(b.date).getTime())
     .map(entry => ({
       date: entry.date,
       sleep: invertRanking(entry.rankings.sleep),
@@ -79,9 +80,9 @@ export const filterEntriesByPeriod = (
   }
 
   return entries.filter(entry => {
-    const entryDate = new Date(entry.date);
+    const entryDate = parseLocalDateString(entry.date);
     return entryDate >= cutoffDate;
-  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }).sort((a, b) => parseLocalDateString(a.date).getTime() - parseLocalDateString(b.date).getTime());
 };
 
 // Group entries by time period
@@ -94,13 +95,13 @@ export const groupEntriesByPeriod = (
   const groups = new Map<string, WellnessEntry[]>();
   
   entries.forEach(entry => {
-    const date = new Date(entry.date);
+    const date = parseLocalDateString(entry.date);
     let key: string;
     
     if (period === 'weekly') {
       const startOfWeek = new Date(date);
       startOfWeek.setDate(date.getDate() - date.getDay());
-      key = startOfWeek.toISOString().split('T')[0];
+      key = getLocalDateString(startOfWeek);
     } else { // monthly
       key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
     }
@@ -129,7 +130,7 @@ export const groupEntriesByPeriod = (
     aggregatedEntries.push(avgEntry);
   });
 
-  return aggregatedEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  return aggregatedEntries.sort((a, b) => parseLocalDateString(a.date).getTime() - parseLocalDateString(b.date).getTime());
 };
 
 // Calculate trends and insights
@@ -205,7 +206,9 @@ export const calculateWellnessInsights = (
 
 // Format date for chart display
 export const formatDateForChart = (dateString: string, period: 'daily' | 'weekly' | 'monthly'): string => {
-  const date = new Date(dateString);
+  // Parse date string manually to avoid timezone issues
+  const [year, month, day] = dateString.split('-').map(Number);
+  const date = new Date(year, month - 1, day); // month is 0-indexed
   
   switch (period) {
     case 'daily':

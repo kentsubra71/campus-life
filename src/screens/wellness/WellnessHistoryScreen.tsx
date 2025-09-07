@@ -26,13 +26,15 @@ interface WellnessHistoryScreenProps {
 }
 
 const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigation }) => {
-  const { entries, stats } = useWellnessStore();
+  const { entries, stats, todayEntry } = useWellnessStore();
   const [timeFilter, setTimeFilter] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [viewMode, setViewMode] = useState<'charts' | 'list'>('charts');
 
   // Memoized data processing for better performance
   const processedData = useMemo(() => {
     console.log('🔄 Processing wellness data:', entries.length, 'total entries');
+    console.log('📅 Entries dates:', entries.map(e => e.date));
+    console.log('📅 Today entry:', todayEntry?.date);
     
     if (entries.length === 0) {
       console.log('❌ No entries found');
@@ -59,12 +61,22 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
     // Filter entries by appropriate date range for each period
     const dateFilteredEntries = filterEntriesByPeriod(entries, timeFilter);
     console.log('📅 Date filtered entries for', timeFilter, ':', dateFilteredEntries.length);
+    console.log('📅 Date filtered dates:', dateFilteredEntries.map(e => e.date));
+    console.log('📅 Today is:', new Date().toISOString().split('T')[0]);
     
     const filteredEntries = groupEntriesByPeriod(dateFilteredEntries, timeFilter);
     console.log('📈 Filtered entries:', filteredEntries.length);
     
     const chartData = transformEntriesForCharts(filteredEntries);
     console.log('📊 Chart data generated:', chartData.length, 'points');
+    console.log('📊 Chart data sample:', chartData.slice(-2).map(d => ({ 
+      date: d.date, 
+      overallScore: d.overallScore,
+      sleep: d.sleep,
+      nutrition: d.nutrition,
+      academics: d.academics,
+      social: d.social 
+    })));
     
     const insights = calculateWellnessInsights(dateFilteredEntries, timeFilter);
 

@@ -31,7 +31,8 @@
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_Jp64CP/**)",
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_mAClFA/**)",
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_sn92YL/**)",
-      "Bash(firebase deploy:*)"
+      "Bash(firebase deploy:*)",
+      "Bash(npx react-native run-ios:*)"
     ],
     "deny": []
   }

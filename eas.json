@@ -38,8 +38,9 @@
       }
     },
     "production": {
+      "distribution": "store", 
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       },
       "ios": {
         "simulator": false

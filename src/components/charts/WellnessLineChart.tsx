@@ -69,18 +69,17 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
         <LineChart
           data={chartData}
           width={chartWidth}
-          height={240}
-          spacing={(chartWidth - 40) / Math.max(data.length - 1, 1)}
-          initialSpacing={0}
-          endSpacing={0}
+          height={220}
+          spacing={(chartWidth - 60) / Math.max(data.length - 1, 1)}
+          initialSpacing={20}
+          endSpacing={20}
           yAxisOffset={0}
-          xAxisOffset={0}
           
-          // Professional line styling
+          // Professional line styling with reduced curvature
           color={theme.colors.primary}
           thickness={2.5}
           curved
-          curvature={0.3}
+          curvature={0.2}
           
           // Enhanced data points
           dataPointsColor={theme.colors.primary}
@@ -112,7 +111,12 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
             color: theme.colors.textTertiary,
             fontSize: 10,
             fontWeight: '400',
+            textAlign: 'center',
           }}
+          
+          // X-axis positioning to prevent cutoff
+          xAxisThickness={1}
+          xAxisLength={chartWidth - 60}
           
           // Animation
           animateOnDataChange
@@ -131,11 +135,6 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
           tooltipTextColor={theme.colors.textPrimary}
           
         />
-      </View>
-      
-      {/* Y-axis label */}
-      <View style={styles.axisLabel}>
-        <Text style={styles.axisLabelText}>Score (1-10)</Text>
       </View>
     </View>
   );
@@ -168,22 +167,10 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     alignItems: 'center',
-    marginVertical: 16,
-    paddingBottom: 20,
-    overflow: 'hidden',
-  },
-  axisLabel: {
-    alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: `${theme.colors.border}15`,
-  },
-  axisLabelText: {
-    fontSize: 11,
-    color: theme.colors.textTertiary,
-    fontWeight: '500',
-    letterSpacing: 0.3,
+    marginVertical: 12,
+    paddingBottom: 25,
+    paddingTop: 10,
+    overflow: 'visible',
   },
   emptyState: {
     alignItems: 'center',

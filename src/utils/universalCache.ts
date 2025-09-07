@@ -18,7 +18,7 @@ export const CACHE_CONFIGS = {
   FAMILY_MEMBERS: { expiryMinutes: 120, key: 'family_members', version: 1 },
   STUDENT_NAMES: { expiryMinutes: 240, key: 'student_names', version: 1 },
   PAYMENT_PROVIDERS: { expiryMinutes: 1440, key: 'payment_providers', version: 1 }, // 24 hours
-  WELLNESS_DATA: { expiryMinutes: 15, key: 'wellness_data', version: 1 },
+  WELLNESS_DATA: { expiryMinutes: 525600, key: 'wellness_data', version: 2 }, // 1 year (essentially forever)
   MESSAGE_THREADS: { expiryMinutes: 10, key: 'message_threads', version: 1 },
   SPENDING_CAPS: { expiryMinutes: 30, key: 'spending_caps', version: 1 },
   USER_PREFERENCES: { expiryMinutes: 120, key: 'user_preferences', version: 1 },

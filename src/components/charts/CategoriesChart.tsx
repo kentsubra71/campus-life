@@ -86,29 +86,32 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
         <LineChart
           data={primaryData}
           width={chartWidth}
-          height={260}
-          spacing={(chartWidth - 40) / Math.max(data.length - 1, 1)}
-          initialSpacing={0}
-          endSpacing={0}
+          height={240}
+          spacing={(chartWidth - 60) / Math.max(data.length - 1, 1)}
+          initialSpacing={20}
+          endSpacing={20}
           yAxisOffset={0}
-          xAxisOffset={0}
           
-          // Primary line (Sleep)
+          // Primary line (Sleep) - Sharp lines, no curves
           color='#64748b'
-          thickness={2}
+          thickness={2.5}
+          hideLine1={!visibleSeries.sleep}
           
-          // Multi-line configuration - Control visibility with colors
-          data2={visibleSeries.nutrition ? nutritionData : []}
+          // Multi-line configuration - Control visibility with hideLine properties
+          data2={nutritionData}
           color2='#10b981'
-          thickness2={2}
+          thickness2={2.5}
+          hideLine2={!visibleSeries.nutrition}
           
-          data3={visibleSeries.academics ? academicsData : []}
-          color3='#f59e0b'
-          thickness3={2}
+          data3={academicsData}
+          color3='#f59e0b' 
+          thickness3={2.5}
+          hideLine3={!visibleSeries.academics}
           
-          data4={visibleSeries.social ? socialData : []}
+          data4={socialData}
           color4='#f43f5e'
-          thickness4={2}
+          thickness4={2.5}
+          hideLine4={!visibleSeries.social}
           
           // Enhanced data points
           dataPointsColor1='#64748b'
@@ -144,14 +147,13 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
             color: theme.colors.textTertiary,
             fontSize: 9,
             fontWeight: '400',
+            textAlign: 'center',
           }}
           
-          // X-axis labels
-          xAxisLabelTextStyle={{
-            color: theme.colors.textTertiary,
-            fontSize: 10,
-            marginTop: 8,
-          }}
+          // X-axis positioning to prevent cutoff
+          xAxisOffset={0}
+          xAxisThickness={1}
+          xAxisLength={chartWidth - 60}
           
           // Animation
           animateOnDataChange
@@ -223,9 +225,10 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     alignItems: 'center',
-    marginVertical: 16,
-    paddingBottom: 20,
-    overflow: 'hidden',
+    marginVertical: 12,
+    paddingBottom: 25,
+    paddingTop: 10,
+    overflow: 'visible',
   },
   interactiveLegend: {
     flexDirection: 'row',

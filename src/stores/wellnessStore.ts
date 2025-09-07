@@ -138,8 +138,10 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         overallScore,
       };
 
+      const updatedEntries = [...(state.entries || []), newEntry];
+      
       set((state) => ({
-        entries: [...(state.entries || []), newEntry],
+        entries: updatedEntries,
         todayEntry: newEntry,
       }));
       
@@ -147,8 +149,13 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
       
-      // Clear cache so fresh data is loaded next time
-      await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+      // Update cache immediately with new data for instant loading next time
+      const wellnessData = { 
+        entries: updatedEntries, 
+        todayEntry: newEntry 
+      };
+      await cache.set(CACHE_CONFIGS.WELLNESS_DATA, wellnessData, user.uid);
+      console.log('💾 Updated wellness cache with new entry');
 
       // Send notification to parents
       try {
@@ -266,9 +273,12 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         return;
       }
 
+      let updatedEntries: WellnessEntry[] = [];
+      let todayEntry: WellnessEntry | null = null;
+
       set((state) => {
         const entriesArray = state.entries || [];
-        const updatedEntries = entriesArray.map((entry) => {
+        updatedEntries = entriesArray.map((entry) => {
           if (entry.id === id) {
             const updatedEntry = { ...entry, ...updates };
             if (updates.rankings || updates.overallMood !== undefined) {
@@ -279,9 +289,11 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           return entry;
         });
 
+        todayEntry = updatedEntries.find(entry => entry.date === getTodayDateString()) || null;
+
         return {
           entries: updatedEntries,
-          todayEntry: updatedEntries.find(entry => entry.date === getTodayDateString()) || null,
+          todayEntry,
         };
       });
       
@@ -289,8 +301,13 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
       
-      // Clear cache so fresh data is loaded next time
-      await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+      // Update cache immediately with updated data
+      const wellnessData = { 
+        entries: updatedEntries, 
+        todayEntry 
+      };
+      await cache.set(CACHE_CONFIGS.WELLNESS_DATA, wellnessData, user.uid);
+      console.log('💾 Updated wellness cache after entry update');
     } catch (error) {
       console.error('Failed to update wellness entry:', error);
     }
@@ -403,9 +420,11 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const targetUserId = studentId || user.uid;
 
     try {
-      // Use smart caching for wellness data
-      const wellnessData = await cache.getOrFetch(
+      // Use smart refresh for instant loading with cached data
+      await cache.smartRefresh(
         CACHE_CONFIGS.WELLNESS_DATA,
+        
+        // Fetch function for fresh data
         async () => {
           console.log('🔄 Loading fresh wellness entries...');
           const firebaseEntries = await getWellnessEntries(targetUserId);
@@ -469,26 +488,38 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           
           return { entries, todayEntry };
         },
+        
+        // Callback for cached data (shows immediately)
+        (cachedData) => {
+          if (cachedData && Array.isArray(cachedData.entries)) {
+            console.log('⚡ Showing cached wellness data immediately');
+            set({ entries: cachedData.entries, todayEntry: cachedData.todayEntry });
+            
+            // Calculate and update stats for cached data
+            const stats = get().calculateStats();
+            set({ stats });
+          }
+        },
+        
+        // Callback for fresh data (updates in background)
+        (freshData) => {
+          if (freshData && Array.isArray(freshData.entries)) {
+            console.log('🔄 Updated with fresh wellness data');
+            set({ entries: freshData.entries, todayEntry: freshData.todayEntry });
+            
+            // Calculate and update stats for fresh data
+            const stats = get().calculateStats();
+            set({ stats });
+            
+            console.log('📦 Loaded wellness data', { 
+              entriesCount: freshData.entries.length, 
+              hasTodayEntry: !!freshData.todayEntry 
+            });
+          }
+        },
+        
         targetUserId
       );
-
-      // Validate cached data before setting it to state
-      if (!wellnessData || !Array.isArray(wellnessData.entries)) {
-        console.error('❌ Invalid wellness data from cache/fetch:', wellnessData);
-        set({ entries: [], todayEntry: null });
-      } else {
-        // Set the data from cache or fresh fetch
-        set({ entries: wellnessData.entries, todayEntry: wellnessData.todayEntry });
-      }
-      
-      // Calculate and update stats
-      const stats = get().calculateStats();
-      set({ stats });
-      
-      console.log('📦 Loaded wellness data', { 
-        entriesCount: wellnessData?.entries?.length || 0, 
-        hasTodayEntry: !!wellnessData?.todayEntry 
-      });
     } catch (error) {
       console.error('❌ Failed to load wellness entries:', error);
       

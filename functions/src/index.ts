@@ -183,19 +183,31 @@ export const verifyPayPalPayment = functions
     throw new functions.https.HttpsError('invalid-argument', 'Missing transaction or order ID');
   }
 
+  // Declare paymentRef outside try block so it's accessible in catch block
+  let paymentRef: any = null;
+
   try {
-    // Get payment record
-    const paymentRef = db.collection('payments').doc(transactionId);
-    const paymentDoc = await paymentRef.get();
+    // Try transactions collection first (P2P payments), then payments collection (regular payments)
+    paymentRef = db.collection('transactions').doc(transactionId);
+    let paymentDoc = await paymentRef.get();
+    let isP2P = true;
 
     if (!paymentDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Payment not found');
+      // Fallback to payments collection for regular payments
+      paymentRef = db.collection('payments').doc(transactionId);
+      paymentDoc = await paymentRef.get();
+      isP2P = false;
+    }
+
+    if (!paymentDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Payment not found in either transactions or payments collection');
     }
 
     const payment = paymentDoc.data()!;
 
-    // Verify user owns this payment
-    if (payment.parent_id !== context.auth.uid) {
+    // Verify user owns this payment (different field names for P2P vs regular payments)
+    const parentId = isP2P ? payment.parentId : payment.parent_id;
+    if (parentId !== context.auth.uid) {
       throw new functions.https.HttpsError('permission-denied', 'Unauthorized access to payment');
     }
 
@@ -222,8 +234,8 @@ export const verifyPayPalPayment = functions
       // Order was created but not approved/paid by user
       await paymentRef.update({
         status: 'pending_payment',
-        paypal_order_data: orderData,
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
+        paypalOrderData: orderData,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
       return {
@@ -256,17 +268,17 @@ export const verifyPayPalPayment = functions
 
       debugLog('verifyPayPalPayment', 'PayPal capture response', { captureStatus, captureId });
 
-      // Update payment based on capture status
+      // Update payment based on capture status (use different field names for P2P vs regular payments)
       const updateData: any = {
-        paypal_capture_id: captureId,
-        paypal_capture_data: captureData,
-        paypal_order_data: orderData,
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
+        paypalCaptureId: captureId,
+        paypalCaptureData: captureData,
+        paypalOrderData: orderData,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       };
 
       if (captureStatus === 'COMPLETED' || captureStatus === 'PENDING') {
         updateData.status = 'completed';
-        updateData.completed_at = admin.firestore.FieldValue.serverTimestamp();
+        updateData.completedAt = admin.firestore.FieldValue.serverTimestamp();
         debugLog('verifyPayPalPayment', 'Payment completed successfully', { captureStatus });
         
         // Log PENDING status for P2P payments (common in sandbox)
@@ -295,9 +307,9 @@ export const verifyPayPalPayment = functions
       // Order already completed
       await paymentRef.update({
         status: 'completed',
-        paypal_order_data: orderData,
-        completed_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
+        paypalOrderData: orderData,
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
       return {
@@ -311,9 +323,9 @@ export const verifyPayPalPayment = functions
     // Handle other statuses (CANCELLED, etc.)
     await paymentRef.update({
       status: 'failed',
-      paypal_order_data: orderData,
+      paypalOrderData: orderData,
       error: `PayPal order status: ${orderStatus}`,
-      updated_at: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
     return {
@@ -330,11 +342,14 @@ export const verifyPayPalPayment = functions
     
     // Update payment as failed
     try {
-      await db.collection('payments').doc(transactionId).update({
-        status: 'failed',
-        error: errorMessage,
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
-      });
+      // Use the correct reference that was already determined (if it exists)
+      if (paymentRef) {
+        await paymentRef.update({
+          status: 'failed',
+          error: errorMessage,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
     } catch (updateError) {
       debugLog('verifyPayPalPayment', 'Error updating failed payment', updateError);
     }

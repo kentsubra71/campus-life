@@ -119,6 +119,11 @@ export const changePassword = async (
       return { success: false, error: 'User not authenticated' };
     }
     
+    // Check if new password is different from current password
+    if (currentPassword === newPassword) {
+      return { success: false, error: 'New password must be different from current password' };
+    }
+    
     // Re-authenticate user with current password
     const credential = EmailAuthProvider.credential(user.email, currentPassword);
     await reauthenticateWithCredential(user, credential);

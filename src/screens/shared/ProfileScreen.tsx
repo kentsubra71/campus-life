@@ -34,6 +34,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -48,6 +51,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     studentWellnessLogged: true,
   });
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [saveTimeout, setSaveTimeout] = useState<NodeJS.Timeout | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState(true);
   const [loadingVerification, setLoadingVerification] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -55,10 +59,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [loadingInvite, setLoadingInvite] = useState(false);
 
   useEffect(() => {
-    loadFamilyMembers();
-    loadNotificationPreferences();
-    checkEmailVerificationStatus();
-  }, [user?.id]);
+    if (user?.id) {
+      console.log('👤 User changed, reloading profile data for user:', user.id);
+      loadFamilyMembers();
+      loadNotificationPreferences();
+      checkEmailVerificationStatus();
+    }
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+      }
+    };
+  }, [user?.id, saveTimeout]);
 
   const checkEmailVerificationStatus = async () => {
     if (!user) return;
@@ -188,36 +202,103 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       const { doc, getDoc } = await import('firebase/firestore');
       const { db } = await import('../../lib/firebase');
       
+      console.log('📱 Loading notification preferences for user:', user.id);
+      
       const userDoc = await getDoc(doc(db, 'users', user.id));
       if (userDoc.exists()) {
         const userData = userDoc.data();
+        console.log('📄 User document exists:', !!userData);
+        
         if (userData.notificationPreferences) {
-          setNotificationPreferences({
-            ...notificationPreferences,
-            ...userData.notificationPreferences,
-            // Add new preferences with defaults if they don't exist
+          console.log('🔔 Found saved notification preferences:', userData.notificationPreferences);
+          const loadedPreferences = {
+            enabled: userData.notificationPreferences.enabled ?? true,
+            supportMessages: userData.notificationPreferences.supportMessages ?? true,
+            paymentUpdates: userData.notificationPreferences.paymentUpdates ?? true,
+            wellnessReminders: userData.notificationPreferences.wellnessReminders ?? true,
+            careRequests: userData.notificationPreferences.careRequests ?? true,
+            weeklyReports: userData.notificationPreferences.weeklyReports ?? true,
             dailySummaries: userData.notificationPreferences.dailySummaries ?? true,
             studentWellnessLogged: userData.notificationPreferences.studentWellnessLogged ?? true,
+          };
+          setNotificationPreferences(loadedPreferences);
+          console.log('✅ Notification preferences loaded successfully:', loadedPreferences);
+        } else {
+          console.log('📱 No saved notification preferences found, using defaults');
+          // Initialize with default preferences if none exist
+          const defaultPreferences = {
+            enabled: true,
+            supportMessages: true,
+            paymentUpdates: true,
+            wellnessReminders: true,
+            careRequests: true,
+            weeklyReports: true,
+            dailySummaries: true,
+            studentWellnessLogged: true,
+          };
+          setNotificationPreferences(defaultPreferences);
+          // Save the defaults to Firebase so they persist (without triggering push notification setup)
+          const { doc, updateDoc, Timestamp } = await import('firebase/firestore');
+          await updateDoc(doc(db, 'users', user.id), {
+            notificationPreferences: defaultPreferences,
+            updated_at: Timestamp.now()
           });
+          console.log('💾 Saved default notification preferences to Firebase');
         }
+      } else {
+        console.error('❌ User document does not exist for user:', user.id);
       }
     } catch (error) {
-      console.error('Failed to load notification preferences:', error);
+      console.error('❌ Failed to load notification preferences:', error);
     }
   };
 
-  const saveNotificationPreferences = async (newPreferences: typeof notificationPreferences) => {
-    if (!user) return;
+  const debouncedSaveNotificationPreferences = (newPreferences: typeof notificationPreferences) => {
+    // Clear existing timeout
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
     
+    // Set new timeout
+    const timeout = setTimeout(() => {
+      saveNotificationPreferences(newPreferences);
+    }, 300); // 300ms debounce
+    
+    setSaveTimeout(timeout);
+  };
+
+  const saveNotificationPreferences = async (newPreferences: typeof notificationPreferences) => {
+    if (!user) {
+      console.error('❌ No user found, cannot save notification preferences');
+      return;
+    }
+    
+    console.log('💾 Saving notification preferences for user:', user.id, newPreferences);
     setLoadingNotifications(true);
+    
     try {
-      const { doc, updateDoc } = await import('firebase/firestore');
+      const { doc, updateDoc, Timestamp, getDoc } = await import('firebase/firestore');
       const { db } = await import('../../lib/firebase');
       
-      await updateDoc(doc(db, 'users', user.id), {
+      // First verify the user document exists
+      const userDocRef = doc(db, 'users', user.id);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (!userDoc.exists()) {
+        throw new Error(`User document does not exist for user: ${user.id}`);
+      }
+      
+      await updateDoc(userDocRef, {
         notificationPreferences: newPreferences,
-        updated_at: new Date()
+        updated_at: Timestamp.now()
       });
+      
+      console.log('✅ Successfully saved notification preferences to Firebase:', newPreferences);
+      
+      // Verify the save was successful by reading it back
+      const updatedDoc = await getDoc(userDocRef);
+      const updatedData = updatedDoc.data();
+      console.log('🔍 Verification - preferences in Firebase after save:', updatedData?.notificationPreferences);
       
       setNotificationPreferences(newPreferences);
       
@@ -242,10 +323,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         await pushNotificationService.cancelScheduledNotifications();
       }
       
-      console.log('✅ Notification preferences saved successfully');
-    } catch (error) {
-      console.error('Failed to save notification preferences:', error);
-      Alert.alert('Error', 'Failed to update notification preferences');
+      console.log('🎉 Notification preferences saved and verified successfully');
+    } catch (error: any) {
+      console.error('❌ Failed to save notification preferences:', error);
+      
+      // More specific error messages
+      let errorMessage = 'Failed to update notification preferences';
+      if (error.code === 'permission-denied') {
+        errorMessage = 'Permission denied. Please make sure you are logged in.';
+      } else if (error.code === 'not-found') {
+        errorMessage = 'User account not found. Please try logging out and back in.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+      
+      // Revert the local state if save failed
+      loadNotificationPreferences();
     } finally {
       setLoadingNotifications(false);
     }
@@ -645,6 +740,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <Text style={styles.inviteCode}>{family.inviteCode}</Text>
               <Text style={styles.inviteCodeHint}>Tap to copy and share</Text>
             </TouchableOpacity>
+
+            {/* Family Join Requests Button */}
+            <TouchableOpacity 
+              style={styles.joinRequestsButton}
+              onPress={() => navigation.navigate('FamilyJoinRequests' as never)}
+            >
+              <View style={styles.joinRequestsContent}>
+                <Text style={styles.joinRequestsTitle}>Family Join Requests</Text>
+                <Text style={styles.joinRequestsSubtitle}>Approve new students</Text>
+              </View>
+              <Text style={styles.joinRequestsArrow}>→</Text>
+            </TouchableOpacity>
             
             <View style={styles.inviteEmailContainer}>
               <Text style={styles.inviteEmailLabel}>Invite Student by Email</Text>
@@ -769,7 +876,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               value={notificationPreferences.enabled}
               onValueChange={(value) => {
                 const newPrefs = { ...notificationPreferences, enabled: value };
-                saveNotificationPreferences(newPrefs);
+                setNotificationPreferences(newPrefs); // Update UI immediately
+                debouncedSaveNotificationPreferences(newPrefs); // Save with debounce
               }}
               trackColor={{ false: '#ccc', true: theme.colors.primary }}
               thumbColor={notificationPreferences.enabled ? '#fff' : '#f4f3f4'}
@@ -791,7 +899,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   value={notificationPreferences.supportMessages}
                   onValueChange={(value) => {
                     const newPrefs = { ...notificationPreferences, supportMessages: value };
-                    saveNotificationPreferences(newPrefs);
+                    setNotificationPreferences(newPrefs);
+                    debouncedSaveNotificationPreferences(newPrefs);
                   }}
                   trackColor={{ false: '#ccc', true: theme.colors.primary }}
                   thumbColor={notificationPreferences.supportMessages ? '#fff' : '#f4f3f4'}
@@ -811,7 +920,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   value={notificationPreferences.paymentUpdates}
                   onValueChange={(value) => {
                     const newPrefs = { ...notificationPreferences, paymentUpdates: value };
-                    saveNotificationPreferences(newPrefs);
+                    setNotificationPreferences(newPrefs);
+                    debouncedSaveNotificationPreferences(newPrefs);
                   }}
                   trackColor={{ false: '#ccc', true: theme.colors.primary }}
                   thumbColor={notificationPreferences.paymentUpdates ? '#fff' : '#f4f3f4'}
@@ -832,7 +942,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                     value={notificationPreferences.wellnessReminders}
                     onValueChange={(value) => {
                       const newPrefs = { ...notificationPreferences, wellnessReminders: value };
-                      saveNotificationPreferences(newPrefs);
+                      setNotificationPreferences(newPrefs);
+                      debouncedSaveNotificationPreferences(newPrefs);
                     }}
                     trackColor={{ false: '#ccc', true: theme.colors.primary }}
                     thumbColor={notificationPreferences.wellnessReminders ? '#fff' : '#f4f3f4'}
@@ -854,7 +965,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                     value={notificationPreferences.studentWellnessLogged}
                     onValueChange={(value) => {
                       const newPrefs = { ...notificationPreferences, studentWellnessLogged: value };
-                      saveNotificationPreferences(newPrefs);
+                      setNotificationPreferences(newPrefs);
+                      debouncedSaveNotificationPreferences(newPrefs);
                     }}
                     trackColor={{ false: '#ccc', true: theme.colors.primary }}
                     thumbColor={notificationPreferences.studentWellnessLogged ? '#fff' : '#f4f3f4'}
@@ -875,7 +987,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   value={notificationPreferences.careRequests}
                   onValueChange={(value) => {
                     const newPrefs = { ...notificationPreferences, careRequests: value };
-                    saveNotificationPreferences(newPrefs);
+                    setNotificationPreferences(newPrefs);
+                    debouncedSaveNotificationPreferences(newPrefs);
                   }}
                   trackColor={{ false: '#ccc', true: theme.colors.primary }}
                   thumbColor={notificationPreferences.careRequests ? '#fff' : '#f4f3f4'}
@@ -895,7 +1008,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   value={notificationPreferences.weeklyReports}
                   onValueChange={(value) => {
                     const newPrefs = { ...notificationPreferences, weeklyReports: value };
-                    saveNotificationPreferences(newPrefs);
+                    setNotificationPreferences(newPrefs);
+                    debouncedSaveNotificationPreferences(newPrefs);
                   }}
                   trackColor={{ false: '#ccc', true: theme.colors.primary }}
                   thumbColor={notificationPreferences.weeklyReports ? '#fff' : '#f4f3f4'}
@@ -915,7 +1029,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   value={notificationPreferences.dailySummaries}
                   onValueChange={(value) => {
                     const newPrefs = { ...notificationPreferences, dailySummaries: value };
-                    saveNotificationPreferences(newPrefs);
+                    setNotificationPreferences(newPrefs);
+                    debouncedSaveNotificationPreferences(newPrefs);
                   }}
                   trackColor={{ false: '#ccc', true: theme.colors.primary }}
                   thumbColor={notificationPreferences.dailySummaries ? '#fff' : '#f4f3f4'}
@@ -945,30 +1060,54 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         
         {showPasswordChange && (
           <View style={styles.passwordForm}>
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Current Password"
-              secureTextEntry
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              autoCapitalize="none"
-            />
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="New Password (min 8 characters)"
-              secureTextEntry
-              value={newPassword}
-              onChangeText={setNewPassword}
-              autoCapitalize="none"
-            />
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Confirm New Password"
-              secureTextEntry
-              value={confirmNewPassword}
-              onChangeText={setConfirmNewPassword}
-              autoCapitalize="none"
-            />
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInputField}
+                placeholder="Current Password"
+                secureTextEntry={!showCurrentPassword}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowCurrentPassword(!showCurrentPassword)}
+              >
+                <Text style={styles.eyeIcon}>{showCurrentPassword ? '👁️' : '👁️‍🗨️'}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInputField}
+                placeholder="New Password (min 8 characters)"
+                secureTextEntry={!showNewPassword}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowNewPassword(!showNewPassword)}
+              >
+                <Text style={styles.eyeIcon}>{showNewPassword ? '👁️' : '👁️‍🗨️'}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInputField}
+                placeholder="Confirm New Password"
+                secureTextEntry={!showConfirmNewPassword}
+                value={confirmNewPassword}
+                onChangeText={setConfirmNewPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+              >
+                <Text style={styles.eyeIcon}>{showConfirmNewPassword ? '👁️' : '👁️‍🗨️'}</Text>
+              </TouchableOpacity>
+            </View>
             
             <View style={styles.passwordActions}>
               <TouchableOpacity 
@@ -1209,6 +1348,35 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '500',
   },
+  joinRequestsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+  },
+  joinRequestsContent: {
+    flex: 1,
+  },
+  joinRequestsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    marginBottom: 2,
+  },
+  joinRequestsSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  joinRequestsArrow: {
+    fontSize: 20,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
   inviteEmailContainer: {
     backgroundColor: theme.colors.backgroundTertiary,
     padding: 16,
@@ -1431,6 +1599,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  passwordInputField: {
+    flex: 1,
+    padding: 12,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+  },
+  eyeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  eyeIcon: {
+    fontSize: 18,
   },
   passwordInput: {
     borderWidth: 1,

@@ -460,6 +460,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
             placeholderTextColor="#9ca3af"
             value={customMessage}
             onChangeText={setCustomMessage}
+            maxLength={2000}
           />
         </View>
 

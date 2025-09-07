@@ -371,7 +371,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   joinFamily: async (studentData: StudentRegisterData, inviteCode: string) => {
-    console.log('🔥 JOIN FAMILY FUNCTION CALLED - Firebase implementation active');
+    console.log('🔥 JOIN FAMILY FUNCTION CALLED - Using approval system');
     set({ isLoading: true });
     
     try {
@@ -389,15 +389,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: false, error: error || 'Registration failed' };
       }
       
-      // Join the family
-      const { familyId, error: familyError } = await joinFamilyFirebase(
+      // Create join request instead of immediately joining
+      const { requestToJoinFamily } = await import('../lib/firebase');
+      const { requestId, familyName, error: requestError } = await requestToJoinFamily(
         inviteCode,
-        firebaseUser.uid
+        firebaseUser.uid,
+        studentData.name,
+        studentData.email
       );
       
-      if (familyError || !familyId) {
+      if (requestError || !requestId) {
         set({ isLoading: false });
-        return { success: false, error: familyError || 'Failed to join family' };
+        return { success: false, error: requestError || 'Failed to create join request' };
       }
       
       // Now that all steps succeeded, send verification and welcome emails
@@ -413,15 +416,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: false, error: 'Failed to get user profile' };
       }
       
-      // Get the family data
-      const familyData = await getFamily(familyId);
-      if (!familyData) {
-        set({ isLoading: false });
-        return { success: false, error: 'Failed to get family data' };
-      }
-      
-      // Send welcome email with family name
-      await sendWelcomeEmail(studentData.email, studentData.name, 'student', familyData.name);
+      // Note: Student won't be in family yet until request is approved
+      // So we don't send welcome email yet - that will happen after approval
       
       const user: User = {
         id: profile.id,

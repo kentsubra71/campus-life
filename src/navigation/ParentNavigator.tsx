@@ -12,6 +12,7 @@ import { ActivityHistoryScreen } from '../screens/parent/ActivityHistoryScreen';
 import { ProfileScreen } from '../screens/shared/ProfileScreen';
 import { PaymentReturnHandler } from '../components/PaymentReturnHandler';
 import { PayPalP2PReturnHandler } from '../components/PayPalP2PReturnHandler';
+import { FamilyJoinRequestsScreen } from '../screens/parent/FamilyJoinRequestsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -84,6 +85,7 @@ export const ParentNavigator = () => {
       <Stack.Screen name="ParentTabs" component={ParentMainTabs} />
       <Stack.Screen name="ChildWellness" component={ChildWellnessScreen} />
       <Stack.Screen name="SendSupport" component={SendSupportScreen} />
+      <Stack.Screen name="FamilyJoinRequests" component={FamilyJoinRequestsScreen} />
       <Stack.Screen name="PaymentReturn" component={PaymentReturnHandler} />
       <Stack.Screen name="PayPalP2PReturn" component={PayPalP2PReturnHandler} />
     </Stack.Navigator>

@@ -6,7 +6,9 @@ import {
   Text, 
   StyleSheet,
   TouchableOpacity,
-  Alert
+  Alert,
+  TextInput,
+  Modal
 } from 'react-native';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
@@ -46,6 +48,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingErrors, setLoadingErrors] = useState<AppError[]>([]);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportMessage, setSupportMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -191,6 +195,44 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     return 'Difficult';
   }, [todayEntry?.mood]);
 
+  const handleSupportRequest = () => {
+    // Check if already requested within last hour
+    if (lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000) {
+      Alert.alert(
+        'Support Already Requested',
+        'You recently requested support. Your family has been notified.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    setShowSupportModal(true);
+  };
+
+  const sendSupportRequest = async () => {
+    if (!supportMessage.trim()) {
+      Alert.alert('Message Required', 'Please enter a message to send with your support request.');
+      return;
+    }
+
+    try {
+      await requestSupport(supportMessage.trim());
+      setShowSupportModal(false);
+      setSupportMessage('');
+      Alert.alert(
+        'Support Requested! 💙',
+        'Your family has been notified that you need support.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to send support request. Please try again.');
+    }
+  };
+
+  const cancelSupportRequest = () => {
+    setShowSupportModal(false);
+    setSupportMessage('');
+  };
 
   if (isLoading) {
     return (
@@ -326,7 +368,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           <View style={styles.secondaryActions}>
             <TouchableOpacity 
               style={styles.actionItem}
-              onPress={() => requestSupport()}
+              onPress={handleSupportRequest}
             >
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Request Support</Text>
@@ -358,6 +400,51 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
         {/* Received Payments Summary */}
         <ReceivedPaymentsSummary />
       </ScrollView>
+
+      {/* Support Request Modal */}
+      <Modal
+        visible={showSupportModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={cancelSupportRequest}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Request Support</Text>
+            <Text style={styles.modalSubtitle}>
+              Let your family know what kind of support you need right now.
+            </Text>
+            
+            <TextInput
+              style={styles.messageInput}
+              placeholder="I could use some extra support right now 💙"
+              placeholderTextColor={theme.colors.textSecondary}
+              value={supportMessage}
+              onChangeText={setSupportMessage}
+              multiline={true}
+              numberOfLines={4}
+              maxLength={2000}
+              autoFocus={true}
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]} 
+                onPress={cancelSupportRequest}
+              >
+                <Text style={[styles.modalButtonText, styles.cancelButtonText]}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.sendButton]} 
+                onPress={sendSupportRequest}
+              >
+                <Text style={[styles.modalButtonText, styles.sendButtonText]}>Send Request</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -722,5 +809,79 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: theme.colors.primary,
     marginLeft: 8,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: theme.colors.background,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  messageInput: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: theme.colors.text,
+    textAlignVertical: 'top',
+    minHeight: 100,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  sendButton: {
+    backgroundColor: theme.colors.primary,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButtonText: {
+    color: theme.colors.textSecondary,
+  },
+  sendButtonText: {
+    color: '#FFFFFF',
   },
 }); 

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPasswordResetEmailHttp = exports.resetPasswordHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = void 0;
+exports.sendPasswordResetEmailHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
@@ -155,16 +155,26 @@ exports.verifyPayPalPayment = functions
     if (!transactionId || !orderId) {
         throw new functions.https.HttpsError('invalid-argument', 'Missing transaction or order ID');
     }
+    // Declare paymentRef outside try block so it's accessible in catch block
+    let paymentRef = null;
     try {
-        // Get payment record
-        const paymentRef = db.collection('payments').doc(transactionId);
-        const paymentDoc = await paymentRef.get();
+        // Try transactions collection first (P2P payments), then payments collection (regular payments)
+        paymentRef = db.collection('transactions').doc(transactionId);
+        let paymentDoc = await paymentRef.get();
+        let isP2P = true;
         if (!paymentDoc.exists) {
-            throw new functions.https.HttpsError('not-found', 'Payment not found');
+            // Fallback to payments collection for regular payments
+            paymentRef = db.collection('payments').doc(transactionId);
+            paymentDoc = await paymentRef.get();
+            isP2P = false;
+        }
+        if (!paymentDoc.exists) {
+            throw new functions.https.HttpsError('not-found', 'Payment not found in either transactions or payments collection');
         }
         const payment = paymentDoc.data();
-        // Verify user owns this payment
-        if (payment.parent_id !== context.auth.uid) {
+        // Verify user owns this payment (different field names for P2P vs regular payments)
+        const parentId = isP2P ? payment.parentId : payment.parent_id;
+        if (parentId !== context.auth.uid) {
             throw new functions.https.HttpsError('permission-denied', 'Unauthorized access to payment');
         }
         debugLog('verifyPayPalPayment', 'Verifying PayPal order', { orderId, payerID });
@@ -185,8 +195,8 @@ exports.verifyPayPalPayment = functions
             // Order was created but not approved/paid by user
             await paymentRef.update({
                 status: 'pending_payment',
-                paypal_order_data: orderData,
-                updated_at: admin.firestore.FieldValue.serverTimestamp()
+                paypalOrderData: orderData,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
             return {
                 success: false,
@@ -209,16 +219,16 @@ exports.verifyPayPalPayment = functions
             const captureStatus = captureData.status;
             const captureId = (_h = (_g = (_f = (_e = (_d = captureData.purchase_units) === null || _d === void 0 ? void 0 : _d[0]) === null || _e === void 0 ? void 0 : _e.payments) === null || _f === void 0 ? void 0 : _f.captures) === null || _g === void 0 ? void 0 : _g[0]) === null || _h === void 0 ? void 0 : _h.id;
             debugLog('verifyPayPalPayment', 'PayPal capture response', { captureStatus, captureId });
-            // Update payment based on capture status
+            // Update payment based on capture status (use different field names for P2P vs regular payments)
             const updateData = {
-                paypal_capture_id: captureId,
-                paypal_capture_data: captureData,
-                paypal_order_data: orderData,
-                updated_at: admin.firestore.FieldValue.serverTimestamp()
+                paypalCaptureId: captureId,
+                paypalCaptureData: captureData,
+                paypalOrderData: orderData,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
             };
             if (captureStatus === 'COMPLETED' || captureStatus === 'PENDING') {
                 updateData.status = 'completed';
-                updateData.completed_at = admin.firestore.FieldValue.serverTimestamp();
+                updateData.completedAt = admin.firestore.FieldValue.serverTimestamp();
                 debugLog('verifyPayPalPayment', 'Payment completed successfully', { captureStatus });
                 // Log PENDING status for P2P payments (common in sandbox)
                 if (captureStatus === 'PENDING') {
@@ -244,9 +254,9 @@ exports.verifyPayPalPayment = functions
             // Order already completed
             await paymentRef.update({
                 status: 'completed',
-                paypal_order_data: orderData,
-                completed_at: admin.firestore.FieldValue.serverTimestamp(),
-                updated_at: admin.firestore.FieldValue.serverTimestamp()
+                paypalOrderData: orderData,
+                completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
             return {
                 success: true,
@@ -258,9 +268,9 @@ exports.verifyPayPalPayment = functions
         // Handle other statuses (CANCELLED, etc.)
         await paymentRef.update({
             status: 'failed',
-            paypal_order_data: orderData,
+            paypalOrderData: orderData,
             error: `PayPal order status: ${orderStatus}`,
-            updated_at: admin.firestore.FieldValue.serverTimestamp()
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
         return {
             success: false,
@@ -274,11 +284,14 @@ exports.verifyPayPalPayment = functions
         const errorMessage = ((_k = (_j = error.response) === null || _j === void 0 ? void 0 : _j.data) === null || _k === void 0 ? void 0 : _k.message) || error.message;
         // Update payment as failed
         try {
-            await db.collection('payments').doc(transactionId).update({
-                status: 'failed',
-                error: errorMessage,
-                updated_at: admin.firestore.FieldValue.serverTimestamp()
-            });
+            // Use the correct reference that was already determined (if it exists)
+            if (paymentRef) {
+                await paymentRef.update({
+                    status: 'failed',
+                    error: errorMessage,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
         }
         catch (updateError) {
             debugLog('verifyPayPalPayment', 'Error updating failed payment', updateError);
@@ -826,6 +839,65 @@ exports.resetPasswordHttp = functions.https.onRequest(async (req, res) => {
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
         debugLog('resetPassword', 'Password reset completed successfully', { userId: tokenData.user_id });
+        // Send password reset confirmation email
+        try {
+            const userDoc = await db.collection('users').doc(tokenData.user_id).get();
+            const userData = userDoc.data();
+            if (userData && userData.email) {
+                await fetch('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${functions.config().resend.api_key}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        from: 'Campus Life <noreply@campus-life.app>',
+                        to: userData.email,
+                        subject: 'Password Reset Confirmation - Campus Life',
+                        html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+                <div style="text-align: center; margin-bottom: 40px;">
+                  <div style="background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%); width: 80px; height: 80px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 28px; margin-bottom: 20px;">CL</div>
+                  <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Password Reset Successful</h1>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 24px; border: 2px solid #d1fae5; margin-bottom: 32px;">
+                  <h2 style="color: #10b981; margin: 0 0 12px 0; font-size: 20px; font-weight: 700;">✓ Your password has been successfully reset</h2>
+                  <p style="color: #059669; margin: 0; font-size: 16px;">Your Campus Life account password was changed on ${new Date().toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}.</p>
+                </div>
+                
+                <div style="background: #ffffff; border-radius: 12px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 32px;">
+                  <h3 style="color: #1e293b; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">Security Notice</h3>
+                  <p style="color: #64748b; margin: 0 0 12px 0; font-size: 16px; line-height: 1.6;">If you did not request this password reset, please contact our support team immediately at <strong>help@campus-life.app</strong></p>
+                  <p style="color: #64748b; margin: 0; font-size: 16px; line-height: 1.6;">For your security, we recommend using a strong, unique password that you don't use for other accounts.</p>
+                </div>
+                
+                <div style="text-align: center; padding-top: 32px; border-top: 1px solid #e2e8f0;">
+                  <p style="color: #64748b; margin: 0; font-size: 14px;">
+                    <strong>Campus Life</strong><br>
+                    Connecting families through wellness
+                  </p>
+                  <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 12px;">
+                    Having trouble? Contact support at help@campus-life.app
+                  </p>
+                </div>
+              </div>
+            `
+                    })
+                });
+                debugLog('resetPassword', 'Confirmation email sent', { email: userData.email });
+            }
+        }
+        catch (emailError) {
+            debugLog('resetPassword', 'Failed to send confirmation email', emailError);
+            // Don't fail the password reset if email fails
+        }
         res.status(200).json({
             success: true,
             message: 'Password reset successfully'
@@ -837,6 +909,94 @@ exports.resetPasswordHttp = functions.https.onRequest(async (req, res) => {
         res.status(500).json({
             success: false,
             error: `Password reset failed: ${errorMessage}`
+        });
+    }
+});
+// Send Password Change Confirmation Email via HTTP
+exports.sendPasswordChangeConfirmationHttp = functions.https.onRequest(async (req, res) => {
+    var _a, _b;
+    // Set CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({ success: false, error: 'Method not allowed' });
+        return;
+    }
+    const { email, userId } = req.body;
+    if (!email || !userId) {
+        res.status(400).json({ success: false, error: 'Missing email or userId' });
+        return;
+    }
+    try {
+        // Get user data for full name
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+        const userName = (userData === null || userData === void 0 ? void 0 : userData.full_name) || 'Campus Life User';
+        await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${functions.config().resend.api_key}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                from: 'Campus Life <noreply@campus-life.app>',
+                to: email,
+                subject: 'Password Changed Successfully - Campus Life',
+                html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+            <div style="text-align: center; margin-bottom: 40px;">
+              <div style="background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%); width: 80px; height: 80px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 28px; margin-bottom: 20px;">CL</div>
+              <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Password Changed</h1>
+            </div>
+            
+            <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 24px; border: 2px solid #d1fae5; margin-bottom: 32px;">
+              <h2 style="color: #10b981; margin: 0 0 12px 0; font-size: 20px; font-weight: 700;">✓ Password successfully changed</h2>
+              <p style="color: #059669; margin: 0; font-size: 16px;">Hi ${userName}, your Campus Life account password was changed from within the app on ${new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}.</p>
+            </div>
+            
+            <div style="background: #ffffff; border-radius: 12px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 32px;">
+              <h3 style="color: #1e293b; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">Security Notice</h3>
+              <p style="color: #64748b; margin: 0 0 12px 0; font-size: 16px; line-height: 1.6;">If you did not make this change, please contact our support team immediately at <strong>help@campus-life.app</strong> or sign into your account and change your password.</p>
+              <p style="color: #64748b; margin: 0; font-size: 16px; line-height: 1.6;">This notification helps keep your account secure by alerting you to important changes.</p>
+            </div>
+            
+            <div style="text-align: center; padding-top: 32px; border-top: 1px solid #e2e8f0;">
+              <p style="color: #64748b; margin: 0; font-size: 14px;">
+                <strong>Campus Life</strong><br>
+                Connecting families through wellness
+              </p>
+              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 12px;">
+                Having trouble? Contact support at help@campus-life.app
+              </p>
+            </div>
+          </div>
+        `
+            })
+        });
+        debugLog('sendPasswordChangeConfirmation', 'Password change confirmation email sent', { email });
+        res.status(200).json({
+            success: true,
+            message: 'Password change confirmation email sent'
+        });
+    }
+    catch (error) {
+        debugLog('sendPasswordChangeConfirmation', 'Error sending confirmation email', error);
+        const errorMessage = ((_b = (_a = error.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.message) || error.message || 'Failed to send confirmation email';
+        res.status(500).json({
+            success: false,
+            error: `Email service error: ${errorMessage}`
         });
     }
 });

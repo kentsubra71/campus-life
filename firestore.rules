@@ -16,6 +16,12 @@ service cloud.firestore {
       return userDoc.data.email_verified == true;
     }
     
+    // Helper function to check if user is a parent of a specific family
+    function isParentOfFamily(familyId) {
+      let familyDoc = get(/databases/$(database)/documents/families/$(familyId));
+      return familyDoc.data.parentIds.hasAny([request.auth.uid]);
+    }
+    
     // Verification tokens - allow public read/write for email verification
     match /verification_tokens/{tokenId} {
       allow read, write: if true; // Public access for email verification
@@ -30,11 +36,10 @@ service cloud.firestore {
                        request.resource.data.email_verified == true;
       // Allow reading for password reset lookup (need to query by email)
       allow read: if true;
-      // Allow password reset updates
-      allow update: if request.resource.data.keys().hasAny(['password_reset_pending', 'password_reset_token', 'password_reset_requested_at', 'updated_at']);
-      // Allow push token and notification preference updates for authenticated users
-      allow update: if request.auth != null && request.auth.uid == userId &&
-                       request.resource.data.keys().hasAny(['pushToken', 'pushTokenUpdatedAt', 'deviceInfo', 'notificationPreferences', 'updated_at']);
+      // Allow password reset updates and push token/notification preference updates for authenticated users
+      allow update: if (request.resource.data.keys().hasAny(['password_reset_pending', 'password_reset_token', 'password_reset_requested_at', 'updated_at'])) ||
+                       (request.auth != null && request.auth.uid == userId &&
+                        request.resource.data.keys().hasAny(['pushToken', 'pushTokenUpdatedAt', 'deviceInfo', 'notificationPreferences', 'updated_at']));
     }
     
     // Profiles collection - allow own access and email verification  
@@ -54,11 +59,29 @@ service cloud.firestore {
       allow create: if request.auth != null;
       // Allow reading families for invite code lookup (needed for joining)
       allow read: if request.auth != null;
-      // Allow students to join families (add themselves to studentIds array)
+      // Allow students to join families (add themselves to studentIds array) - max 10 students
       allow update: if request.auth != null && 
         request.resource.data.studentIds.hasAny([request.auth.uid]) &&
         !resource.data.studentIds.hasAny([request.auth.uid]) &&
+        request.resource.data.studentIds.size() <= 10 &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['studentIds', 'updated_at']);
+    }
+    
+    // Family join requests collection
+    match /family_join_requests/{requestId} {
+      // Allow students to create join requests for themselves
+      allow create: if request.auth != null && request.resource.data.studentId == request.auth.uid;
+      
+      // Allow students to read their own join requests
+      allow read: if request.auth != null && resource.data.studentId == request.auth.uid;
+      
+      // Allow parents to read join requests for their family
+      allow read: if request.auth != null && isParentOfFamily(resource.data.familyId);
+      
+      // Allow parents to update join requests for their family (approve/deny)
+      allow update: if request.auth != null && 
+        isParentOfFamily(resource.data.familyId) &&
+        request.resource.data.keys().hasAny(['status', 'processedAt', 'processedBy', 'reason']);
     }
     
     // Wellness entries - user can access their own, family members can read
@@ -75,14 +98,12 @@ service cloud.firestore {
     
     // Validate wellness entry data
     function validateWellnessEntry(data) {
-      return data.keys().hasAll(['user_id', 'mood', 'sleep_hours', 'exercise_minutes', 'nutrition', 'water', 'social', 'academic']) &&
-             data.mood is number && data.mood >= 1 && data.mood <= 10 &&
-             data.sleep_hours is number && data.sleep_hours >= 0 && data.sleep_hours <= 24 &&
-             data.exercise_minutes is number && data.exercise_minutes >= 0 &&
-             data.nutrition is number && data.nutrition >= 1 && data.nutrition <= 10 &&
-             data.water is number && data.water >= 0 && data.water <= 20 &&
-             data.social is number && data.social >= 1 && data.social <= 10 &&
-             data.academic is number && data.academic >= 1 && data.academic <= 10;
+      return data.keys().hasAll(['user_id', 'sleep_ranking', 'nutrition_ranking', 'academics_ranking', 'social_ranking', 'overall_mood', 'date']) &&
+             data.sleep_ranking is number && data.sleep_ranking >= 1 && data.sleep_ranking <= 4 &&
+             data.nutrition_ranking is number && data.nutrition_ranking >= 1 && data.nutrition_ranking <= 4 &&
+             data.academics_ranking is number && data.academics_ranking >= 1 && data.academics_ranking <= 4 &&
+             data.social_ranking is number && data.social_ranking >= 1 && data.social_ranking <= 4 &&
+             data.overall_mood is number && data.overall_mood >= 1 && data.overall_mood <= 10;
     }
     
     // Rewards - user can access their own, family members can read

@@ -1,4 +1,3 @@
-import DOMPurify from 'isomorphic-dompurify';
 import validator from 'validator';
 
 // CRITICAL: Input sanitization and validation
@@ -10,12 +9,12 @@ export class InputSanitizer {
       return '';
     }
     
-    // Remove potential XSS
-    let sanitized = DOMPurify.sanitize(input, {
-      ALLOWED_TAGS: [], // No HTML tags allowed
-      ALLOWED_ATTR: [], // No attributes allowed
-      ALLOW_DATA_ATTR: false,
-    });
+    // Remove potential XSS - strip HTML tags and dangerous characters
+    let sanitized = input
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/[<>'"&]/g, '') // Remove dangerous characters
+      .replace(/javascript:/gi, '') // Remove javascript: urls
+      .replace(/on\w+=/gi, ''); // Remove event handlers
     
     // Remove excessive whitespace
     sanitized = sanitized.replace(/\s+/g, ' ').trim();

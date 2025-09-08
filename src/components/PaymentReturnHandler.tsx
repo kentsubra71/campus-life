@@ -102,31 +102,13 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
     try {
       setLoading(true);
       
-      // If this is a PayPal return with verification data, verify first
-      if (payment.provider === 'paypal' && token && status === 'success') {
-        console.log('🔄 Auto-verifying PayPal payment:', paymentId, 'with token:', token);
-        const { verifyPayPalPayment } = await import('../lib/paypalIntegration');
-        const verificationResult = await verifyPayPalPayment(paymentId, token);
-        
-        console.log('🔄 Verification result:', verificationResult);
-        
-        if (!verificationResult.success) {
-          console.error('❌ PayPal verification failed:', verificationResult.error);
-          Alert.alert('Verification Failed', verificationResult.error || 'Could not verify PayPal payment');
-          return;
-        }
-        
-        console.log('✅ PayPal payment verified automatically!');
-        
-        // If verification successful, the payment status is already updated to 'completed'
-        // Just show success and return
+      // PayPal payments should be verified automatically on return
+      // Manual confirmation not allowed for PayPal to prevent duplicate processing
+      if (payment.provider === 'paypal') {
         Alert.alert(
-          'Payment Verified! 🎉',
-          `Your $${(payment.intent_cents / 100).toFixed(2)} PayPal payment has been completed and verified.`,
-          [{ 
-            text: 'Done', 
-            onPress: () => navigation.navigate('ParentTabs') 
-          }]
+          'PayPal Payment',
+          'PayPal payments are automatically verified when you return from PayPal. No manual confirmation needed.',
+          [{ text: 'OK', onPress: () => navigation.navigate('ParentTabs') }]
         );
         return;
       }

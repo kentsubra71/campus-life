@@ -216,7 +216,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
         
         // Filter for current month, confirmed status, and optionally by student
         const isCurrentMonth = paymentDate >= startOfMonth;
-        const isConfirmed = payment.status === 'confirmed_by_parent' || payment.status === 'confirmed' || payment.status === 'completed';
+        const isConfirmed = payment.status === 'confirmed_by_parent' || payment.status === 'completed';
         const isForStudent = !studentId || payment.student_id === studentId;
         
         if (isCurrentMonth && isConfirmed && isForStudent) {

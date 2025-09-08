@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { AuthScreenProps } from '../../types/navigation';
 import { theme } from '../../styles/theme';
+import { InputSanitizer } from '../../utils/inputSanitization';
 
 interface LoginScreenProps extends AuthScreenProps<'Login'> {
   onNavigateToRegister?: () => void;
@@ -31,6 +32,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    // Validate email format
+    if (!InputSanitizer.validateEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    // Rate limiting check
+    if (!InputSanitizer.checkRateLimit(email, 'login', 5, 300000)) { // 5 attempts per 5 minutes
+      Alert.alert('Error', 'Too many login attempts. Please try again later.');
       return;
     }
 

@@ -59,7 +59,7 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
     // Only create continuous data for daily view, weekly/monthly should use actual data points
     if (period !== 'daily') {
       return data.map(point => {
-        const categoryValue = point[category as keyof ChartDataPoint] as number;
+        const categoryValue = (point[category as keyof ChartDataPoint] as number) || 1;
         const reInverted = 5 - categoryValue; // Un-invert: 4→1, 1→4
         return {
           value: reInverted - 1, // Convert to 0-3 for chart library
@@ -84,18 +84,15 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
         // Category values are already inverted by transformEntriesForCharts
         // Original: 1(worst)→4, 4(best)→1. We want: 4(best)→top, 1(worst)→bottom
         // So we need to re-invert them, then subtract 1 for chart library
-        const categoryValue = existing[category as keyof ChartDataPoint] as number;
+        const categoryValue = (existing[category as keyof ChartDataPoint] as number) || 1;
         const reInverted = 5 - categoryValue; // Un-invert: 4→1, 1→4
         continuousData.push({
           value: reInverted - 1, // Convert to 0-3 for chart library
           label: formatDateForChart(dateStr, period),
         });
       } else {
-        // Add placeholder for missing date
-        continuousData.push({
-          value: null,
-          label: formatDateForChart(dateStr, period),
-        });
+        // Skip missing dates entirely to avoid NaN errors
+        // Don't add placeholder points
       }
       
       // Increment date safely

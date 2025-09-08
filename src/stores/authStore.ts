@@ -498,7 +498,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const parents: User[] = parentProfiles.map(profile => ({
         id: profile.id,
         email: profile.email,
-        name: profile.full_name,
+        name: profile.full_name || profile.email.split('@')[0],
         role: profile.user_type,
         familyId: profile.family_id || '',
         createdAt: profile.created_at.toDate(),
@@ -507,7 +507,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const students: User[] = studentProfiles.map(profile => ({
         id: profile.id,
         email: profile.email,
-        name: profile.full_name,
+        name: profile.full_name || profile.email.split('@')[0],
         role: profile.user_type,
         familyId: profile.family_id || '',
         createdAt: profile.created_at.toDate(),

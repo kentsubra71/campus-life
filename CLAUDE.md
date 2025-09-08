@@ -1,0 +1,2 @@
+- Never use emojis
+- When comitting to git, put simple but descriptive commit messages, with no emojis, and without mention of co-authorship by Claude or anything about what made the code

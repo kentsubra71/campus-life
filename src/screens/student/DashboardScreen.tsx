@@ -184,11 +184,11 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     const currentMood = todayEntry?.overallMood || null;
     
     if (currentMood === null) return 'Not logged';
-    if (currentMood >= 9) return 'Amazing';
-    if (currentMood >= 7) return 'Great';
-    if (currentMood >= 5) return 'Okay';
-    if (currentMood >= 3) return 'Struggling';
-    return 'Difficult';
+    if (currentMood >= 9) return 'amazing';
+    if (currentMood >= 7) return 'great';
+    if (currentMood >= 5) return 'okay';
+    if (currentMood >= 3) return 'a bit down';
+    return 'rough';
   }, [todayEntry?.overallMood]);
 
 
@@ -223,7 +223,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           <View style={styles.statusHeader}>
             <Text style={styles.statusTitle}>
               {todayEntry 
-                ? `You're feeling ${getMoodLevel.toLowerCase()}` 
+                ? `You're feeling ${getMoodLevel}` 
                 : 'Ready to start your day?'}
             </Text>
             <View style={[styles.statusBadge, { 

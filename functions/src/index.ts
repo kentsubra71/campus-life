@@ -4,6 +4,12 @@ import axios from 'axios';
 import { Expo } from 'expo-server-sdk';
 import { defineSecret } from 'firebase-functions/params';
 
+// Import new security modules
+export * from './custom-claims-manager';
+export * from './secure-paypal-handler'; 
+export * from './email-verification-server';
+export * from './xp-manager';
+
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();

@@ -47,12 +47,13 @@ export const setUserClaims = functions.https.onCall({
       throw new functions.https.HttpsError('permission-denied', 'Not authorized for this family');
     }
     
-    // Set custom claims
-    const claims: UserClaims = {
+    // Set custom claims with admin flag for server operations
+    const claims: UserClaims & { admin: boolean } = {
       family_id,
       user_type,
       email_verified: true,
       role_verified_at: Math.floor(Date.now() / 1000),
+      admin: true, // Required for Firestore rule admin operations
     };
     
     await admin.auth().setCustomUserClaims(uid, claims);
@@ -91,10 +92,11 @@ export const onUserCreated = functions.identity.beforeUserCreated(async (event) 
     }
     
     // Set initial claims (will be updated after email verification)
-    const claims: Partial<UserClaims> = {
+    const claims: Partial<UserClaims> & { admin?: boolean } = {
       family_id: userData.family_id,
       user_type: userData.user_type,
       email_verified: user.emailVerified,
+      admin: true, // Required for server operations
     };
     
     await admin.auth().setCustomUserClaims(user.uid, claims);
@@ -123,6 +125,7 @@ export const onUserUpdated = functions.identity.beforeUserSignedIn(async (event)
         ...existingClaims,
         email_verified: true,
         role_verified_at: Math.floor(Date.now() / 1000),
+        admin: true, // Required for server operations
       });
       
       functions.logger.info('Claims updated for email verification', { uid: user.uid });

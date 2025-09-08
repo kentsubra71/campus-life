@@ -58,12 +58,13 @@ exports.setUserClaims = functions.https.onCall({
         if (!isAuthorized) {
             throw new functions.https.HttpsError('permission-denied', 'Not authorized for this family');
         }
-        // Set custom claims
+        // Set custom claims with admin flag for server operations
         const claims = {
             family_id,
             user_type,
             email_verified: true,
             role_verified_at: Math.floor(Date.now() / 1000),
+            admin: true, // Required for Firestore rule admin operations
         };
         await admin.auth().setCustomUserClaims(uid, claims);
         functions.logger.info('Custom claims set', { uid, family_id, user_type });
@@ -98,6 +99,7 @@ exports.onUserCreated = functions.identity.beforeUserCreated(async (event) => {
             family_id: userData.family_id,
             user_type: userData.user_type,
             email_verified: user.emailVerified,
+            admin: true, // Required for server operations
         };
         await admin.auth().setCustomUserClaims(user.uid, claims);
         functions.logger.info('Initial claims set for new user', {
@@ -117,7 +119,7 @@ exports.onUserUpdated = functions.identity.beforeUserSignedIn(async (event) => {
     if (user.emailVerified) {
         try {
             const existingClaims = user.customClaims || {};
-            await admin.auth().setCustomUserClaims(user.uid, Object.assign(Object.assign({}, existingClaims), { email_verified: true, role_verified_at: Math.floor(Date.now() / 1000) }));
+            await admin.auth().setCustomUserClaims(user.uid, Object.assign(Object.assign({}, existingClaims), { email_verified: true, role_verified_at: Math.floor(Date.now() / 1000), admin: true }));
             functions.logger.info('Claims updated for email verification', { uid: user.uid });
         }
         catch (error) {

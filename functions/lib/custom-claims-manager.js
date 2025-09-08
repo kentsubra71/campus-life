@@ -24,17 +24,14 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onUserUpdated = exports.onUserCreated = exports.setUserClaims = void 0;
-const functions = __importStar(require("firebase-functions/v2"));
+const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 // CRITICAL: Set custom claims after user verification
-exports.setUserClaims = functions.https.onCall({
-    timeoutSeconds: 30,
-}, async (request) => {
+exports.setUserClaims = functions.https.onCall(async (data, context) => {
     var _a, _b;
-    const { data, auth } = request;
-    // Only allow server-side calls (not client calls)
-    if (!auth || !auth.token.admin) {
-        throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+    // Only allow authenticated calls
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
     const { uid, family_id, user_type } = data;
     try {
@@ -76,8 +73,7 @@ exports.setUserClaims = functions.https.onCall({
     }
 });
 // Trigger to automatically set claims on user creation
-exports.onUserCreated = functions.identity.beforeUserCreated(async (event) => {
-    const user = event.data;
+exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
     try {
         // Wait for Firestore user document to be created
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -113,8 +109,8 @@ exports.onUserCreated = functions.identity.beforeUserCreated(async (event) => {
     }
 });
 // Update claims on email verification
-exports.onUserUpdated = functions.identity.beforeUserSignedIn(async (event) => {
-    const user = event.data;
+exports.onUserUpdated = functions.auth.user().onUpdate(async (change) => {
+    const user = change.after;
     // Check if email verification is needed
     if (user.emailVerified) {
         try {

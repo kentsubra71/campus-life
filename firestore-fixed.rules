@@ -70,8 +70,10 @@ service cloud.firestore {
     
     // Messages collection rules - Require custom claims
     match /messages/{messageId} {
-      // Read: Family members only (temporarily relaxed)
-      allow read: if isAuthenticated() && hasCustomClaims();
+      // Read: Family members only
+      allow read: if isAuthenticated() && 
+        hasCustomClaims() &&
+        getFamilyId() == resource.data.family_id;
       
       // Create: Family members only
       allow create: if isAuthenticated() && 
@@ -86,14 +88,22 @@ service cloud.firestore {
     
     // Support requests collection rules - Require custom claims
     match /support_requests/{requestId} {
-      // Read: Family members only (temporarily relaxed)
-      allow read: if isAuthenticated() && hasCustomClaims();
+      // Read: Family members only
+      allow read: if isAuthenticated() && 
+        hasCustomClaims() &&
+        getFamilyId() == resource.data.family_id;
       
-      // Create: Students can create (temporarily relaxed)
-      allow create: if isAuthenticated() && hasCustomClaims() && isStudent();
+      // Create: Students can create, must be for their family
+      allow create: if isAuthenticated() && 
+        hasCustomClaims() &&
+        isStudent() &&
+        getFamilyId() == request.resource.data.family_id &&
+        getUserId() == request.resource.data.student_id;
       
-      // Update: Family members can update (temporarily relaxed)
-      allow update: if isAuthenticated() && hasCustomClaims();
+      // Update: Family members can update
+      allow update: if isAuthenticated() && 
+        hasCustomClaims() &&
+        getFamilyId() == resource.data.family_id;
     }
     
     // Wellness entries collection rules - Allow without custom claims for basic functionality
@@ -124,14 +134,20 @@ service cloud.firestore {
     
     // Payment collection rules - Require custom claims for security
     match /payments/{paymentId} {
-      // Read: Family members only (temporarily relaxed)
-      allow read: if isAuthenticated() && hasCustomClaims();
+      // Read: Family members only
+      allow read: if isAuthenticated() && 
+        hasCustomClaims() &&
+        getFamilyId() == resource.data.family_id;
       
-      // Create: Parents only (temporarily relaxed)
-      allow create: if isAuthenticated() && hasCustomClaims() && isParent();
+      // Create: Parents only, for their family
+      allow create: if isAuthenticated() && 
+        hasCustomClaims() &&
+        isParent() &&
+        getFamilyId() == request.resource.data.family_id &&
+        getUserId() == request.resource.data.parent_id;
       
-      // Update: Allow for canceling payments (temporarily relaxed)
-      allow update: if isAuthenticated() && hasCustomClaims();
+      // Update: SERVER ONLY for status changes
+      allow update: if false; // Payments updated by Cloud Functions only
     }
     
     // Family join requests rules - Allow basic functionality without custom claims
@@ -147,13 +163,13 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
     
-    // Push tokens collection rules - Allow without custom claims (temporarily relaxed)
+    // Push tokens collection rules - Allow without custom claims
     match /push_tokens/{tokenId} {
-      // Read: Own tokens only (relaxed)
-      allow read: if isAuthenticated();
+      // Read: Own tokens only
+      allow read: if isAuthenticated() && tokenId == getUserId();
       
-      // Create/Update: Own tokens only (relaxed)
-      allow write: if isAuthenticated();
+      // Create/Update: Own tokens only
+      allow write: if isAuthenticated() && tokenId == getUserId();
     }
     
     // Profiles collection rules - Allow without custom claims
@@ -169,11 +185,6 @@ service cloud.firestore {
       
       // Update: Own profile only
       allow update: if isAuthenticated() && userId == getUserId();
-    }
-    
-    // Add catch-all for other collections (temporarily for debugging)
-    match /{document=**} {
-      allow read, write: if isAuthenticated() && hasCustomClaims();
     }
   }
 }

@@ -29,20 +29,107 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPasswordResetEmailHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = void 0;
+exports.sendPasswordResetEmailHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = exports.getUserProgress = exports.updateUserXP = exports.markUserVerified = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const axios_1 = __importDefault(require("axios"));
 const expo_server_sdk_1 = require("expo-server-sdk");
 const params_1 = require("firebase-functions/params");
-// Import new security modules
-__exportStar(require("./custom-claims-manager"), exports);
-__exportStar(require("./secure-paypal-handler"), exports);
-__exportStar(require("./email-verification-server"), exports);
-__exportStar(require("./xp-manager"), exports);
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
+// Export auth trigger functions
+__exportStar(require("./auth-triggers"), exports);
+// SECURITY: Email verification function
+exports.markUserVerified = functions.https.onCall(async (data, context) => {
+    const { userId } = data;
+    if (!context.auth || context.auth.uid !== userId) {
+        throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    }
+    try {
+        // Update user's custom claims to include admin flag
+        const existingUser = await admin.auth().getUser(userId);
+        const existingClaims = existingUser.customClaims || {};
+        await admin.auth().setCustomUserClaims(userId, Object.assign(Object.assign({}, existingClaims), { email_verified: true, admin: true, role_verified_at: Math.floor(Date.now() / 1000) }));
+        // Update Firestore with admin privileges
+        await db.collection('users').doc(userId).update({
+            email_verified: true,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return { success: true, userId };
+    }
+    catch (error) {
+        functions.logger.error('Failed to mark user as verified', { userId, error: error.message });
+        throw new functions.https.HttpsError('internal', 'Verification failed');
+    }
+});
+// SECURITY: XP update function
+exports.updateUserXP = functions.https.onCall(async (data, context) => {
+    const { userId, experienceGained } = data;
+    if (!context.auth || context.auth.uid !== userId) {
+        throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    }
+    if (!userId || typeof experienceGained !== 'number' || experienceGained < 0 || experienceGained > 100) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid XP data');
+    }
+    try {
+        const progressRef = db.collection('user_progress').doc(userId);
+        const currentProgress = await progressRef.get();
+        let currentXP = 0;
+        let currentLevel = 1;
+        if (currentProgress.exists) {
+            const data = currentProgress.data();
+            currentXP = data.experience || 0;
+            currentLevel = data.level || 1;
+        }
+        const newXP = currentXP + experienceGained;
+        const newLevel = Math.floor((newXP - 100) / 50) + 2;
+        const leveledUp = newLevel > currentLevel;
+        // Update with server privileges (bypasses Firestore rules)
+        await progressRef.set({
+            user_id: userId,
+            experience: newXP,
+            level: Math.max(newLevel, 1),
+            last_updated: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        return {
+            success: true,
+            newExperience: newXP,
+            newLevel: Math.max(newLevel, 1),
+            leveledUp,
+            experienceGained
+        };
+    }
+    catch (error) {
+        throw new functions.https.HttpsError('internal', 'XP update failed');
+    }
+});
+// SECURITY: Get user progress function
+exports.getUserProgress = functions.https.onCall(async (data, context) => {
+    const { userId } = data;
+    if (!context.auth || context.auth.uid !== userId) {
+        throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    }
+    try {
+        const progressDoc = await db.collection('user_progress').doc(userId).get();
+        if (!progressDoc.exists) {
+            return {
+                exists: false,
+                experience: 0,
+                level: 1
+            };
+        }
+        const progress = progressDoc.data();
+        return {
+            exists: true,
+            experience: progress.experience || 0,
+            level: progress.level || 1
+        };
+    }
+    catch (error) {
+        throw new functions.https.HttpsError('internal', 'Failed to get progress');
+    }
+});
 // Initialize Expo SDK for push notifications
 const expo = new expo_server_sdk_1.Expo();
 // Secure secret definitions using Firebase Secret Manager

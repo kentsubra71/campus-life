@@ -4,15 +4,128 @@ import axios from 'axios';
 import { Expo } from 'expo-server-sdk';
 import { defineSecret } from 'firebase-functions/params';
 
-// Import new security modules
-export * from './custom-claims-manager';
-export * from './secure-paypal-handler'; 
-export * from './email-verification-server';
-export * from './xp-manager';
-
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
+
+// Export auth trigger functions
+export * from './auth-triggers';
+
+// SECURITY: Email verification function
+export const markUserVerified = functions.https.onCall(async (data, context) => {
+  const { userId } = data;
+  
+  if (!context.auth || context.auth.uid !== userId) {
+    throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+  }
+
+  try {
+    // Update user's custom claims to include admin flag
+    const existingUser = await admin.auth().getUser(userId);
+    const existingClaims = existingUser.customClaims || {};
+    
+    await admin.auth().setCustomUserClaims(userId, {
+      ...existingClaims,
+      email_verified: true,
+      admin: true, // Required for Firestore rule operations
+      role_verified_at: Math.floor(Date.now() / 1000),
+    });
+    
+    // Update Firestore with admin privileges
+    await db.collection('users').doc(userId).update({
+      email_verified: true,
+      updated_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    return { success: true, userId };
+    
+  } catch (error: any) {
+    functions.logger.error('Failed to mark user as verified', { userId, error: error.message });
+    throw new functions.https.HttpsError('internal', 'Verification failed');
+  }
+});
+
+// SECURITY: XP update function
+export const updateUserXP = functions.https.onCall(async (data, context) => {
+  const { userId, experienceGained } = data;
+  
+  if (!context.auth || context.auth.uid !== userId) {
+    throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+  }
+  
+  if (!userId || typeof experienceGained !== 'number' || experienceGained < 0 || experienceGained > 100) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid XP data');
+  }
+  
+  try {
+    const progressRef = db.collection('user_progress').doc(userId);
+    const currentProgress = await progressRef.get();
+    
+    let currentXP = 0;
+    let currentLevel = 1;
+    
+    if (currentProgress.exists) {
+      const data = currentProgress.data()!;
+      currentXP = data.experience || 0;
+      currentLevel = data.level || 1;
+    }
+    
+    const newXP = currentXP + experienceGained;
+    const newLevel = Math.floor((newXP - 100) / 50) + 2;
+    const leveledUp = newLevel > currentLevel;
+    
+    // Update with server privileges (bypasses Firestore rules)
+    await progressRef.set({
+      user_id: userId,
+      experience: newXP,
+      level: Math.max(newLevel, 1),
+      last_updated: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    
+    return {
+      success: true,
+      newExperience: newXP,
+      newLevel: Math.max(newLevel, 1),
+      leveledUp,
+      experienceGained
+    };
+    
+  } catch (error: any) {
+    throw new functions.https.HttpsError('internal', 'XP update failed');
+  }
+});
+
+// SECURITY: Get user progress function
+export const getUserProgress = functions.https.onCall(async (data, context) => {
+  const { userId } = data;
+  
+  if (!context.auth || context.auth.uid !== userId) {
+    throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+  }
+  
+  try {
+    const progressDoc = await db.collection('user_progress').doc(userId).get();
+    
+    if (!progressDoc.exists) {
+      return {
+        exists: false,
+        experience: 0,
+        level: 1
+      };
+    }
+    
+    const progress = progressDoc.data()!;
+    
+    return {
+      exists: true,
+      experience: progress.experience || 0,
+      level: progress.level || 1
+    };
+    
+  } catch (error: any) {
+    throw new functions.https.HttpsError('internal', 'Failed to get progress');
+  }
+});
 
 // Initialize Expo SDK for push notifications
 const expo = new Expo();

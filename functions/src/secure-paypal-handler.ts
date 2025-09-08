@@ -4,17 +4,19 @@ import { CallableRequest } from 'firebase-functions/v2/https';
 import crypto from 'crypto';
 import axios from 'axios';
 
-// CRITICAL: Environment validation
-const requiredEnvVars = [
-  'PAYPAL_CLIENT_ID',
-  'PAYPAL_CLIENT_SECRET',
-  'PAYPAL_WEBHOOK_ID',
-  'PAYPAL_ENVIRONMENT' // 'sandbox' or 'live'
-];
+// CRITICAL: Environment validation - only check when actually used
+function validatePayPalEnvironment() {
+  const requiredEnvVars = [
+    'PAYPAL_CLIENT_ID',
+    'PAYPAL_CLIENT_SECRET',
+    'PAYPAL_WEBHOOK_ID',
+    'PAYPAL_ENVIRONMENT' // 'sandbox' or 'live'
+  ];
 
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    throw new Error(`CRITICAL: Missing required environment variable: ${envVar}`);
+  for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+      throw new Error(`CRITICAL: Missing required environment variable: ${envVar}`);
+    }
   }
 }
 
@@ -92,6 +94,8 @@ function verifyWebhookSignature(
 
 // CRITICAL: Server-to-server payment verification
 async function verifyPaymentWithPayPal(orderId: string): Promise<any> {
+  validatePayPalEnvironment();
+  
   try {
     // Get OAuth token
     const authResponse = await axios.post(
@@ -260,6 +264,13 @@ export const verifyPayPalPayment = functions.https.onRequest({
   memory: '512MiB',
   maxInstances: 10,
 }, async (req, res) => {
+  try {
+    validatePayPalEnvironment();
+  } catch (error) {
+    functions.logger.error('PayPal environment not configured', { error });
+    res.status(500).send('PayPal not configured');
+    return;
+  }
   // CRITICAL: Only allow POST requests
   if (req.method !== 'POST') {
     res.status(405).send('Method not allowed');

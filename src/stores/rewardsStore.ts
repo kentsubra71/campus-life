@@ -280,22 +280,35 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const user = getCurrentUser();
       if (!user) return;
       
-      const { collection, doc, setDoc, Timestamp } = await import('firebase/firestore');
-      const { db } = await import('../lib/firebase');
+      // FIXED: Use secure Cloud Function for XP updates
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../lib/firebase');
       
-      await setDoc(doc(collection(db, 'user_progress'), user.uid), {
-        user_id: user.uid,
-        experience: newExp,
-        level: newLevel,
-        last_updated: Timestamp.now()
-      }, { merge: true });
+      const updateUserXP = httpsCallable(functions, 'updateUserXP');
+      const result = await updateUserXP({
+        userId: user.uid,
+        experienceGained: experience,
+        reason: 'Manual XP award',
+        source: 'client_store'
+      }) as any;
       
-      if (leveledUp) {
-        console.log(`🎉 Level up! Reached level ${newLevel}`);
-        // TODO: Show level up animation/notification
+      // Update local state with server response
+      if (result.data.success) {
+        set(state => ({ 
+          ...state, 
+          experience: result.data.newExperience, 
+          level: result.data.newLevel 
+        }));
+        
+        if (result.data.leveledUp) {
+          console.log(`🎉 Level up! Reached level ${result.data.newLevel}`);
+          // TODO: Show level up animation/notification
+        }
       }
     } catch (error) {
       console.error('Failed to save XP to Firebase:', error);
+      // Revert optimistic update on failure
+      set(state => ({ ...state, experience: oldExp, level: oldLevel }));
     }
   },
   
@@ -427,18 +440,19 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     if (!user) return;
     
     try {
-      const { doc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('../lib/firebase');
+      // FIXED: Use secure Cloud Function to get user progress
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../lib/firebase');
       
-      const progressDoc = await getDoc(doc(db, 'user_progress', user.uid));
+      const getUserProgress = httpsCallable(functions, 'getUserProgress');
+      const result = await getUserProgress({ userId: user.uid }) as any;
       
-      if (progressDoc.exists()) {
-        const data = progressDoc.data();
+      if (result.data.exists) {
         set({
-          experience: data.experience || 0,
-          level: data.level || 1
+          experience: result.data.experience || 0,
+          level: result.data.level || 1
         });
-        console.log(`📊 Loaded user progress: Level ${data.level || 1}, ${data.experience || 0} XP`);
+        console.log(`📊 Loaded user progress: Level ${result.data.level || 1}, ${result.data.experience || 0} XP`);
       } else {
         // Initialize new user progress
         set({ experience: 0, level: 1 });

@@ -22,6 +22,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -32,6 +35,11 @@ const admin = __importStar(require("firebase-admin"));
 const axios_1 = __importDefault(require("axios"));
 const expo_server_sdk_1 = require("expo-server-sdk");
 const params_1 = require("firebase-functions/params");
+// Import new security modules
+__exportStar(require("./custom-claims-manager"), exports);
+__exportStar(require("./secure-paypal-handler"), exports);
+__exportStar(require("./email-verification-server"), exports);
+__exportStar(require("./xp-manager"), exports);
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();

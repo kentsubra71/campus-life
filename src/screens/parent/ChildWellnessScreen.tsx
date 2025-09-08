@@ -21,8 +21,6 @@ import {
   groupEntriesByPeriod, 
   calculateWellnessInsights 
 } from '../../utils/chartDataTransform';
-import { auth, db } from '../../lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc, limit } from 'firebase/firestore';
 
 interface ChildWellnessScreenProps {
   navigation: any;
@@ -36,8 +34,7 @@ interface ChildWellnessScreenProps {
 
 export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ navigation, route }) => {
   const { studentId, studentName } = route.params;
-  const [entries, setEntries] = useState<WellnessEntry[]>([]);
-  const [stats, setStats] = useState({ currentStreak: 0, averageScore: 0, totalEntries: 0 });
+  const { entries, stats, loadEntries } = useWellnessStore();
   const [timeFilter, setTimeFilter] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [viewMode, setViewMode] = useState<'charts' | 'list'>('charts');
   
@@ -48,77 +45,9 @@ export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ naviga
       return;
     }
 
-    // Set up real-time listener for wellness entries
-    const wellnessQuery = query(
-      collection(db, 'wellness_entries'),
-      where('user_id', '==', studentId),
-      orderBy('date', 'desc'),
-      limit(365) // Get up to a year of data
-    );
-
-    const unsubscribe = onSnapshot(wellnessQuery, (snapshot) => {
-      const fetchedEntries: WellnessEntry[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        
-        // Transform data to match WellnessEntry interface
-        const entry: WellnessEntry = {
-          id: doc.id,
-          date: data.date,
-          user_id: data.user_id,
-          overall_mood: data.overall_mood,
-          sleep_ranking: data.sleep_ranking,
-          nutrition_ranking: data.nutrition_ranking,
-          academics_ranking: data.academics_ranking,
-          social_ranking: data.social_ranking,
-          notes: data.notes || '',
-          overallScore: data.overall_mood,
-          rankings: {
-            sleep: data.sleep_ranking,
-            nutrition: data.nutrition_ranking,
-            academics: data.academics_ranking,
-            social: data.social_ranking
-          },
-          overallMood: data.overall_mood
-        };
-        
-        fetchedEntries.push(entry);
-      });
-
-      console.log('📊 Fetched wellness entries for student:', fetchedEntries.length);
-      setEntries(fetchedEntries);
-      
-      // Calculate stats like the student screen does
-      if (fetchedEntries.length > 0) {
-        const avgScore = fetchedEntries.reduce((sum, entry) => sum + entry.overallScore, 0) / fetchedEntries.length;
-        
-        const sortedEntries = [...fetchedEntries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const today = new Date();
-        let streak = 0;
-        
-        for (let i = 0; i < sortedEntries.length; i++) {
-          const entryDate = new Date(sortedEntries[i].date);
-          const daysDiff = Math.floor((today.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24));
-          
-          if (daysDiff === i) {
-            streak++;
-          } else {
-            break;
-          }
-        }
-
-        setStats({
-          currentStreak: streak,
-          averageScore: Math.round(avgScore * 10) / 10,
-          totalEntries: fetchedEntries.length
-        });
-      }
-    }, (error) => {
-      console.error('Error fetching wellness entries:', error);
-    });
-
-    return () => unsubscribe();
-  }, [studentId, navigation]);
+    // Load entries using the wellness store which has proper error handling
+    loadEntries(studentId);
+  }, [studentId, navigation, loadEntries]);
 
   // Memoized data processing for better performance
   const processedData = useMemo(() => {

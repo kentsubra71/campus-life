@@ -287,7 +287,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const updateUserXP = httpsCallable(functions, 'updateUserXP');
       const result = await updateUserXP({
         userId: user.uid,
-        experienceGained: experience,
+        experienceGained: amount,
         reason: 'Manual XP award',
         source: 'client_store'
       }) as any;

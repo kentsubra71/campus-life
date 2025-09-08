@@ -172,25 +172,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     if (!user) return;
     
     try {
-      await smartRefresh(
-        CACHE_CONFIGS.FAMILY_MEMBERS,
-        async () => {
-          console.log('🔄 Loading fresh family members...');
-          const members = await getFamilyMembers();
-          return members;
-        },
-        (cachedMembers) => {
-          console.log('📦 Using cached family members');
-          setFamilyMembers(cachedMembers);
-          setLoadingMembers(false);
-        },
-        (freshMembers) => {
-          console.log('✅ Updated with fresh family members');
-          setFamilyMembers(freshMembers);
-          setLoadingMembers(false);
-        },
-        user.id
-      );
+      // Clear the family members cache first to force fresh data
+      const { cache, CACHE_CONFIGS } = await import('../../utils/universalCache');
+      await cache.clear(CACHE_CONFIGS.FAMILY_MEMBERS, user.id);
+      console.log('🗑️ Cleared family members cache');
+      
+      // Now load fresh data
+      console.log('🔄 Loading fresh family members...');
+      const members = await getFamilyMembers();
+      console.log('👥 Loaded family members:', members);
+      setFamilyMembers(members);
+      setLoadingMembers(false);
     } catch (error) {
       console.error('Failed to load family members:', error);
       setLoadingMembers(false);
@@ -611,30 +603,36 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               {familyMembers.parents.length > 0 && (
                 <View style={styles.memberGroup}>
                   <Text style={styles.memberGroupTitle}>Parents</Text>
-                  {familyMembers.parents.map((parent) => (
-                    <View key={parent.id} style={styles.memberItem}>
-                      <Text style={styles.memberName}>
-                        {parent.name}
-                        {parent.id === user.id && ' (You)'}
-                      </Text>
-                      <Text style={styles.memberEmail}>{parent.email}</Text>
-                    </View>
-                  ))}
+                  {familyMembers.parents.map((parent) => {
+                    console.log('👤 Parent data:', { id: parent.id, name: parent.name, email: parent.email });
+                    return (
+                      <View key={parent.id} style={styles.memberItem}>
+                        <Text style={styles.memberName}>
+                          {parent.name || 'No name'}
+                          {parent.id === user.id && ' (You)'}
+                        </Text>
+                        <Text style={styles.memberEmail}>{parent.email}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
 
               {familyMembers.students.length > 0 && (
                 <View style={styles.memberGroup}>
                   <Text style={styles.memberGroupTitle}>Students</Text>
-                  {familyMembers.students.map((student) => (
-                    <View key={student.id} style={styles.memberItem}>
-                      <Text style={styles.memberName}>
-                        {student.name}
-                        {student.id === user.id && ' (You)'}
-                      </Text>
-                      <Text style={styles.memberEmail}>{student.email}</Text>
-                    </View>
-                  ))}
+                  {familyMembers.students.map((student) => {
+                    console.log('👤 Student data:', { id: student.id, name: student.name, email: student.email });
+                    return (
+                      <View key={student.id} style={styles.memberItem}>
+                        <Text style={styles.memberName}>
+                          {student.name || 'No name'}
+                          {student.id === user.id && ' (You)'}
+                        </Text>
+                        <Text style={styles.memberEmail}>{student.email}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </>

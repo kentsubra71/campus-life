@@ -198,7 +198,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
   const getMoodLevel = () => {
     // Use today's entry mood if available, otherwise fallback to stored mood
-    const currentMood = todayEntry?.mood || null;
+    const currentMood = todayEntry?.overallMood || null;
     
     if (currentMood === null) return { text: 'Not logged', emoji: '❓', color: '#6b7280' };
     if (currentMood >= 9) return { text: 'Amazing', emoji: '🤩', color: '#059669' };
@@ -223,7 +223,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     const firstName = currentStudent?.name?.split(' ')[0] || 'them';
     if (!todayEntry) return { status: 'No data', color: '#6b7280', suggestion: `Check in with ${firstName}` };
     
-    const score = todayEntry.wellnessScore;
+    const score = todayEntry.overallScore;
     if (score >= 8) return { status: 'Thriving', color: '#10b981', suggestion: `Celebrate ${firstName}'s progress!` };
     if (score >= 6) return { status: 'Doing Well', color: '#059669', suggestion: `Send ${firstName} encouragement` };
     if (score >= 4) return { status: 'Managing', color: '#d97706', suggestion: `Offer ${firstName} gentle support` };
@@ -466,7 +466,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   const selectedStudent = familyMembers.students[selectedStudentIndex] || familyMembers.students[0];
   const moodInfo = getMoodLevel();
   const wellnessStatus = getWellnessStatus(); 
-  const wellnessScore = todayEntry?.wellnessScore; // No placeholder - use real data only
+  const wellnessScore = todayEntry?.overallScore; // No placeholder - use real data only
 
   return (
     <View style={styles.container}>
@@ -527,7 +527,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           <Text style={styles.statusSubtitle}>{wellnessStatus.suggestion}</Text>
           <TouchableOpacity 
             style={styles.statusAction}
-            onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id })}
+            onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id, studentName: selectedStudent.name })}
           >
             <Text style={styles.statusActionText}>View detailed wellness →</Text>
           </TouchableOpacity>
@@ -642,7 +642,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           {wellnessScore && (
             <TouchableOpacity 
               style={styles.activityItem}
-              onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id })}
+              onPress={() => navigation.navigate('ChildWellness', { studentId: selectedStudent.id, studentName: selectedStudent.name })}
             >
               <View style={styles.activityContent}>
                 <Text style={styles.activityTitle}>Wellness Check</Text>

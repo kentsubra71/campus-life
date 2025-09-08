@@ -51,7 +51,7 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
     // Only create continuous data for daily view, weekly/monthly should use actual data points
     if (period !== 'daily') {
       return data.map(point => ({
-        value: point.overallScore - 1, // Adjust for chart library's 0-based scaling
+        value: (point.overallScore || 0) - 1, // Adjust for chart library's 0-based scaling
         label: formatDateForChart(point.date, period),
         labelTextStyle: {
           color: theme.colors.textTertiary,
@@ -78,7 +78,7 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
       
       if (existing) {
         continuousData.push({
-          value: existing.overallScore - 1, // Adjust for chart library's 0-based scaling
+          value: (existing.overallScore || 0) - 1, // Adjust for chart library's 0-based scaling
           label,
           labelTextStyle: {
             color: theme.colors.textTertiary,
@@ -87,16 +87,8 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
           },
         });
       } else {
-        // Add placeholder for missing date (no data point will be shown)
-        continuousData.push({
-          value: null,
-          label,
-          labelTextStyle: {
-            color: theme.colors.textTertiary,
-            fontSize: 10,
-            marginTop: 5,
-          },
-        });
+        // Skip missing dates entirely to avoid NaN errors
+        // Don't add placeholder points
       }
       
       // Increment date safely

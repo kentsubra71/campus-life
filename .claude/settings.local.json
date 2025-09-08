@@ -32,7 +32,14 @@
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_mAClFA/**)",
       "Read(/var/folders/10/rr7mg2511190b014k7mzj_d40000gn/T/TemporaryItems/NSIRD_screencaptureui_sn92YL/**)",
       "Bash(firebase deploy:*)",
-      "Bash(npx react-native run-ios:*)"
+      "Bash(npx react-native run-ios:*)",
+      "Bash(gcloud services enable:*)",
+      "Bash(/Users/vedant/google-cloud-sdk/bin/gcloud services enable secretmanager.googleapis.com)",
+      "Bash(/Users/vedant/google-cloud-sdk/bin/gcloud config set project campus-life-b0fd3)",
+      "Bash(/Users/vedant/google-cloud-sdk/bin/gcloud alpha monitoring policies create --policy-from-file=monitoring-setup.yaml)",
+      "Bash(npx expo:*)",
+      "Bash(npx eas build:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

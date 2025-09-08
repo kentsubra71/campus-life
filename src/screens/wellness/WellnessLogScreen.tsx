@@ -16,6 +16,7 @@ import Slider from '@react-native-community/slider';
 import { showMessage } from 'react-native-flash-message';
 import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
 import { getTodayDateString, formatDateForDisplay } from '../../utils/dateUtils';
+import { InputSanitizer } from '../../utils/inputSanitization';
 
 interface WellnessLogScreenProps {
   navigation: any;
@@ -75,6 +76,28 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
 
   const handleSave = async () => {
     const today = getTodayDateString();
+    
+    // Validate wellness entry data
+    const wellnessEntry = {
+      sleep_ranking: formData.rankings.sleep,
+      nutrition_ranking: formData.rankings.nutrition,
+      academics_ranking: formData.rankings.academics,
+      social_ranking: formData.rankings.social,
+      overall_mood: formData.overallMood,
+      date: today,
+      user_id: 'current_user', // This would come from auth store
+      notes: ''
+    };
+
+    const validation = InputSanitizer.validateWellnessEntry(wellnessEntry);
+    if (!validation.valid) {
+      showMessage({
+        message: 'Invalid Entry',
+        description: validation.errors.join(', '),
+        type: 'danger',
+      });
+      return;
+    }
     
     console.log('💾 Saving wellness entry:', { 
       formData, 

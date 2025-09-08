@@ -1,0 +1,107 @@
+# CRITICAL: Google Cloud Monitoring Configuration
+# Deploy with: gcloud alpha monitoring policies create --policy-from-file=monitoring-setup.yaml
+
+# High-priority security alerts
+alertPolicy:
+  displayName: "Campus Life - Security Alerts"
+  documentation:
+    content: "Critical security events requiring immediate attention"
+  conditions:
+    # CRITICAL: Multiple failed login attempts
+    - displayName: "Multiple Failed Logins"
+      conditionThreshold:
+        filter: 'resource.type="cloud_function" AND jsonPayload.event="auth_failure"'
+        comparison: COMPARISON_GREATER_THAN
+        thresholdValue: 5
+        duration: "300s" # 5 minutes
+        aggregations:
+          alignmentPeriod: "60s"
+          perSeriesAligner: ALIGN_RATE
+          crossSeriesReducer: REDUCE_SUM
+          groupByFields: ["jsonPayload.user_id", "jsonPayload.ip_address"]
+    
+    # CRITICAL: High-value payment fraud detection  
+    - displayName: "High Fraud Score Payment"
+      conditionThreshold:
+        filter: 'resource.type="cloud_function" AND jsonPayload.event="high_fraud_risk"'
+        comparison: COMPARISON_GREATER_THAN
+        thresholdValue: 0
+        duration: "0s" # Immediate
+    
+    # CRITICAL: Firestore security rule violations
+    - displayName: "Security Rule Violations"
+      conditionThreshold:
+        filter: 'resource.type="firestore_database" AND severity="ERROR" AND protoPayload.methodName="google.firestore.v1.Firestore.Write"'
+        comparison: COMPARISON_GREATER_THAN
+        thresholdValue: 10
+        duration: "300s"
+        
+    # CRITICAL: Unusual payment amounts
+    - displayName: "Large Payment Amounts"
+      conditionThreshold:
+        filter: 'resource.type="cloud_function" AND jsonPayload.event="payment_created" AND jsonPayload.amount_cents>25000'
+        comparison: COMPARISON_GREATER_THAN
+        thresholdValue: 0
+        duration: "0s"
+
+  # Alert notification channels
+  notificationChannels:
+    - "projects/YOUR_PROJECT_ID/notificationChannels/EMAIL_CHANNEL_ID"
+    - "projects/YOUR_PROJECT_ID/notificationChannels/SMS_CHANNEL_ID" # For critical alerts only
+    
+  alertStrategy:
+    autoClose: "604800s" # 7 days
+    
+  combiner: OR # Any condition triggers alert
+
+---
+# Performance monitoring
+alertPolicy:
+  displayName: "Campus Life - Performance Monitoring"
+  conditions:
+    # High error rates
+    - displayName: "High Error Rate"
+      conditionThreshold:
+        filter: 'resource.type="cloud_function" AND severity="ERROR"'
+        comparison: COMPARISON_GREATER_THAN
+        thresholdValue: 5
+        duration: "300s"
+        aggregations:
+          alignmentPeriod: "60s"
+          perSeriesAligner: ALIGN_RATE
+          crossSeriesReducer: REDUCE_SUM
+          
+    # High latency
+    - displayName: "High Latency"
+      conditionThreshold:
+        filter: 'resource.type="cloud_function"'
+        comparison: COMPARISON_GREATER_THAN
+        thresholdValue: 10000 # 10 seconds
+        duration: "300s"
+        aggregations:
+          alignmentPeriod: "60s"
+          perSeriesAligner: ALIGN_PERCENTILE_95
+          crossSeriesReducer: REDUCE_MEAN
+          
+  notificationChannels:
+    - "projects/YOUR_PROJECT_ID/notificationChannels/EMAIL_CHANNEL_ID"
+
+---
+# Custom metrics for business logic
+# Deploy separately using Cloud Monitoring API
+
+metricDescriptor:
+  type: "custom.googleapis.com/campus_life/security_events"
+  metricKind: COUNTER
+  valueType: INT64
+  description: "Campus Life security events"
+  labels:
+    - key: "event_type"
+      valueType: STRING
+      description: "Type of security event"
+    - key: "user_type" 
+      valueType: STRING
+      description: "User type (parent/student)"
+    - key: "family_id"
+      valueType: STRING
+      description: "Family identifier"

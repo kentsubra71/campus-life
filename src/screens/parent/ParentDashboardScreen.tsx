@@ -483,7 +483,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         <View style={styles.header}>
           <Text style={styles.greeting}>Hi there!</Text>
           <Text style={styles.title}>
-            {hasMultipleStudents ? 'Your Kids' : studentName.split(' ')[0]}
+            {hasMultipleStudents ? 'Your Kids' : (studentName && studentName !== 'Loading...' ? studentName.split(' ')[0] : 'Student')}
           </Text>
           <Text style={styles.pullHint}>Pull down to refresh and verify payments</Text>
         </View>
@@ -506,7 +506,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
                     styles.segmentText,
                     selectedStudentIndex === index && styles.activeSegmentText
                   ]}>
-                    {student.name.split(' ')[0]}
+                    {student.name ? student.name.split(' ')[0] : 'Student'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -518,7 +518,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         <View style={styles.statusSection}>
           <View style={styles.statusHeader}>
             <Text style={styles.statusTitle}>
-              {studentName.split(' ')[0]} is {moodInfo.text.toLowerCase()}
+              {studentName && studentName !== 'Loading...' ? studentName.split(' ')[0] : 'Student'} is {moodInfo.text.toLowerCase()}
             </Text>
             <View style={[styles.statusBadge, { backgroundColor: getMoodGradient(moodInfo.text) }]}>
               <Text style={styles.statusBadgeText}>{wellnessStatus.status}</Text>

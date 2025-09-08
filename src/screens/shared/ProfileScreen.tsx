@@ -9,7 +9,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Switch,
   ActivityIndicator
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -18,7 +17,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { StatusHeader } from '../../components/StatusHeader';
 import { theme } from '../../styles/theme';
 import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
-import { pushNotificationService } from '../../services/pushNotificationService';
 import { changePassword } from '../../lib/passwordReset';
 
 interface ProfileScreenProps {
@@ -37,17 +35,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [editName, setEditName] = useState(user?.name || '');
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [loadingMembers, setLoadingMembers] = useState(true);
-  const [notificationPreferences, setNotificationPreferences] = useState({
-    enabled: true,
-    supportMessages: true,
-    paymentUpdates: true,
-    wellnessReminders: true,
-    careRequests: true,
-    weeklyReports: true,
-    dailySummaries: true,
-    studentWellnessLogged: true,
-  });
-  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [isEmailVerified, setIsEmailVerified] = useState(true);
   const [loadingVerification, setLoadingVerification] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -56,7 +43,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     loadFamilyMembers();
-    loadNotificationPreferences();
     checkEmailVerificationStatus();
   }, [user?.id]);
 
@@ -181,75 +167,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
-  const loadNotificationPreferences = async () => {
-    if (!user) return;
-    
-    try {
-      const { doc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('../../lib/firebase');
-      
-      const userDoc = await getDoc(doc(db, 'users', user.id));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.notificationPreferences) {
-          setNotificationPreferences({
-            ...notificationPreferences,
-            ...userData.notificationPreferences,
-            // Add new preferences with defaults if they don't exist
-            dailySummaries: userData.notificationPreferences.dailySummaries ?? true,
-            studentWellnessLogged: userData.notificationPreferences.studentWellnessLogged ?? true,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load notification preferences:', error);
-    }
-  };
-
-  const saveNotificationPreferences = async (newPreferences: typeof notificationPreferences) => {
-    if (!user) return;
-    
-    setLoadingNotifications(true);
-    try {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('../../lib/firebase');
-      
-      await updateDoc(doc(db, 'users', user.id), {
-        notificationPreferences: newPreferences,
-        updated_at: new Date()
-      });
-      
-      setNotificationPreferences(newPreferences);
-      
-      // Re-initialize push notifications with new preferences
-      if (newPreferences.enabled) {
-        await pushNotificationService.initialize(user.id);
-        
-        // Schedule notifications based on preferences
-        if (newPreferences.wellnessReminders && user.role === 'student') {
-          await pushNotificationService.scheduleDailyWellnessReminder(user.id);
-        }
-        
-        if (newPreferences.dailySummaries) {
-          await pushNotificationService.scheduleDailySummary(user.id);
-        }
-        
-        if (newPreferences.weeklyReports) {
-          await pushNotificationService.scheduleWeeklySummary(user.id);
-        }
-      } else {
-        // Cancel all notifications if disabled
-        await pushNotificationService.cancelScheduledNotifications();
-      }
-      
-      console.log('✅ Notification preferences saved successfully');
-    } catch (error) {
-      console.error('Failed to save notification preferences:', error);
-      Alert.alert('Error', 'Failed to update notification preferences');
-    } finally {
-      setLoadingNotifications(false);
-    }
-  };
 
   const loadFamilyMembers = async () => {
     if (!user) return;
@@ -752,186 +669,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         </View>
       )}
 
-      {/* Notification Preferences */}
-      <View style={styles.familyCard}>
-        <Text style={styles.familyTitle}>🔔 Notification Preferences</Text>
-        
-        <View style={styles.preferencesContainer}>
-          {/* Master toggle */}
-          <View style={styles.preferenceItem}>
-            <View style={styles.preferenceContent}>
-              <Text style={styles.preferenceLabel}>Push Notifications</Text>
-              <Text style={styles.preferenceDescription}>
-                Enable all push notifications
-              </Text>
-            </View>
-            <Switch
-              value={notificationPreferences.enabled}
-              onValueChange={(value) => {
-                const newPrefs = { ...notificationPreferences, enabled: value };
-                saveNotificationPreferences(newPrefs);
-              }}
-              trackColor={{ false: '#ccc', true: theme.colors.primary }}
-              thumbColor={notificationPreferences.enabled ? '#fff' : '#f4f3f4'}
-              disabled={loadingNotifications}
-            />
-          </View>
-
-          {notificationPreferences.enabled && (
-            <>
-              {/* Support Messages */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Support Messages</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get notified when you receive support messages
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.supportMessages}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, supportMessages: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.supportMessages ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-
-              {/* Payment Updates */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Payment Updates</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get notified about payment status changes
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.paymentUpdates}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, paymentUpdates: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.paymentUpdates ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-
-              {/* Wellness Reminders (Students only) */}
-              {user?.role === 'student' && (
-                <View style={styles.preferenceItem}>
-                  <View style={styles.preferenceContent}>
-                    <Text style={styles.preferenceLabel}>Daily Wellness Reminders</Text>
-                    <Text style={styles.preferenceDescription}>
-                      Get reminded to log your daily wellness (8 PM)
-                    </Text>
-                  </View>
-                  <Switch
-                    value={notificationPreferences.wellnessReminders}
-                    onValueChange={(value) => {
-                      const newPrefs = { ...notificationPreferences, wellnessReminders: value };
-                      saveNotificationPreferences(newPrefs);
-                    }}
-                    trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                    thumbColor={notificationPreferences.wellnessReminders ? '#fff' : '#f4f3f4'}
-                    disabled={loadingNotifications}
-                  />
-                </View>
-              )}
-
-              {/* Student Wellness Logged (Parents only) */}
-              {user?.role === 'parent' && (
-                <View style={styles.preferenceItem}>
-                  <View style={styles.preferenceContent}>
-                    <Text style={styles.preferenceLabel}>Student Check-ins</Text>
-                    <Text style={styles.preferenceDescription}>
-                      Get notified when your student logs their wellness
-                    </Text>
-                  </View>
-                  <Switch
-                    value={notificationPreferences.studentWellnessLogged}
-                    onValueChange={(value) => {
-                      const newPrefs = { ...notificationPreferences, studentWellnessLogged: value };
-                      saveNotificationPreferences(newPrefs);
-                    }}
-                    trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                    thumbColor={notificationPreferences.studentWellnessLogged ? '#fff' : '#f4f3f4'}
-                    disabled={loadingNotifications}
-                  />
-                </View>
-              )}
-
-              {/* Care Requests */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Care Requests</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get notified about urgent care requests
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.careRequests}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, careRequests: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.careRequests ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-
-              {/* Weekly Reports */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Weekly Reports</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get weekly wellness summary reports
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.weeklyReports}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, weeklyReports: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.weeklyReports ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-
-              {/* Daily Summaries */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Daily Summaries</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get daily activity and wellness summaries (9 PM)
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.dailySummaries}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, dailySummaries: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.dailySummaries ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-            </>
-          )}
-
-          {loadingNotifications && (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Updating preferences...</Text>
-            </View>
-          )}
-        </View>
-      </View>
 
       {/* Password Change Section */}
       <View style={styles.passwordSection}>
@@ -1318,32 +1055,6 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
-  },
-  preferencesContainer: {
-    gap: 16,
-  },
-  preferenceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  preferenceContent: {
-    flex: 1,
-    marginRight: 16,
-  },
-  preferenceLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  preferenceDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 18,
   },
   // Verification Panel Styles
   verificationCard: {

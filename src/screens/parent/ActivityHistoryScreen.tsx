@@ -793,13 +793,18 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       switch (status) {
         case 'completed': return 'Completed';
         case 'confirmed_by_parent': return 'Confirmed';
+        case 'confirmed': 
+          console.warn('⚠️ Payment has unexpected status "confirmed" - should be "confirmed_by_parent", "completed", or "failed"');
+          return 'Needs Review';
         case 'sent': return 'Sent';
         case 'initiated': return 'Processing';
         case 'pending': return 'Pending';
         case 'timeout': return 'Timed Out';
         case 'cancelled': return 'Cancelled';
         case 'failed': return 'Failed';
-        default: return status;
+        default: 
+          console.warn(`⚠️ Payment has unknown status: "${status}"`);
+          return status;
       }
     } else if (type === 'item_request') {
       switch (status) {
@@ -864,97 +869,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     }
   };
 
-  const retryPayment = async (payment: ActivityItem) => {
-    if (!payment.amount || !payment.student_name) {
-      Alert.alert('Error', 'Unable to retry payment - missing payment details.');
-      return;
-    }
-
-    Alert.alert(
-      'Retry Payment',
-      `Retry sending $${payment.amount.toFixed(2)} via ${payment.provider?.charAt(0).toUpperCase()}${payment.provider?.slice(1)} to ${payment.student_name.split(' ')[0]}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Retry Payment',
-          onPress: async () => {
-            try {
-              // Get the student ID from family members or from the original payment
-              const { getFamilyMembers } = useAuthStore.getState();
-              const familyMembers = await getFamilyMembers();
-              const targetStudent = familyMembers.students.find(s => 
-                s.name === payment.student_name
-              );
-
-              if (!targetStudent) {
-                Alert.alert('Error', 'Unable to find student for retry payment.');
-                return;
-              }
-
-              const amountCents = Math.round(payment.amount! * 100);
-              const provider = payment.provider as 'paypal' | 'venmo' | 'cashapp' | 'zelle';
-
-              if (provider === 'paypal') {
-                // Use PayPal P2P system
-                const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
-                const result = await createPayPalP2POrder(
-                  targetStudent.id,
-                  amountCents,
-                  payment.note || `Retry payment: $${payment.amount?.toFixed(2) || '0.00'}`
-                );
-
-                if (result.success && result.approvalUrl) {
-                  // Open PayPal for payment
-                  const { Linking } = await import('react-native');
-                  await Linking.openURL(result.approvalUrl);
-                  
-                  Alert.alert(
-                    'PayPal Payment Started',
-                    'Complete your payment in PayPal, then return to Campus Life.',
-                    [{ text: 'OK' }]
-                  );
-                  
-                  loadActivities(true); // Refresh activities
-                } else {
-                  throw new Error(result.error || 'Failed to create PayPal order');
-                }
-              } else {
-                // Use regular payment intent for other providers
-                const { createPaymentIntent } = await import('../../lib/payments');
-                const result = await createPaymentIntent(
-                  targetStudent.id,
-                  amountCents,
-                  provider,
-                  payment.note || `Retry payment: $${payment.amount?.toFixed(2) || '0.00'}`
-                );
-
-                if (result.success) {
-                  // Open the provider app/website
-                  if (result.redirectUrl) {
-                    const { Linking } = await import('react-native');
-                    await Linking.openURL(result.redirectUrl);
-                  }
-
-                  Alert.alert(
-                    'Payment Started',
-                    `Complete your payment in ${provider.charAt(0).toUpperCase()}${provider.slice(1)}, then return to Campus Life.`,
-                    [{ text: 'OK' }]
-                  );
-                  
-                  loadActivities(true); // Refresh activities
-                } else {
-                  throw new Error(result.error || 'Failed to create payment');
-                }
-              }
-            } catch (error: any) {
-              console.error('Error retrying payment:', error);
-              Alert.alert('Retry Failed', error.message || 'Unable to retry payment. Please try again.');
-            }
-          }
-        }
-      ]
-    );
-  };
 
   const renderActivityItem = (item: ActivityItem) => {
     return (
@@ -985,12 +899,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
               <Text style={styles.paymentNote}>"{item.note}"</Text>
             )}
             
-            {/* Payment Actions - Cancel, Retry, or Status Info */}
+            {/* Payment Actions - Cancel or Status Info */}
             {item.timestamp && (
               (() => {
                 const isTimedOut = isPaymentTimedOut(item.timestamp, item.provider || '');
                 const isProcessing = item.status === 'initiated' || item.status === 'pending' || item.status === 'processing';
-                const canRetry = item.status === 'failed' || item.status === 'cancelled' || item.status === 'timeout' || isTimedOut;
                 const isNearTimeout = isProcessing && !isTimedOut && isPaymentNearTimeout(item.timestamp, item.provider || '');
                 
                 if (isTimedOut || item.status === 'timeout') {
@@ -998,14 +911,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                     <View style={styles.timeoutWarning}>
                       <Text style={styles.timeoutWarningText}>⏰ Payment Expired</Text>
                       <Text style={styles.timeoutWarningSubtext}>This payment has been automatically cancelled</Text>
-                      
-                      {/* Retry Button for Timed Out Payments */}
-                      <TouchableOpacity
-                        style={styles.retryPaymentButton}
-                        onPress={() => retryPayment(item)}
-                      >
-                        <Text style={styles.retryPaymentButtonText}>🔄 Retry Payment</Text>
-                      </TouchableOpacity>
                     </View>
                   );
                 } else if (isProcessing) {
@@ -1036,21 +941,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                       </TouchableOpacity>
                     </View>
                   );
-                } else if (canRetry) {
+                } else if (item.status === 'failed' || item.status === 'cancelled' || item.status === 'timeout' || isTimedOut) {
                   return (
                     <View style={styles.failedPaymentActions}>
                       <Text style={styles.failedPaymentText}>
                         {item.status === 'failed' ? '❌ Payment Failed' : 
                          item.status === 'cancelled' ? '🚫 Payment Cancelled' : '⏰ Payment Expired'}
                       </Text>
-                      
-                      {/* Retry Button for Failed/Cancelled Payments */}
-                      <TouchableOpacity
-                        style={styles.retryPaymentButton}
-                        onPress={() => retryPayment(item)}
-                      >
-                        <Text style={styles.retryPaymentButtonText}>🔄 Retry Payment</Text>
-                      </TouchableOpacity>
                     </View>
                   );
                 }
@@ -1507,19 +1404,6 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     marginBottom: 8,
     textAlign: 'center',
-  },
-  retryPaymentButton: {
-    backgroundColor: '#059669', // Green background for retry
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignSelf: 'center',
-    marginTop: 4,
-  },
-  retryPaymentButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
   },
   messageDetails: {
     marginTop: theme.spacing.sm,

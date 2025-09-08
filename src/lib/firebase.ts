@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, User } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, updateDoc, Timestamp, limit } from 'firebase/firestore';
-import { getFunctions } from 'firebase/functions';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -21,6 +21,56 @@ export const auth = initializeAuth(app, {
 });
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
+
+// CRITICAL: Utility to ensure custom claims before Firestore operations
+export const ensureCustomClaims = async (retryCount = 0): Promise<boolean> => {
+  const maxRetries = 3;
+  
+  if (!auth.currentUser) {
+    console.warn('No authenticated user for custom claims check');
+    return false;
+  }
+
+  try {
+    const token = await auth.currentUser.getIdTokenResult(true);
+    const claims = token.claims;
+    
+    // Check if we have the required custom claims
+    if (claims.family_id && claims.user_type) {
+      console.log('✅ Custom claims verified:', { family_id: claims.family_id, user_type: claims.user_type });
+      return true;
+    }
+    
+    // If claims are missing and we haven't exceeded retries
+    if (retryCount < maxRetries) {
+      console.log(`🔄 Custom claims missing, retry ${retryCount + 1}/${maxRetries}...`);
+      
+      // Get user profile to set claims
+      const profile = await getUserProfile(auth.currentUser.uid);
+      if (profile && profile.family_id) {
+        const setFamilyClaimsFunction = httpsCallable(functions, 'setFamilyClaims');
+        await setFamilyClaimsFunction({
+          userId: auth.currentUser.uid,
+          familyId: profile.family_id,
+          userType: profile.user_type
+        });
+        
+        // Wait for propagation
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Recursive retry
+        return ensureCustomClaims(retryCount + 1);
+      }
+    }
+    
+    console.error('❌ Failed to ensure custom claims after', maxRetries, 'retries');
+    return false;
+    
+  } catch (error: any) {
+    console.error('❌ Error checking custom claims:', error.message);
+    return false;
+  }
+};
 
 // Types
 export interface UserProfile {
@@ -453,6 +503,27 @@ export const createFamily = async (familyName: string, parentId: string): Promis
     // Update the parent's profile with the family ID
     await updateUserProfile(parentId, { family_id: docRef.id });
     
+    // CRITICAL: Set custom claims for Firebase Auth
+    try {
+      const setFamilyClaimsFunction = httpsCallable(functions, 'setFamilyClaims');
+      await setFamilyClaimsFunction({
+        userId: parentId,
+        familyId: docRef.id,
+        userType: 'parent'
+      });
+      
+      // Wait for claims to propagate and force token refresh
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (auth.currentUser) {
+        await auth.currentUser.getIdToken(true);
+      }
+      
+      console.log('Custom claims set for parent:', parentId);
+    } catch (claimsError: any) {
+      console.error('Warning: Failed to set custom claims for parent:', claimsError.message);
+      // Don't fail the family creation, but log the issue
+    }
+    
     return { familyId: docRef.id, inviteCode };
   } catch (error: any) {
     console.error('Error creating family:', error);
@@ -487,6 +558,27 @@ export const joinFamily = async (inviteCode: string, studentId: string): Promise
     
     // Update the student's profile with the family ID
     await updateUserProfile(studentId, { family_id: familyDoc.id });
+    
+    // CRITICAL: Set custom claims for Firebase Auth
+    try {
+      const setFamilyClaimsFunction = httpsCallable(functions, 'setFamilyClaims');
+      await setFamilyClaimsFunction({
+        userId: studentId,
+        familyId: familyDoc.id,
+        userType: 'student'
+      });
+      
+      // Wait for claims to propagate and force token refresh
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (auth.currentUser) {
+        await auth.currentUser.getIdToken(true);
+      }
+      
+      console.log('Custom claims set for student:', studentId);
+    } catch (claimsError: any) {
+      console.error('Warning: Failed to set custom claims for student:', claimsError.message);
+      // Don't fail the family join, but log the issue
+    }
     
     return { familyId: familyDoc.id };
   } catch (error: any) {

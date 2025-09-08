@@ -24,13 +24,10 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.markUserVerified = exports.verifyEmailServer = void 0;
-const functions = __importStar(require("firebase-functions/v2"));
+const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 // CRITICAL: Server-side email verification that can update Firestore
-exports.verifyEmailServer = functions.https.onCall({
-    timeoutSeconds: 30,
-}, async (request) => {
-    const { data } = request;
+exports.verifyEmailServer = functions.https.onCall(async (data, context) => {
     const { token } = data;
     if (!token) {
         throw new functions.https.HttpsError('invalid-argument', 'Verification token required');
@@ -94,13 +91,10 @@ exports.verifyEmailServer = functions.https.onCall({
     }
 });
 // CRITICAL: Server-side function to mark user as verified (for existing users)
-exports.markUserVerified = functions.https.onCall({
-    timeoutSeconds: 30,
-}, async (request) => {
-    const { data, auth } = request;
+exports.markUserVerified = functions.https.onCall(async (data, context) => {
     const { userId } = data;
-    // Only allow this for authenticated admin users or self-verification
-    if (!auth || (auth.uid !== userId && !auth.token.admin)) {
+    // Only allow this for authenticated users (self-verification)
+    if (!context.auth || context.auth.uid !== userId) {
         throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
     }
     try {

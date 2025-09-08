@@ -24,7 +24,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getUserProgress = exports.awardXPForAction = exports.updateUserXP = void 0;
-const functions = __importStar(require("firebase-functions/v2"));
+const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 // Calculate level from total XP
 function calculateLevel(totalXP) {
@@ -35,17 +35,14 @@ function calculateLevel(totalXP) {
     return Math.floor((totalXP - 100) / 50) + 2;
 }
 // CRITICAL: Server-side XP management to prevent cheating
-exports.updateUserXP = functions.https.onCall({
-    timeoutSeconds: 30,
-}, async (request) => {
-    const { data, auth } = request;
+exports.updateUserXP = functions.https.onCall(async (data, context) => {
     const { userId, experienceGained, reason, source } = data;
     // Verify authentication and authorization
-    if (!auth) {
+    if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
     }
-    // Only allow users to update their own XP, or admin/server requests
-    if (auth.uid !== userId && !auth.token.admin) {
+    // Only allow users to update their own XP
+    if (context.auth.uid !== userId) {
         throw new functions.https.HttpsError('permission-denied', 'Can only update own XP');
     }
     // Validate input
@@ -113,10 +110,7 @@ exports.updateUserXP = functions.https.onCall({
     }
 });
 // CRITICAL: Award XP for specific actions (called by other Cloud Functions)
-exports.awardXPForAction = functions.https.onCall({
-    timeoutSeconds: 30,
-}, async (request) => {
-    const { data } = request;
+exports.awardXPForAction = functions.https.onCall(async (data, context) => {
     const { userId, action } = data;
     // Define XP rewards for different actions
     const xpRewards = {
@@ -184,19 +178,15 @@ exports.awardXPForAction = functions.https.onCall({
     }
 });
 // CRITICAL: Get user progress (read-only)
-exports.getUserProgress = functions.https.onCall({
-    timeoutSeconds: 30,
-}, async (request) => {
-    const { data, auth } = request;
+exports.getUserProgress = functions.https.onCall(async (data, context) => {
     const { userId } = data;
     // Verify authentication
-    if (!auth) {
+    if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
     }
-    // Allow users to read their own progress, or parents to read student progress
-    // This will be validated by Firestore rules as well
-    if (auth.uid !== userId && !auth.token.admin) {
-        throw new functions.https.HttpsError('permission-denied', 'Access denied');
+    // Only allow users to read their own progress
+    if (context.auth.uid !== userId) {
+        throw new functions.https.HttpsError('permission-denied', 'Can only access own progress');
     }
     try {
         const db = admin.firestore();

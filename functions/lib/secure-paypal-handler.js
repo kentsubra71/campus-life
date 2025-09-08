@@ -27,20 +27,22 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getPaymentStatus = exports.verifyPayPalPayment = void 0;
-const functions = __importStar(require("firebase-functions/v2"));
+const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const crypto_1 = __importDefault(require("crypto"));
 const axios_1 = __importDefault(require("axios"));
-// CRITICAL: Environment validation
-const requiredEnvVars = [
-    'PAYPAL_CLIENT_ID',
-    'PAYPAL_CLIENT_SECRET',
-    'PAYPAL_WEBHOOK_ID',
-    'PAYPAL_ENVIRONMENT' // 'sandbox' or 'live'
-];
-for (const envVar of requiredEnvVars) {
-    if (!process.env[envVar]) {
-        throw new Error(`CRITICAL: Missing required environment variable: ${envVar}`);
+// CRITICAL: Environment validation - only check when actually used
+function validatePayPalEnvironment() {
+    const requiredEnvVars = [
+        'PAYPAL_CLIENT_ID',
+        'PAYPAL_CLIENT_SECRET',
+        'PAYPAL_WEBHOOK_ID',
+        'PAYPAL_ENVIRONMENT' // 'sandbox' or 'live'
+    ];
+    for (const envVar of requiredEnvVars) {
+        if (!process.env[envVar]) {
+            throw new Error(`CRITICAL: Missing required environment variable: ${envVar}`);
+        }
     }
 }
 const PAYPAL_API_BASE = process.env.PAYPAL_ENVIRONMENT === 'live'
@@ -82,6 +84,7 @@ function verifyWebhookSignature(payload, signature, webhookId) {
 }
 // CRITICAL: Server-to-server payment verification
 async function verifyPaymentWithPayPal(orderId) {
+    validatePayPalEnvironment();
     try {
         // Get OAuth token
         const authResponse = await axios_1.default.post(`${PAYPAL_API_BASE}/v1/oauth2/token`, 'grant_type=client_credentials', {
@@ -215,12 +218,16 @@ function calculateFraudScore(payment, paypalOrder) {
     return Math.min(score, 100);
 }
 // CRITICAL: Main webhook handler
-exports.verifyPayPalPayment = functions.https.onRequest({
-    timeoutSeconds: 30,
-    memory: '512MiB',
-    maxInstances: 10,
-}, async (req, res) => {
+exports.verifyPayPalPayment = functions.https.onRequest(async (req, res) => {
     var _a, _b, _c, _d;
+    try {
+        validatePayPalEnvironment();
+    }
+    catch (error) {
+        functions.logger.error('PayPal environment not configured', { error });
+        res.status(500).send('PayPal not configured');
+        return;
+    }
     // CRITICAL: Only allow POST requests
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
@@ -269,12 +276,9 @@ exports.verifyPayPalPayment = functions.https.onRequest({
     }
 });
 // CRITICAL: Payment status verification endpoint (for client polling)
-exports.getPaymentStatus = functions.https.onCall({
-    timeoutSeconds: 10,
-}, async (request) => {
-    const { data, auth } = request;
+exports.getPaymentStatus = functions.https.onCall(async (data, context) => {
     // CRITICAL: Authenticate user
-    if (!auth) {
+    if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
     }
     const { paymentId } = data;
@@ -289,7 +293,7 @@ exports.getPaymentStatus = functions.https.onCall({
         }
         const payment = paymentDoc.data();
         // CRITICAL: Verify user has access to this payment
-        if (payment.parent_id !== auth.uid && payment.student_id !== auth.uid) {
+        if (payment.parent_id !== context.auth.uid && payment.student_id !== context.auth.uid) {
             throw new functions.https.HttpsError('permission-denied', 'Access denied');
         }
         return {

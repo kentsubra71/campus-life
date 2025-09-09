@@ -31,7 +31,7 @@ import { cache, CACHE_CONFIGS } from '../../utils/universalCache';
 
 interface ActivityItem {
   id: string;
-  type: 'payment' | 'message' | 'item_request';
+  type: 'payment' | 'message' | 'item_request' | 'support_request';
   timestamp: Date;
   amount?: number;
   provider?: string;
@@ -57,7 +57,7 @@ interface ActivityHistoryScreenProps {
 }
 
 type FilterPeriod = 'day' | 'week' | 'month' | 'all';
-type FilterType = 'all' | 'payments' | 'messages' | 'items';
+type FilterType = 'all' | 'payments' | 'messages' | 'support';
 
 export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
@@ -442,6 +442,56 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         console.log('Item requests query failed, trying fallback...', requestsError);
       }
 
+      // Load support requests
+      try {
+        const { getUserProfile } = await import('../../lib/firebase');
+        const userProfile = await getUserProfile(user.id);
+        
+        if (userProfile?.family_id) {
+          const supportRequestsQuery = query(
+            collection(db, 'support_requests'),
+            where('family_id', '==', userProfile.family_id),
+            orderBy('created_at', 'desc'),
+            limit(10)
+          );
+          const supportRequestsSnapshot = await getDocs(supportRequestsQuery);
+          
+          console.log(`💙 Found ${supportRequestsSnapshot.size} support requests (latest 10)`);
+          
+          for (const doc of supportRequestsSnapshot.docs) {
+            const supportRequest = doc.data();
+            const studentId = supportRequest.from_user_id;
+            
+            // Check cache first for student name
+            let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
+            
+            if (!studentName) {
+              const studentQuery = query(
+                collection(db, 'users'),
+                where('id', '==', studentId)
+              );
+              const studentSnapshot = await getDocs(studentQuery);
+              studentName = studentSnapshot.docs[0]?.data()?.full_name || 'Student';
+              
+              // Cache the student name
+              await cache.set(CACHE_CONFIGS.STUDENT_NAMES, studentName, `${user.id}_${studentId}`);
+            }
+
+            allActivities.push({
+              id: doc.id,
+              type: 'support_request',
+              timestamp: supportRequest.created_at && supportRequest.created_at.toDate ? supportRequest.created_at.toDate() : new Date(),
+              status: supportRequest.acknowledged ? 'acknowledged' : 'pending',
+              message_content: supportRequest.message,
+              student_name: studentName,
+              student_id: studentId
+            });
+          }
+        }
+      } catch (supportRequestsError) {
+        console.log('Support requests query failed:', supportRequestsError);
+      }
+
       // Sort all activities by timestamp (newest first)
       allActivities.sort((a, b) => {
         const aTime = a.timestamp && a.timestamp.getTime ? a.timestamp.getTime() : 0;
@@ -593,12 +643,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
     // Filter by type
     if (filterType !== 'all') {
-      if (filterType === 'items') {
-        filtered = filtered.filter(activity => activity.type === 'item_request');
-      } else if (filterType === 'payments') {
+      if (filterType === 'payments') {
         filtered = filtered.filter(activity => activity.type === 'payment');
       } else if (filterType === 'messages') {
         filtered = filtered.filter(activity => activity.type === 'message');
+      } else if (filterType === 'support') {
+        filtered = filtered.filter(activity => activity.type === 'support_request');
       }
     }
 
@@ -779,6 +829,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         case 'pending': return '#f59e0b';
         default: return '#9ca3af';
       }
+    } else if (type === 'support_request') {
+      switch (status) {
+        case 'acknowledged': return '#10b981';
+        case 'pending': return '#dc2626'; // Use red to indicate urgency
+        default: return '#9ca3af';
+      }
     } else {
       switch (status) {
         case 'read': return '#10b981';
@@ -811,6 +867,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         case 'approved': return 'Approved';
         case 'denied': return 'Denied';
         case 'pending': return 'Pending';
+        default: return status;
+      }
+    } else if (type === 'support_request') {
+      switch (status) {
+        case 'acknowledged': return 'Acknowledged';
+        case 'pending': return 'Needs Support';
         default: return status;
       }
     } else {
@@ -848,6 +910,38 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     }
   };
 
+  const handleAcknowledgeSupport = async (supportRequestId: string) => {
+    try {
+      // Update support request as acknowledged in Firebase
+      const { doc, updateDoc } = await import('firebase/firestore');
+      
+      await updateDoc(doc(db, 'support_requests', supportRequestId), {
+        acknowledged: true,
+        acknowledged_at: new Date()
+      });
+
+      // Update local state immediately for responsive UI
+      setActivities(prevActivities =>
+        prevActivities.map(activity =>
+          activity.id === supportRequestId && activity.type === 'support_request'
+            ? { ...activity, status: 'acknowledged' }
+            : activity
+        )
+      );
+
+      showMessage({
+        message: 'Support request acknowledged',
+        type: 'success',
+        icon: 'success',
+      });
+
+      console.log('✅ Support request acknowledged:', supportRequestId);
+    } catch (error: any) {
+      console.error('❌ Error acknowledging support request:', error);
+      Alert.alert('Error', 'Failed to acknowledge support request. Please try again.');
+    }
+  };
+
   const cancelPayment = async (paymentId: string) => {
     try {
       const { doc, updateDoc, Timestamp } = await import('firebase/firestore');
@@ -880,8 +974,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           <View style={styles.activityInfo}>
             <Text style={styles.activityType}>
               {item.type === 'payment' ? 'Payment' : 
-               item.type === 'item_request' ? 'Item Request' : 'Message'}
-              {item.student_name && ` ${item.type === 'item_request' ? 'from' : 'to'} ${item.student_name.split(' ')[0]}`}
+               item.type === 'item_request' ? 'Item Request' : 
+               item.type === 'support_request' ? 'Support Request' : 'Message'}
+              {item.student_name && ` ${item.type === 'item_request' || item.type === 'support_request' ? 'from' : 'to'} ${item.student_name.split(' ')[0]}`}
             </Text>
             <Text style={styles.activityTime}>{formatTime(item.timestamp)}</Text>
           </View>
@@ -1008,6 +1103,26 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             )}
           </View>
         )}
+
+        {item.type === 'support_request' && (
+          <View style={styles.supportDetails}>
+            <Text style={styles.supportMessage} numberOfLines={3}>
+              "{item.message_content}"
+            </Text>
+            
+            {/* Acknowledge button for pending support requests */}
+            {item.status === 'pending' && (
+              <View style={styles.supportActions}>
+                <TouchableOpacity
+                  style={styles.acknowledgeButton}
+                  onPress={() => handleAcknowledgeSupport(item.id)}
+                >
+                  <Text style={styles.acknowledgeButtonText}>Acknowledge</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
         </TouchableOpacity>
       </View>
     );
@@ -1046,8 +1161,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: '#f59e0b' }]}>{activities?.filter(a => a.type === 'item_request').length || 0}</Text>
-            <Text style={styles.statLabel}>Items</Text>
+            <Text style={[styles.statValue, { color: '#dc2626' }]}>{activities?.filter(a => a.type === 'support_request').length || 0}</Text>
+            <Text style={styles.statLabel}>Support</Text>
           </View>
         </View>
         
@@ -1092,7 +1207,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             {/* Activity Type Filter */}
             <View style={styles.filterSection}>
               <View style={styles.segmentedControl}>
-                {(['all', 'payments', 'messages', 'items'] as FilterType[]).map((type, index) => (
+                {(['all', 'payments', 'messages', 'support'] as FilterType[]).map((type, index) => (
                   <TouchableOpacity
                     key={type}
                     style={[
@@ -1109,7 +1224,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                     ]}>
                       {type === 'all' ? 'All' : 
                        type === 'payments' ? 'Payments' :
-                       type === 'messages' ? 'Messages' : 'Items'}
+                       type === 'messages' ? 'Messages' : 'Support'}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -1571,5 +1686,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textPrimary,
+  },
+  supportDetails: {
+    marginTop: 12,
+  },
+  supportMessage: {
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+    fontStyle: 'italic',
+    lineHeight: 20,
+    marginBottom: 12,
+    backgroundColor: theme.colors.backgroundTertiary,
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#dc2626',
+  },
+  supportActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  acknowledgeButton: {
+    backgroundColor: theme.colors.success,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+    minWidth: 100,
+  },
+  acknowledgeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });

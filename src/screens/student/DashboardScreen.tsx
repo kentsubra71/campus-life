@@ -6,7 +6,9 @@ import {
   Text, 
   StyleSheet,
   TouchableOpacity,
-  Alert
+  Alert,
+  Modal,
+  TextInput
 } from 'react-native';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
@@ -46,6 +48,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingErrors, setLoadingErrors] = useState<AppError[]>([]);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportMessage, setSupportMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -191,6 +195,25 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     return 'rough';
   }, [todayEntry?.overallMood]);
 
+  const handleSupportRequest = () => {
+    if (lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000) {
+      Alert.alert('Support Already Requested', 'You recently requested support. Your family has been notified and will reach out soon.');
+      return;
+    }
+    setShowSupportModal(true);
+  };
+
+  const sendSupportRequest = async () => {
+    try {
+      await requestSupport(supportMessage.trim() || undefined);
+      setShowSupportModal(false);
+      setSupportMessage('');
+      Alert.alert('Family Notified', 'Your support request has been sent to your family.');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to send support request. Please try again.');
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -326,7 +349,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           <View style={styles.secondaryActions}>
             <TouchableOpacity 
               style={styles.actionItem}
-              onPress={() => requestSupport()}
+              onPress={handleSupportRequest}
             >
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Request Support</Text>
@@ -358,6 +381,53 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
         {/* Received Payments Summary */}
         <ReceivedPaymentsSummary />
       </ScrollView>
+
+      {/* Support Request Modal */}
+      <Modal
+        visible={showSupportModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowSupportModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              onPress={() => setShowSupportModal(false)}
+              style={styles.modalCancelButton}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Request Support</Text>
+            <TouchableOpacity 
+              onPress={sendSupportRequest}
+              style={styles.modalSendButton}
+            >
+              <Text style={styles.modalSendText}>Send</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.modalContent}>
+            <Text style={styles.modalSubtitle}>
+              Let your family know what kind of support you need right now.
+            </Text>
+            
+            <TextInput
+              style={styles.modalTextInput}
+              placeholder="I could use some extra support right now..."
+              placeholderTextColor={theme.colors.textTertiary}
+              value={supportMessage}
+              onChangeText={setSupportMessage}
+              multiline
+              textAlignVertical="top"
+              maxLength={500}
+            />
+            
+            <Text style={styles.modalHint}>
+              Your family will be notified and can see this message in their activity history.
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -722,5 +792,67 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: theme.colors.primary,
     marginLeft: 8,
+  },
+  
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    paddingTop: 60,
+  },
+  modalCancelButton: {
+    padding: 4,
+  },
+  modalCancelText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  modalSendButton: {
+    padding: 4,
+  },
+  modalSendText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  modalTextInput: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    minHeight: 120,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  modalHint: {
+    fontSize: 14,
+    color: theme.colors.textTertiary,
+    lineHeight: 20,
   },
 }); 

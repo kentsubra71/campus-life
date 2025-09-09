@@ -60,7 +60,7 @@ export const testResendIntegration = async (): Promise<{
       type: 'email_verification',
       data: {
         name: 'Test User',
-        verificationUrl: 'https://campus-life-verification.vercel.app/verify/email_verification/test-token-123',
+        verificationUrl: 'https://campus-life-auth-website.vercel.app/verify/email_verification/test-token-123',
         token: 'test-token-123'
       }
     };

@@ -64,7 +64,7 @@ interface ConnectionState {
   addExperience: (amount: number) => void;
   updateMood: (mood: 'great' | 'good' | 'okay' | 'struggling') => void;
   markMessageRead: (id: string) => Promise<void>;
-  requestSupport: () => void;
+  requestSupport: (customMessage?: string) => Promise<void>;
   acknowledgeSupport: (id: string) => void;
   loadUserProgress: () => Promise<void>;
 }
@@ -216,7 +216,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
         
         // Filter for current month, confirmed status, and optionally by student
         const isCurrentMonth = paymentDate >= startOfMonth;
-        const isConfirmed = payment.status === 'confirmed_by_parent' || payment.status === 'confirmed' || payment.status === 'completed';
+        const isConfirmed = payment.status === 'confirmed_by_parent' || payment.status === 'completed';
         const isForStudent = !studentId || payment.student_id === studentId;
         
         if (isCurrentMonth && isConfirmed && isForStudent) {
@@ -280,22 +280,35 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const user = getCurrentUser();
       if (!user) return;
       
-      const { collection, doc, setDoc, Timestamp } = await import('firebase/firestore');
-      const { db } = await import('../lib/firebase');
+      // FIXED: Use secure Cloud Function for XP updates
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../lib/firebase');
       
-      await setDoc(doc(collection(db, 'user_progress'), user.uid), {
-        user_id: user.uid,
-        experience: newExp,
-        level: newLevel,
-        last_updated: Timestamp.now()
-      }, { merge: true });
+      const updateUserXP = httpsCallable(functions, 'updateUserXP');
+      const result = await updateUserXP({
+        userId: user.uid,
+        experienceGained: amount,
+        reason: 'Manual XP award',
+        source: 'client_store'
+      }) as any;
       
-      if (leveledUp) {
-        console.log(`🎉 Level up! Reached level ${newLevel}`);
-        // TODO: Show level up animation/notification
+      // Update local state with server response
+      if (result.data.success) {
+        set(state => ({ 
+          ...state, 
+          experience: result.data.newExperience, 
+          level: result.data.newLevel 
+        }));
+        
+        if (result.data.leveledUp) {
+          console.log(`🎉 Level up! Reached level ${result.data.newLevel}`);
+          // TODO: Show level up animation/notification
+        }
       }
     } catch (error) {
       console.error('Failed to save XP to Firebase:', error);
+      // Revert optimistic update on failure
+      set(state => ({ ...state, experience: oldExp, level: oldLevel }));
     }
   },
   
@@ -338,7 +351,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     }
   },
 
-  requestSupport: async () => {
+  requestSupport: async (customMessage?: string) => {
     const current = get();
     const now = new Date();
     
@@ -357,6 +370,9 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const userProfile = await getUserProfile(user.uid);
       if (!userProfile || !userProfile.family_id) return;
 
+      // Use custom message or default
+      const message = customMessage || 'I could use some extra support right now 💙';
+
       // Create support request in Firebase
       const { collection, addDoc, Timestamp } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
@@ -364,7 +380,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const supportRequestData = {
         from_user_id: user.uid,
         family_id: userProfile.family_id,
-        message: 'I could use some extra support right now 💙',
+        message,
         created_at: Timestamp.now(),
         acknowledged: false,
         type: 'care_request'
@@ -376,7 +392,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const newRequest: SupportRequest = {
         id: docRef.id,
         timestamp: now,
-        message: 'I could use some extra support right now 💙',
+        message,
         from: user.uid,
         familyId: userProfile.family_id,
         acknowledged: false,
@@ -397,7 +413,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
         for (const parent of parents) {
           if (parent.pushToken) {
             const notification = {
-              ...NotificationTemplates.careRequest(studentName, 'I could use some extra support right now 💙'),
+              ...NotificationTemplates.careRequest(studentName, message),
               userId: parent.id
             };
             
@@ -427,18 +443,19 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     if (!user) return;
     
     try {
-      const { doc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('../lib/firebase');
+      // FIXED: Use secure Cloud Function to get user progress
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../lib/firebase');
       
-      const progressDoc = await getDoc(doc(db, 'user_progress', user.uid));
+      const getUserProgress = httpsCallable(functions, 'getUserProgress');
+      const result = await getUserProgress({ userId: user.uid }) as any;
       
-      if (progressDoc.exists()) {
-        const data = progressDoc.data();
+      if (result.data.exists) {
         set({
-          experience: data.experience || 0,
-          level: data.level || 1
+          experience: result.data.experience || 0,
+          level: result.data.level || 1
         });
-        console.log(`📊 Loaded user progress: Level ${data.level || 1}, ${data.experience || 0} XP`);
+        console.log(`📊 Loaded user progress: Level ${result.data.level || 1}, ${result.data.experience || 0} XP`);
       } else {
         // Initialize new user progress
         set({ experience: 0, level: 1 });

@@ -31,7 +31,7 @@ import { cache, CACHE_CONFIGS } from '../../utils/universalCache';
 
 interface ActivityItem {
   id: string;
-  type: 'payment' | 'message' | 'item_request';
+  type: 'payment' | 'message' | 'item_request' | 'support_request';
   timestamp: Date;
   amount?: number;
   provider?: string;
@@ -57,7 +57,7 @@ interface ActivityHistoryScreenProps {
 }
 
 type FilterPeriod = 'day' | 'week' | 'month' | 'all';
-type FilterType = 'all' | 'payments' | 'messages' | 'items';
+type FilterType = 'all' | 'payments' | 'messages' | 'support';
 
 export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
@@ -442,6 +442,56 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         console.log('Item requests query failed, trying fallback...', requestsError);
       }
 
+      // Load support requests
+      try {
+        const { getUserProfile } = await import('../../lib/firebase');
+        const userProfile = await getUserProfile(user.id);
+        
+        if (userProfile?.family_id) {
+          const supportRequestsQuery = query(
+            collection(db, 'support_requests'),
+            where('family_id', '==', userProfile.family_id),
+            orderBy('created_at', 'desc'),
+            limit(10)
+          );
+          const supportRequestsSnapshot = await getDocs(supportRequestsQuery);
+          
+          console.log(`💙 Found ${supportRequestsSnapshot.size} support requests (latest 10)`);
+          
+          for (const doc of supportRequestsSnapshot.docs) {
+            const supportRequest = doc.data();
+            const studentId = supportRequest.from_user_id;
+            
+            // Check cache first for student name
+            let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
+            
+            if (!studentName) {
+              const studentQuery = query(
+                collection(db, 'users'),
+                where('id', '==', studentId)
+              );
+              const studentSnapshot = await getDocs(studentQuery);
+              studentName = studentSnapshot.docs[0]?.data()?.full_name || 'Student';
+              
+              // Cache the student name
+              await cache.set(CACHE_CONFIGS.STUDENT_NAMES, studentName, `${user.id}_${studentId}`);
+            }
+
+            allActivities.push({
+              id: doc.id,
+              type: 'support_request',
+              timestamp: supportRequest.created_at && supportRequest.created_at.toDate ? supportRequest.created_at.toDate() : new Date(),
+              status: supportRequest.acknowledged ? 'acknowledged' : 'pending',
+              message_content: supportRequest.message,
+              student_name: studentName,
+              student_id: studentId
+            });
+          }
+        }
+      } catch (supportRequestsError) {
+        console.log('Support requests query failed:', supportRequestsError);
+      }
+
       // Sort all activities by timestamp (newest first)
       allActivities.sort((a, b) => {
         const aTime = a.timestamp && a.timestamp.getTime ? a.timestamp.getTime() : 0;
@@ -593,12 +643,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
     // Filter by type
     if (filterType !== 'all') {
-      if (filterType === 'items') {
-        filtered = filtered.filter(activity => activity.type === 'item_request');
-      } else if (filterType === 'payments') {
+      if (filterType === 'payments') {
         filtered = filtered.filter(activity => activity.type === 'payment');
       } else if (filterType === 'messages') {
         filtered = filtered.filter(activity => activity.type === 'message');
+      } else if (filterType === 'support') {
+        filtered = filtered.filter(activity => activity.type === 'support_request');
       }
     }
 
@@ -779,6 +829,12 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         case 'pending': return '#f59e0b';
         default: return '#9ca3af';
       }
+    } else if (type === 'support_request') {
+      switch (status) {
+        case 'acknowledged': return '#10b981';
+        case 'pending': return '#dc2626'; // Use red to indicate urgency
+        default: return '#9ca3af';
+      }
     } else {
       switch (status) {
         case 'read': return '#10b981';
@@ -793,19 +849,30 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       switch (status) {
         case 'completed': return 'Completed';
         case 'confirmed_by_parent': return 'Confirmed';
+        case 'confirmed': 
+          console.warn('⚠️ Payment has unexpected status "confirmed" - should be "confirmed_by_parent", "completed", or "failed"');
+          return 'Needs Review';
         case 'sent': return 'Sent';
         case 'initiated': return 'Processing';
         case 'pending': return 'Pending';
         case 'timeout': return 'Timed Out';
         case 'cancelled': return 'Cancelled';
         case 'failed': return 'Failed';
-        default: return status;
+        default: 
+          console.warn(`⚠️ Payment has unknown status: "${status}"`);
+          return status;
       }
     } else if (type === 'item_request') {
       switch (status) {
         case 'approved': return 'Approved';
         case 'denied': return 'Denied';
         case 'pending': return 'Pending';
+        default: return status;
+      }
+    } else if (type === 'support_request') {
+      switch (status) {
+        case 'acknowledged': return 'Acknowledged';
+        case 'pending': return 'Needs Support';
         default: return status;
       }
     } else {
@@ -843,6 +910,38 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     }
   };
 
+  const handleAcknowledgeSupport = async (supportRequestId: string) => {
+    try {
+      // Update support request as acknowledged in Firebase
+      const { doc, updateDoc } = await import('firebase/firestore');
+      
+      await updateDoc(doc(db, 'support_requests', supportRequestId), {
+        acknowledged: true,
+        acknowledged_at: new Date()
+      });
+
+      // Update local state immediately for responsive UI
+      setActivities(prevActivities =>
+        prevActivities.map(activity =>
+          activity.id === supportRequestId && activity.type === 'support_request'
+            ? { ...activity, status: 'acknowledged' }
+            : activity
+        )
+      );
+
+      showMessage({
+        message: 'Support request acknowledged',
+        type: 'success',
+        icon: 'success',
+      });
+
+      console.log('✅ Support request acknowledged:', supportRequestId);
+    } catch (error: any) {
+      console.error('❌ Error acknowledging support request:', error);
+      Alert.alert('Error', 'Failed to acknowledge support request. Please try again.');
+    }
+  };
+
   const cancelPayment = async (paymentId: string) => {
     try {
       const { doc, updateDoc, Timestamp } = await import('firebase/firestore');
@@ -864,142 +963,20 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     }
   };
 
-  const retryPayment = async (payment: ActivityItem) => {
-    if (!payment.amount || !payment.student_name) {
-      Alert.alert('Error', 'Unable to retry payment - missing payment details.');
-      return;
-    }
-
-    Alert.alert(
-      'Retry Payment',
-      `Retry sending $${payment.amount.toFixed(2)} via ${payment.provider?.charAt(0).toUpperCase()}${payment.provider?.slice(1)} to ${payment.student_name.split(' ')[0]}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Retry Payment',
-          onPress: async () => {
-            try {
-              // Get the student ID from family members or from the original payment
-              const { getFamilyMembers } = useAuthStore.getState();
-              const familyMembers = await getFamilyMembers();
-              const targetStudent = familyMembers.students.find(s => 
-                s.name === payment.student_name
-              );
-
-              if (!targetStudent) {
-                Alert.alert('Error', 'Unable to find student for retry payment.');
-                return;
-              }
-
-              const amountCents = Math.round(payment.amount! * 100);
-              const provider = payment.provider as 'paypal' | 'venmo' | 'cashapp' | 'zelle';
-
-              if (provider === 'paypal') {
-                // Use PayPal P2P system
-                const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
-                const result = await createPayPalP2POrder(
-                  targetStudent.id,
-                  amountCents,
-                  payment.note || `Retry payment: $${payment.amount?.toFixed(2) || '0.00'}`
-                );
-
-                if (result.success && result.approvalUrl) {
-                  // Open PayPal for payment
-                  const { Linking } = await import('react-native');
-                  await Linking.openURL(result.approvalUrl);
-                  
-                  Alert.alert(
-                    'PayPal Payment Started',
-                    'Complete your payment in PayPal, then return to Campus Life.',
-                    [{ text: 'OK' }]
-                  );
-                  
-                  loadActivities(true); // Refresh activities
-                } else {
-                  throw new Error(result.error || 'Failed to create PayPal order');
-                }
-              } else {
-                // Use regular payment intent for other providers
-                const { createPaymentIntent } = await import('../../lib/payments');
-                const result = await createPaymentIntent(
-                  targetStudent.id,
-                  amountCents,
-                  provider,
-                  payment.note || `Retry payment: $${payment.amount?.toFixed(2) || '0.00'}`
-                );
-
-                if (result.success) {
-                  // Open the provider app/website
-                  if (result.redirectUrl) {
-                    const { Linking } = await import('react-native');
-                    await Linking.openURL(result.redirectUrl);
-                  }
-
-                  Alert.alert(
-                    'Payment Started',
-                    `Complete your payment in ${provider.charAt(0).toUpperCase()}${provider.slice(1)}, then return to Campus Life.`,
-                    [{ text: 'OK' }]
-                  );
-                  
-                  loadActivities(true); // Refresh activities
-                } else {
-                  throw new Error(result.error || 'Failed to create payment');
-                }
-              }
-            } catch (error: any) {
-              console.error('Error retrying payment:', error);
-              Alert.alert('Retry Failed', error.message || 'Unable to retry payment. Please try again.');
-            }
-          }
-        }
-      ]
-    );
-  };
 
   const renderActivityItem = (item: ActivityItem) => {
-    const isInNewList = newActivityIds.includes(item.id);
-    const isNotSeen = !seenActivityIds.has(item.id);
-    const isNew = isInNewList || isNotSeen;
-    
-    // Debug first few items
-    if (activities.indexOf(item) < 3) {
-      console.log(`🎨 Rendering item ${item.id.slice(-6)}: isInNewList=${isInNewList}, isNotSeen=${isNotSeen}, isNew=${isNew}`);
-    }
-    
-    const animatedValue = animatedValues.current[item.id] || new Animated.Value(1);
-    
-    const animatedStyle = isNew ? {
-      opacity: animatedValue,
-      transform: [
-        {
-          translateY: animatedValue.interpolate({
-            inputRange: [0, 1],
-            outputRange: [20, 0],
-          }),
-        },
-        {
-          scale: animatedValue.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.95, 1],
-          }),
-        },
-      ],
-    } : {};
-
     return (
-      <Animated.View key={item.id} style={[animatedStyle]}>
+      <View key={item.id}>
         <TouchableOpacity 
-          style={[
-            styles.activityItem, 
-            isNew && styles.activityItemNew
-          ]}
+          style={styles.activityItem}
         >
         <View style={styles.activityHeader}>
           <View style={styles.activityInfo}>
             <Text style={styles.activityType}>
               {item.type === 'payment' ? 'Payment' : 
-               item.type === 'item_request' ? 'Item Request' : 'Message'}
-              {item.student_name && ` ${item.type === 'item_request' ? 'from' : 'to'} ${item.student_name.split(' ')[0]}`}
+               item.type === 'item_request' ? 'Item Request' : 
+               item.type === 'support_request' ? 'Support Request' : 'Message'}
+              {item.student_name && ` ${item.type === 'item_request' || item.type === 'support_request' ? 'from' : 'to'} ${item.student_name.split(' ')[0]}`}
             </Text>
             <Text style={styles.activityTime}>{formatTime(item.timestamp)}</Text>
           </View>
@@ -1017,12 +994,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
               <Text style={styles.paymentNote}>"{item.note}"</Text>
             )}
             
-            {/* Payment Actions - Cancel, Retry, or Status Info */}
+            {/* Payment Actions - Cancel or Status Info */}
             {item.timestamp && (
               (() => {
                 const isTimedOut = isPaymentTimedOut(item.timestamp, item.provider || '');
                 const isProcessing = item.status === 'initiated' || item.status === 'pending' || item.status === 'processing';
-                const canRetry = item.status === 'failed' || item.status === 'cancelled' || item.status === 'timeout' || isTimedOut;
                 const isNearTimeout = isProcessing && !isTimedOut && isPaymentNearTimeout(item.timestamp, item.provider || '');
                 
                 if (isTimedOut || item.status === 'timeout') {
@@ -1030,14 +1006,6 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                     <View style={styles.timeoutWarning}>
                       <Text style={styles.timeoutWarningText}>⏰ Payment Expired</Text>
                       <Text style={styles.timeoutWarningSubtext}>This payment has been automatically cancelled</Text>
-                      
-                      {/* Retry Button for Timed Out Payments */}
-                      <TouchableOpacity
-                        style={styles.retryPaymentButton}
-                        onPress={() => retryPayment(item)}
-                      >
-                        <Text style={styles.retryPaymentButtonText}>🔄 Retry Payment</Text>
-                      </TouchableOpacity>
                     </View>
                   );
                 } else if (isProcessing) {
@@ -1068,21 +1036,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                       </TouchableOpacity>
                     </View>
                   );
-                } else if (canRetry) {
+                } else if (item.status === 'failed' || item.status === 'cancelled' || item.status === 'timeout' || isTimedOut) {
                   return (
                     <View style={styles.failedPaymentActions}>
                       <Text style={styles.failedPaymentText}>
                         {item.status === 'failed' ? '❌ Payment Failed' : 
                          item.status === 'cancelled' ? '🚫 Payment Cancelled' : '⏰ Payment Expired'}
                       </Text>
-                      
-                      {/* Retry Button for Failed/Cancelled Payments */}
-                      <TouchableOpacity
-                        style={styles.retryPaymentButton}
-                        onPress={() => retryPayment(item)}
-                      >
-                        <Text style={styles.retryPaymentButtonText}>🔄 Retry Payment</Text>
-                      </TouchableOpacity>
                     </View>
                   );
                 }
@@ -1143,56 +1103,67 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             )}
           </View>
         )}
+
+        {item.type === 'support_request' && (
+          <View style={styles.supportDetails}>
+            <Text style={styles.supportMessage} numberOfLines={3}>
+              "{item.message_content}"
+            </Text>
+            
+            {/* Acknowledge button for pending support requests */}
+            {item.status === 'pending' && (
+              <View style={styles.supportActions}>
+                <TouchableOpacity
+                  style={styles.acknowledgeButton}
+                  onPress={() => handleAcknowledgeSupport(item.id)}
+                >
+                  <Text style={styles.acknowledgeButtonText}>Acknowledge</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
         </TouchableOpacity>
-      </Animated.View>
+      </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      <StatusHeader title="Activity" />
-      <View style={[styles.header, { paddingTop: 50 }]}>
-        <View style={styles.titleContainer}>
-          <View>
-            <Text style={styles.title}>Activity History</Text>
-            <Text style={styles.subtitle}>All your family activity in one place</Text>
-          </View>
-        </View>
-        
-      </View>
-
+      <StatusHeader title="Activity History" />
       <ScrollView
         ref={scrollViewRef}
-        style={styles.scrollView}
+        style={[styles.scrollView, { paddingTop: 50 }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={theme.colors.primary}
           />
         }
+        contentContainerStyle={{ paddingBottom: 80 }}
       >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>All Activity</Text>
+          <Text style={styles.subtitle}>Your family connections and support</Text>
+        </View>
+
         {/* Quick Stats */}
         <View style={styles.quickStats}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activities?.length || 0}</Text>
-            <Text style={styles.statLabel}>Total Activity</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activities?.filter(a => a.type === 'payment').length || 0}</Text>
+            <Text style={[styles.statValue, { color: '#10b981' }]}>{activities?.filter(a => a.type === 'payment').length || 0}</Text>
             <Text style={styles.statLabel}>Payments</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activities?.filter(a => a.type === 'item_request').length || 0}</Text>
-            <Text style={styles.statLabel}>Requests</Text>
+            <Text style={[styles.statValue, { color: '#3b82f6' }]}>{activities?.filter(a => a.type === 'message').length || 0}</Text>
+            <Text style={styles.statLabel}>Messages</Text>
           </View>
-        </View>
-        
-        {/* Activity List Header */}
-        <View ref={allActivityRef} style={styles.activityListHeader}>
-          <Text style={styles.activityListTitle}>All Activity</Text>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: '#dc2626' }]}>{activities?.filter(a => a.type === 'support_request').length || 0}</Text>
+            <Text style={styles.statLabel}>Support</Text>
+          </View>
         </View>
         
         {loading ? (
@@ -1201,10 +1172,8 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           </View>
         ) : activities.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No Activity Yet</Text>
-            <Text style={styles.emptyText}>
-              Your payments and messages will appear here
-            </Text>
+            <Text style={styles.emptyText}>No activities found</Text>
+            <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
           </View>
         ) : (
           <View style={styles.activitiesContainer}>
@@ -1238,7 +1207,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             {/* Activity Type Filter */}
             <View style={styles.filterSection}>
               <View style={styles.segmentedControl}>
-                {(['all', 'payments', 'messages', 'items'] as FilterType[]).map((type, index) => (
+                {(['all', 'payments', 'messages', 'support'] as FilterType[]).map((type, index) => (
                   <TouchableOpacity
                     key={type}
                     style={[
@@ -1255,7 +1224,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                     ]}>
                       {type === 'all' ? 'All' : 
                        type === 'payments' ? 'Payments' :
-                       type === 'messages' ? 'Messages' : 'Items'}
+                       type === 'messages' ? 'Messages' : 'Support'}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -1268,47 +1237,46 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                 {filteredActivities.length} {filteredActivities.length === 1 ? 'activity' : 'activities'}
               </Text>
             </View>
-            
+
+            {/* Activities List */}
             {filteredActivities.length === 0 ? (
-              <View style={styles.emptyFilterContainer}>
-                <Text style={styles.emptyFilterTitle}>No matching activities</Text>
-                <Text style={styles.emptyFilterText}>
-                  Try adjusting your filters above
-                </Text>
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No activities found</Text>
+                <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
               </View>
             ) : (
-              <>
+              <View style={styles.activitiesList}>
                 {displayedActivities.map(renderActivityItem)}
+              </View>
+            )}
+
+            {/* Pagination */}
+            {filteredActivities.length > itemsPerPage && (
+              <View style={styles.paginationContainer}>
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage === 0 && styles.paginationButtonDisabled]}
+                  onPress={previousPage}
+                  disabled={currentPage === 0}
+                >
+                  <Text style={[styles.paginationButtonText, currentPage === 0 && styles.paginationButtonTextDisabled]}>
+                    Previous
+                  </Text>
+                </TouchableOpacity>
                 
-                {/* Pagination Controls */}
-                {filteredActivities.length > itemsPerPage && (
-                  <View style={styles.paginationContainer}>
-                    <TouchableOpacity
-                      style={[styles.paginationButton, currentPage === 0 && styles.paginationButtonDisabled]}
-                      onPress={previousPage}
-                      disabled={currentPage === 0}
-                    >
-                      <Text style={[styles.paginationButtonText, currentPage === 0 && styles.paginationButtonTextDisabled]}>
-                        Previous
-                      </Text>
-                    </TouchableOpacity>
-                    
-                    <Text style={styles.paginationInfo}>
-                      Page {currentPage + 1} of {Math.ceil(filteredActivities.length / itemsPerPage)}
-                    </Text>
-                    
-                    <TouchableOpacity
-                      style={[styles.paginationButton, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonDisabled]}
-                      onPress={nextPage}
-                      disabled={currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1}
-                    >
-                      <Text style={[styles.paginationButtonText, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonTextDisabled]}>
-                        Next
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </>
+                <Text style={styles.paginationInfo}>
+                  Page {currentPage + 1} of {Math.ceil(filteredActivities.length / itemsPerPage)}
+                </Text>
+                
+                <TouchableOpacity
+                  style={[styles.paginationButton, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonDisabled]}
+                  onPress={nextPage}
+                  disabled={currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1}
+                >
+                  <Text style={[styles.paginationButtonText, currentPage >= Math.ceil(filteredActivities.length / itemsPerPage) - 1 && styles.paginationButtonTextDisabled]}>
+                    Next
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         )}
@@ -1422,7 +1390,17 @@ const styles = StyleSheet.create({
     ...commonStyles.emptyTitle,
   },
   emptyText: {
-    ...commonStyles.emptyText,
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  activitiesList: {
+    gap: 1,
   },
   activitiesContainer: {
     ...commonStyles.containerPadding,
@@ -1541,19 +1519,6 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     marginBottom: 8,
     textAlign: 'center',
-  },
-  retryPaymentButton: {
-    backgroundColor: '#059669', // Green background for retry
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignSelf: 'center',
-    marginTop: 4,
-  },
-  retryPaymentButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
   },
   messageDetails: {
     marginTop: theme.spacing.sm,
@@ -1721,5 +1686,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textPrimary,
+  },
+  supportDetails: {
+    marginTop: 12,
+  },
+  supportMessage: {
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+    fontStyle: 'italic',
+    lineHeight: 20,
+    marginBottom: 12,
+    backgroundColor: theme.colors.backgroundTertiary,
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#dc2626',
+  },
+  supportActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  acknowledgeButton: {
+    backgroundColor: theme.colors.success,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+    minWidth: 100,
+  },
+  acknowledgeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });

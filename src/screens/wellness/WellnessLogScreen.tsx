@@ -16,49 +16,100 @@ import Slider from '@react-native-community/slider';
 import { showMessage } from 'react-native-flash-message';
 import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
 import { getTodayDateString, formatDateForDisplay } from '../../utils/dateUtils';
+import { InputSanitizer } from '../../utils/inputSanitization';
 
 interface WellnessLogScreenProps {
   navigation: any;
 }
 
 const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => {
-  const { addEntry, updateEntry, getEntryByDate, todayEntry } = useWellnessStore();
+  const { addEntry, updateEntry, getEntryByDate, todayEntry, loadEntries } = useWellnessStore();
   const [formData, setFormData] = useState({
-    mood: 5,
-    sleep: 7,
-    exercise: 30,
-    nutrition: 5,
-    water: 6,
-    social: 5,
-    academic: 5,
-    notes: '',
+    rankings: {
+      sleep: 1,      // Best performing (rank 1)
+      nutrition: 2,  // Second best (rank 2) 
+      academics: 3,  // Third best (rank 3)
+      social: 4,     // Worst performing (rank 4)
+    },
+    overallMood: 5, // 1-10 mood slider
   });
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    const today = getTodayDateString();
-    const existingEntry = getEntryByDate(today);
-    
-    if (existingEntry) {
-      setFormData({
-        mood: existingEntry.mood,
-        sleep: existingEntry.sleep,
-        exercise: existingEntry.exercise,
-        nutrition: existingEntry.nutrition,
-        water: existingEntry.water,
-        social: existingEntry.social,
-        academic: existingEntry.academic,
-        notes: existingEntry.notes || '',
-      });
-      setIsEditing(true);
-    }
-  }, []);
+    const initializeData = async () => {
+      // Load entries first to ensure they're available
+      await loadEntries();
+      
+      const today = getTodayDateString();
+      const existingEntry = getEntryByDate(today);
+      
+      if (existingEntry) {
+        setFormData({
+          rankings: {
+            sleep: existingEntry.rankings.sleep,
+            nutrition: existingEntry.rankings.nutrition,
+            academics: existingEntry.rankings.academics,
+            social: existingEntry.rankings.social,
+          },
+          overallMood: existingEntry.overallMood,
+        });
+        
+        // Reorder categories based on existing rankings
+        const categoryMap = {
+          sleep: { key: 'sleep', title: 'Sleep' },
+          nutrition: { key: 'nutrition', title: 'Nutrition' },
+          academics: { key: 'academics', title: 'Academics' },
+          social: { key: 'social', title: 'Social' },
+        };
+        
+        const sortedCategories = Object.entries(existingEntry.rankings)
+          .sort(([,a], [,b]) => a - b) // Sort by ranking (1=best, 4=worst)
+          .map(([key]) => categoryMap[key as keyof typeof categoryMap]);
+          
+        setOrderedCategories(sortedCategories);
+        setIsEditing(true);
+      }
+    };
+
+    initializeData();
+  }, [loadEntries, getEntryByDate]);
 
   const handleSave = async () => {
     const today = getTodayDateString();
     
+    // Validate wellness entry data
+    const wellnessEntry = {
+      sleep_ranking: formData.rankings.sleep,
+      nutrition_ranking: formData.rankings.nutrition,
+      academics_ranking: formData.rankings.academics,
+      social_ranking: formData.rankings.social,
+      overall_mood: formData.overallMood,
+      date: today,
+      user_id: 'current_user', // This would come from auth store
+      notes: ''
+    };
+
+    const validation = InputSanitizer.validateWellnessEntry(wellnessEntry);
+    if (!validation.valid) {
+      showMessage({
+        message: 'Invalid Entry',
+        description: validation.errors.join(', '),
+        type: 'danger',
+      });
+      return;
+    }
+    
+    console.log('💾 Saving wellness entry:', { 
+      formData, 
+      rankings: formData.rankings,
+      overallMood: formData.overallMood,
+      isEditing, 
+      todayEntry 
+    });
+    
     try {
       if (isEditing && todayEntry) {
+        console.log('🔄 Updating existing entry:', todayEntry.id);
         await updateEntry(todayEntry.id, {
           ...formData,
           date: today,
@@ -71,6 +122,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
           color: theme.colors.backgroundSecondary,
         });
       } else {
+        console.log('➕ Adding new entry');
         await addEntry({
           ...formData,
           date: today,
@@ -91,6 +143,7 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
         navigation.navigate('Dashboard');
       }
     } catch (error) {
+      console.error('❌ Failed to save wellness entry:', error);
       showMessage({
         message: 'Error',
         description: 'Failed to save wellness entry. Please try again.',
@@ -101,116 +154,38 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
     }
   };
 
-  const getMetricIcon = (label: string) => {
-    if (label.includes('Sleep')) return 'S';
-    if (label.includes('Exercise')) return 'E';
-    if (label.includes('Nutrition')) return 'N';
-    if (label.includes('Water')) return 'W';
-    if (label.includes('Social')) return 'So';
-    if (label.includes('Academic')) return 'A';
-    return 'M';
-  };
+  // Simple ordering system
+  const [orderedCategories, setOrderedCategories] = useState([
+    { key: 'sleep', title: 'Sleep' },
+    { key: 'nutrition', title: 'Nutrition' },
+    { key: 'academics', title: 'Academics' },
+    { key: 'social', title: 'Social' },
+  ]);
 
-  const renderSlider = (
-    label: string,
-    value: number,
-    min: number,
-    max: number,
-    unit: string,
-    onValueChange: (value: number) => void,
-    step: number = 1
-  ) => {
-    return (
-      <View style={styles.metricItem}>
-        <View style={styles.metricHeader}>
-          <View style={styles.metricLabelContainer}>
-            <Text style={styles.metricIcon}>{getMetricIcon(label)}</Text>
-            <Text style={styles.metricLabel}>{label}</Text>
-          </View>
-          <Text style={styles.metricValue}>{value} {unit}</Text>
-        </View>
-        
-        <View style={styles.sliderWrapper}>
-          <Slider
-            style={styles.slider}
-            minimumValue={min}
-            maximumValue={max}
-            value={value}
-            onValueChange={onValueChange}
-            step={step}
-            minimumTrackTintColor={theme.colors.primary}
-            maximumTrackTintColor={theme.colors.backgroundTertiary}
-            thumbTintColor={theme.colors.primary}
-            thumbStyle={styles.sliderThumb}
-            trackStyle={styles.sliderTrack}
-          />
-        </View>
-        
-        <View style={styles.sliderLabels}>
-          <Text style={styles.sliderLabelText}>{min}</Text>
-          <Text style={styles.sliderLabelText}>{max}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  const getMoodColor = (moodValue: number) => {
-    if (moodValue <= 3) return '#ef4444'; // Red for low mood
-    if (moodValue <= 5) return '#f97316'; // Orange for okay mood  
-    if (moodValue <= 7) return '#eab308'; // Yellow for decent mood
-    if (moodValue <= 9) return '#22c55e'; // Green for good mood
-    return '#10b981'; // Emerald for amazing mood
-  };
-
-  const renderMoodSlider = () => {
-    const handleMoodChange = (newMood: number) => {
-      setFormData({ ...formData, mood: newMood });
-    };
+  const moveCategory = (fromIndex: number, toIndex: number) => {
+    const newOrder = [...orderedCategories];
+    const [moved] = newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, moved);
+    setOrderedCategories(newOrder);
     
-    const getMoodDescription = (moodValue: number) => {
-      if (moodValue <= 3) return 'Having a tough day';
-      if (moodValue <= 5) return 'Okay, could be better';
-      if (moodValue <= 7) return 'Pretty good';
-      if (moodValue <= 9) return 'Great day';
-      return 'Amazing day!';
-    };
+    // Update rankings based on new order
+    const newRankings = { ...formData.rankings };
+    newOrder.forEach((category, index) => {
+      newRankings[category.key as keyof typeof newRankings] = index + 1;
+    });
     
-    return (
-      <View style={styles.metricItem}>
-        <View style={styles.metricHeader}>
-          <View style={styles.metricLabelContainer}>
-            <Text style={styles.metricIcon}>M</Text>
-            <Text style={styles.metricLabel}>How are you feeling today?</Text>
-          </View>
-          <Text style={[styles.metricValue, { color: getMoodColor(formData.mood) }]}>{formData.mood}/10</Text>
-        </View>
-        
-        <View style={styles.sliderWrapper}>
-          <Slider
-            style={styles.slider}
-            minimumValue={1}
-            maximumValue={10}
-            value={formData.mood}
-            onValueChange={handleMoodChange}
-            step={1}
-            minimumTrackTintColor={getMoodColor(formData.mood)}
-            maximumTrackTintColor={theme.colors.backgroundTertiary}
-            thumbTintColor={getMoodColor(formData.mood)}
-            thumbStyle={[styles.sliderThumb, styles.moodSliderThumb]}
-            trackStyle={styles.sliderTrack}
-          />
-        </View>
-        
-        <View style={styles.sliderLabels}>
-          <Text style={styles.sliderLabelText}>1</Text>
-          <Text style={styles.sliderLabelText}>10</Text>
-        </View>
-        
-        <Text style={styles.moodDescription}>
-          {getMoodDescription(formData.mood)}
-        </Text>
-      </View>
-    );
+    setFormData({
+      ...formData,
+      rankings: newRankings
+    });
+  };
+
+  const getMoodDescription = (mood: number) => {
+    if (mood <= 2) return 'Really tough day';
+    if (mood <= 4) return 'Challenging day';
+    if (mood <= 6) return 'Okay day';
+    if (mood <= 8) return 'Pretty good day';
+    return 'Great day!';
   };
 
   return (
@@ -244,114 +219,59 @@ const WellnessLogScreen: React.FC<WellnessLogScreenProps> = ({ navigation }) => 
           <Text style={styles.subtitle}>Track your daily wellness</Text>
         </View>
 
-        {/* Current Score Preview */}
-        <View style={styles.scoreSection}>
-          <View style={styles.scoreHeader}>
-            <Text style={styles.scoreTitle}>Your wellness score</Text>
-            <View style={styles.scoreBadge}>
-              <Text style={styles.scoreValue}>
-                {Math.round(
-                  (formData.mood * 0.25 +
-                   Math.min(formData.sleep / 8, 1) * 10 * 0.20 +
-                   Math.min(formData.exercise / 60, 1) * 10 * 0.15 +
-                   formData.nutrition * 0.15 +
-                   Math.min(formData.water / 8, 1) * 10 * 0.10 +
-                   formData.social * 0.10 +
-                   formData.academic * 0.05) * 10
-                ) / 10}/10
-              </Text>
+        {/* Overall Mood */}
+        <View style={styles.moodSection}>
+          <Text style={styles.sectionTitle}>How was your day overall?</Text>
+          <View style={styles.moodSliderContainer}>
+            <Slider
+              style={styles.moodSlider}
+              minimumValue={1}
+              maximumValue={10}
+              value={formData.overallMood}
+              onValueChange={(value) => setFormData({ ...formData, overallMood: Math.round(value) })}
+              step={1}
+              minimumTrackTintColor={theme.colors.primary}
+              maximumTrackTintColor={theme.colors.backgroundTertiary}
+              thumbTintColor={theme.colors.primary}
+            />
+            <View style={styles.moodFeedback}>
+              <Text style={styles.moodValue}>{formData.overallMood}/10</Text>
+              <Text style={styles.moodDescription}>{getMoodDescription(formData.overallMood)}</Text>
             </View>
           </View>
-          <Text style={styles.scoreSubtitle}>
-            {isEditing ? 'Update your metrics below to adjust your score' : 'Complete all sections for your wellness score'}
-          </Text>
         </View>
 
-        {/* Wellness Metrics */}
-        <View style={styles.metricsSection}>
-          <Text style={styles.sectionTitle}>Wellness Metrics</Text>
+        {/* Simple Category Ordering */}
+        <View style={styles.orderingSection}>
+          <Text style={styles.sectionTitle}>Order these areas</Text>
+          <Text style={styles.instructionText}>From best performing to worst performing today</Text>
           
-          {/* Mood */}
-          {renderMoodSlider()}
-
-          {/* Sleep */}
-          {renderSlider(
-            'Hours of Sleep',
-            formData.sleep,
-            0,
-            12,
-            'hours',
-            (value) => setFormData({ ...formData, sleep: value }),
-            0.5
-          )}
-
-          {/* Exercise */}
-          {renderSlider(
-            'Exercise Minutes',
-            formData.exercise,
-            0,
-            120,
-            'min',
-            (value) => setFormData({ ...formData, exercise: value }),
-            5
-          )}
-
-          {/* Nutrition */}
-          {renderSlider(
-            'Nutrition Quality',
-            formData.nutrition,
-            1,
-            10,
-            '/10',
-            (value) => setFormData({ ...formData, nutrition: value })
-          )}
-
-          {/* Water */}
-          {renderSlider(
-            'Water Intake',
-            formData.water,
-            0,
-            12,
-            'glasses',
-            (value) => setFormData({ ...formData, water: value })
-          )}
-
-          {/* Social */}
-          {renderSlider(
-            'Social Connection',
-            formData.social,
-            1,
-            10,
-            '/10',
-            (value) => setFormData({ ...formData, social: value })
-          )}
-
-          {/* Academic */}
-          {renderSlider(
-            'Academic Progress',
-            formData.academic,
-            1,
-            10,
-            '/10',
-            (value) => setFormData({ ...formData, academic: value })
-          )}
+          {orderedCategories.map((category, index) => (
+            <TouchableOpacity key={category.key} style={styles.categoryItem}>
+              <View style={styles.categoryContent}>
+                <Text style={styles.categoryTitle}>{category.title}</Text>
+                <Text style={styles.categoryPosition}>#{index + 1}</Text>
+              </View>
+              <View style={styles.moveButtons}>
+                <TouchableOpacity 
+                  style={[styles.moveButton, index === 0 && styles.moveButtonDisabled]}
+                  onPress={() => moveCategory(index, index - 1)}
+                  disabled={index === 0}
+                >
+                  <Text style={styles.moveButtonText}>↑</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.moveButton, index === orderedCategories.length - 1 && styles.moveButtonDisabled]}
+                  onPress={() => moveCategory(index, index + 1)}
+                  disabled={index === orderedCategories.length - 1}
+                >
+                  <Text style={styles.moveButtonText}>↓</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Notes Section */}
-        <View style={styles.notesSection}>
-          <Text style={styles.sectionTitle}>Additional Notes</Text>
-          <Text style={styles.notesSubtitle}>How was your day? Any highlights or challenges? (Optional)</Text>
-          <TextInput
-            style={styles.notesInput}
-            value={formData.notes}
-            onChangeText={(text) => setFormData({ ...formData, notes: text })}
-            placeholder="Write about your day..."
-            placeholderTextColor={theme.colors.textTertiary}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
 
         <View style={styles.bottomPadding} />
         </ScrollView>
@@ -430,141 +350,114 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   
-  // Score Section 
-  scoreSection: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    marginBottom: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  scoreHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  scoreTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    flex: 1,
-    marginRight: 12,
-  },
-  scoreBadge: {
-    backgroundColor: theme.colors.success,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  scoreValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: theme.colors.backgroundSecondary,
-  },
-  scoreSubtitle: {
-    fontSize: 15,
-    color: theme.colors.textSecondary,
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  
-  // Metrics Section
-  metricsSection: {
-    marginBottom: 20,
+  // Mood Section
+  moodSection: {
+    marginBottom: 30,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 12,
-  },
-  metricItem: {
-    paddingVertical: 16,
-    paddingHorizontal: 0,
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  metricHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  metricLabelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  metricIcon: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: theme.colors.primary,
-    backgroundColor: theme.colors.backgroundSecondary,
-    width: 20,
-    height: 20,
-    textAlign: 'center',
-    lineHeight: 20,
-    borderRadius: 10,
-    marginRight: 12,
-  },
-  metricLabel: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '600',
     color: theme.colors.textPrimary,
-    flex: 1,
+    marginBottom: 16,
   },
-  metricValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.primary,
+  moodSliderContainer: {
+    paddingHorizontal: 8,
   },
-  sliderWrapper: {
-    marginVertical: 16,
-    marginHorizontal: 8,
-  },
-  slider: {
+  moodSlider: {
     width: '100%',
     height: 40,
   },
-  sliderThumb: {
-    backgroundColor: theme.colors.primary,
+  moodFeedback: {
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  moodValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.colors.primary,
+    marginBottom: 4,
+  },
+  moodDescription: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+  },
+  
+  // Ordering Section
+  orderingSection: {
+    marginBottom: 30,
+  },
+  instructionText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 16,
+  },
+  
+  // Category Item (clean dashboard style)
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  categoryContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  categoryTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  categoryPosition: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+  },
+  
+  // Move Buttons (minimal)
+  moveButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 16,
+  },
+  moveButton: {
     width: 24,
     height: 24,
     borderRadius: 12,
-  },
-  moodSliderThumb: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-  },
-  sliderTrack: {
-    height: 6,
-    borderRadius: 3,
-  },
-  sliderLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  sliderLabelText: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    fontWeight: '500',
-  },
-  moodDescription: {
-    marginTop: 12,
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    textAlign: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
     backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moveButtonDisabled: {
+    opacity: 0.3,
+  },
+  moveButtonText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.colors.textTertiary,
+  },
+  
+  // Score Section (simplified)
+  scoreSection: {
+    alignItems: 'center',
+    marginBottom: 30,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  scoreLabel: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    marginBottom: 4,
+  },
+  scoreValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: theme.colors.primary,
   },
   
   // Notes Section

@@ -12,15 +12,15 @@ import { getTodayDateString, getLocalDateString, getDateStringDaysAgo } from '..
 export interface WellnessEntry {
   id: string;
   date: string;
-  mood: number; // 1-10 scale
-  sleep: number; // hours
-  exercise: number; // minutes
-  nutrition: number; // 1-10 scale
-  water: number; // glasses
-  social: number; // 1-10 scale
-  academic: number; // 1-10 scale
+  rankings: {
+    sleep: number;      // 1-4 (1=best performing, 4=worst performing)
+    nutrition: number;  // 1-4  
+    academics: number;  // 1-4
+    social: number;     // 1-4
+  };
+  overallMood: number; // 1-10 slider for general day quality
   notes?: string;
-  wellnessScore: number; // calculated score
+  overallScore: number; // calculated from rankings + mood
 }
 
 export interface WellnessStats {
@@ -29,6 +29,12 @@ export interface WellnessStats {
   averageScore: number;
   totalEntries: number;
   weeklyAverage: number;
+  categoryAverages: {
+    sleep: number;      // 1-4 average
+    nutrition: number;  // 1-4 average
+    academics: number;  // 1-4 average
+    social: number;     // 1-4 average
+  };
 }
 
 interface WellnessStore {
@@ -37,41 +43,19 @@ interface WellnessStore {
   todayEntry: WellnessEntry | null;
   
   // Actions
-  addEntry: (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>) => Promise<void>;
+  addEntry: (entry: Omit<WellnessEntry, 'id' | 'overallScore'>) => Promise<void>;
   updateEntry: (id: string, updates: Partial<WellnessEntry>) => Promise<void>;
   getEntryByDate: (date: string) => WellnessEntry | null;
-  calculateWellnessScore: (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>) => number;
+  calculateOverallScore: (entry: Omit<WellnessEntry, 'id' | 'overallScore'>) => number;
   calculateStats: () => WellnessStats;
   getWeeklyEntries: () => WellnessEntry[];
   getMonthlyEntries: () => WellnessEntry[];
-  loadEntries: () => Promise<void>;
+  loadEntries: (studentId?: string) => Promise<void>;
 }
 
-const calculateWellnessScore = (entry: Omit<WellnessEntry, 'id' | 'wellnessScore'>): number => {
-  const weights = {
-    mood: 0.25,
-    sleep: 0.20,
-    exercise: 0.15,
-    nutrition: 0.15,
-    water: 0.10,
-    social: 0.10,
-    academic: 0.05,
-  };
-
-  const normalizedSleep = Math.min(entry.sleep / 8, 1) * 10; // 8 hours = 10 points
-  const normalizedExercise = Math.min(entry.exercise / 60, 1) * 10; // 60 minutes = 10 points
-  const normalizedWater = Math.min(entry.water / 8, 1) * 10; // 8 glasses = 10 points
-
-  const score = 
-    entry.mood * weights.mood +
-    normalizedSleep * weights.sleep +
-    normalizedExercise * weights.exercise +
-    entry.nutrition * weights.nutrition +
-    normalizedWater * weights.water +
-    entry.social * weights.social +
-    entry.academic * weights.academic;
-
-  return Math.round(score * 10) / 10; // Round to 1 decimal place
+const calculateOverallScore = (entry: Omit<WellnessEntry, 'id' | 'overallScore'>): number => {
+  // Simply return the user's direct input for "How was your day overall?"
+  return entry.overallMood;
 };
 
 export const useWellnessStore = create<WellnessStore>((set, get) => ({
@@ -82,6 +66,12 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     averageScore: 0,
     totalEntries: 0,
     weeklyAverage: 0,
+    categoryAverages: {
+      sleep: 0,
+      nutrition: 0,
+      academics: 0,
+      social: 0,
+    },
   },
   todayEntry: null,
 
@@ -89,15 +79,17 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const user = getCurrentUser();
     if (!user) return;
 
-    const wellnessScore = calculateWellnessScore(entryData);
+    const overallScore = calculateOverallScore(entryData);
     
     // Check if entry for today already exists
     const today = entryData.date;
-    const existingEntry = get().entries.find(entry => entry.date === today);
+    const state = get();
+    const entries = state.entries || [];
+    const existingEntry = entries.find(entry => entry.date === today);
     
     if (existingEntry) {
       // Update existing entry instead of creating new one
-      await get().updateEntry(existingEntry.id, entryData);
+      await state.updateEntry(existingEntry.id, entryData);
       return;
     }
     
@@ -105,14 +97,12 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const firebaseEntry: Omit<FirebaseWellnessEntry, 'id' | 'created_at'> = {
       user_id: user.uid,
       date: entryData.date,
-      mood: entryData.mood,
-      sleep_hours: entryData.sleep,
-      exercise_minutes: entryData.exercise,
-      nutrition: entryData.nutrition,
-      water: entryData.water,
-      social: entryData.social,
-      academic: entryData.academic,
-      notes: entryData.notes,
+      sleep_ranking: entryData.rankings.sleep,
+      nutrition_ranking: entryData.rankings.nutrition,
+      academics_ranking: entryData.rankings.academics,
+      social_ranking: entryData.rankings.social,
+      overall_mood: entryData.overallMood,
+      notes: entryData.notes || null, // Convert undefined to null for Firestore
     };
 
     try {
@@ -125,11 +115,13 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const newEntry: WellnessEntry = {
         ...entryData,
         id,
-        wellnessScore,
+        overallScore,
       };
 
+      const updatedEntries = [...(state.entries || []), newEntry];
+      
       set((state) => ({
-        entries: [...state.entries, newEntry],
+        entries: updatedEntries,
         todayEntry: newEntry,
       }));
       
@@ -137,8 +129,13 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
       
-      // Clear cache so fresh data is loaded next time
-      await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+      // Update cache immediately with new data for instant loading next time
+      const wellnessData = { 
+        entries: updatedEntries, 
+        todayEntry: newEntry 
+      };
+      await cache.set(CACHE_CONFIGS.WELLNESS_DATA, wellnessData, user.uid);
+      console.log('💾 Updated wellness cache with new entry');
 
       // Send notification to parents
       try {
@@ -150,14 +147,20 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
           const familyMembers = await getFamilyMembers();
           const studentName = currentUser.name || 'Student';
           
-          // Get mood string for notification
-          const moodLabels = ['Terrible', 'Very Bad', 'Bad', 'Poor', 'Okay', 'Fair', 'Good', 'Very Good', 'Great', 'Excellent'];
-          const moodText = moodLabels[Math.max(0, Math.min(9, entryData.mood - 1))] || 'okay';
+          // Get overall wellness status for notification
+          const getWellnessStatusText = (score: number) => {
+            if (score >= 8) return 'doing great';
+            if (score >= 6) return 'doing well';
+            if (score >= 4) return 'managing okay';
+            return 'may need support';
+          };
+          
+          const statusText = getWellnessStatusText(overallScore);
           
           // Send to all parents
           for (const parent of familyMembers.parents) {
             const notification = {
-              ...NotificationTemplates.studentWellnessLogged(studentName, wellnessScore, moodText),
+              ...NotificationTemplates.studentWellnessLogged(studentName, overallScore, statusText),
               userId: parent.id
             };
             
@@ -175,13 +178,13 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         const { useRewardsStore } = await import('./rewardsStore');
         const { addExperience } = useRewardsStore.getState();
         
-        // Award XP based on wellness score
+        // Award XP based on overall score
         let xpAmount = 20; // Base XP for logging
-        if (wellnessScore >= 8) xpAmount = 50; // Bonus for high wellness
-        else if (wellnessScore >= 6) xpAmount = 35; // Bonus for good wellness
+        if (overallScore >= 8) xpAmount = 50; // Bonus for high wellness
+        else if (overallScore >= 6) xpAmount = 35; // Bonus for good wellness
         
         addExperience(xpAmount);
-        console.log(`🎯 Awarded ${xpAmount} XP for wellness entry (score: ${wellnessScore})`);
+        console.log(`🎯 Awarded ${xpAmount} XP for wellness entry (score: ${overallScore})`);
       } catch (error) {
         console.error('Failed to award XP:', error);
       }
@@ -202,18 +205,18 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         const studentName = userProfile.full_name;
         
         // Only send notification for significant wellness changes (good or concerning)
-        const shouldNotify = wellnessScore >= 8 || wellnessScore <= 4;
+        const shouldNotify = overallScore >= 8 || overallScore <= 4;
         
         if (shouldNotify) {
           for (const parent of parents) {
             if (parent.pushToken) {
               const notification = {
-                ...NotificationTemplates.weeklyReport(studentName, wellnessScore),
+                ...NotificationTemplates.weeklyReport(studentName, overallScore),
                 userId: parent.id,
-                title: wellnessScore >= 8 ? 
+                title: overallScore >= 8 ? 
                   `✨ ${studentName} had a great day!` : 
                   `💙 ${studentName} may need support`,
-                body: `Wellness score: ${wellnessScore}/10 - Check their latest log`
+                body: `Wellness score: ${overallScore}/10 - Check their latest log`
               };
               
               console.log('📱 Sending wellness notification to parent:', parent.id);
@@ -237,13 +240,11 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       // Convert local format to Firebase format for update
       const firebaseUpdates: any = {};
       if (updates.date !== undefined) firebaseUpdates.date = updates.date;
-      if (updates.mood !== undefined) firebaseUpdates.mood = updates.mood;
-      if (updates.sleep !== undefined) firebaseUpdates.sleep_hours = updates.sleep;
-      if (updates.exercise !== undefined) firebaseUpdates.exercise_minutes = updates.exercise;
-      if (updates.nutrition !== undefined) firebaseUpdates.nutrition = updates.nutrition;
-      if (updates.water !== undefined) firebaseUpdates.water = updates.water;
-      if (updates.social !== undefined) firebaseUpdates.social = updates.social;
-      if (updates.academic !== undefined) firebaseUpdates.academic = updates.academic;
+      if (updates.rankings?.sleep !== undefined) firebaseUpdates.sleep_ranking = updates.rankings.sleep;
+      if (updates.rankings?.nutrition !== undefined) firebaseUpdates.nutrition_ranking = updates.rankings.nutrition;
+      if (updates.rankings?.academics !== undefined) firebaseUpdates.academics_ranking = updates.rankings.academics;
+      if (updates.rankings?.social !== undefined) firebaseUpdates.social_ranking = updates.rankings.social;
+      if (updates.overallMood !== undefined) firebaseUpdates.overall_mood = updates.overallMood;
       if (updates.notes !== undefined) firebaseUpdates.notes = updates.notes;
 
       const { success, error } = await updateWellnessEntry(id, firebaseUpdates);
@@ -252,21 +253,27 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
         return;
       }
 
+      let updatedEntries: WellnessEntry[] = [];
+      let todayEntry: WellnessEntry | null = null;
+
       set((state) => {
-        const updatedEntries = state.entries.map((entry) => {
+        const entriesArray = state.entries || [];
+        updatedEntries = entriesArray.map((entry) => {
           if (entry.id === id) {
             const updatedEntry = { ...entry, ...updates };
-            if (updates.mood || updates.sleep || updates.exercise || updates.nutrition || updates.water || updates.social || updates.academic) {
-              updatedEntry.wellnessScore = calculateWellnessScore(updatedEntry);
+            if (updates.rankings || updates.overallMood !== undefined) {
+              updatedEntry.overallScore = calculateOverallScore(updatedEntry);
             }
             return updatedEntry;
           }
           return entry;
         });
 
+        todayEntry = updatedEntries.find(entry => entry.date === getTodayDateString()) || null;
+
         return {
           entries: updatedEntries,
-          todayEntry: updatedEntries.find(entry => entry.date === getTodayDateString()) || null,
+          todayEntry,
         };
       });
       
@@ -274,30 +281,38 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       const updatedStats = get().calculateStats();
       set({ stats: updatedStats });
       
-      // Clear cache so fresh data is loaded next time
-      await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, user.uid);
+      // Update cache immediately with updated data
+      const wellnessData = { 
+        entries: updatedEntries, 
+        todayEntry 
+      };
+      await cache.set(CACHE_CONFIGS.WELLNESS_DATA, wellnessData, user.uid);
+      console.log('💾 Updated wellness cache after entry update');
     } catch (error) {
       console.error('Failed to update wellness entry:', error);
     }
   },
 
   getEntryByDate: (date) => {
-    return get().entries.find(entry => entry.date === date) || null;
+    const state = get();
+    if (!state || !state.entries) return null;
+    return state.entries.find(entry => entry.date === date) || null;
   },
 
-  calculateWellnessScore,
+  calculateOverallScore,
 
   calculateStats: () => {
     const { entries } = get();
+    const entriesArray = entries || [];
     const today = getTodayDateString();
-    const sortedEntries = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedEntries = [...entriesArray].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Calculate current streak
     let currentStreak = 0;
     
     for (let i = 0; i < 30; i++) { // Check last 30 days
       const dateStr = getDateStringDaysAgo(i);
-      const entry = entries.find(e => e.date === dateStr);
+      const entry = entriesArray.find(e => e.date === dateStr);
       
       if (entry) {
         currentStreak++;
@@ -324,22 +339,39 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       lastDate = entryDate;
     }
 
-    // Calculate averages
-    const totalScore = entries.reduce((sum, entry) => sum + entry.wellnessScore, 0);
-    const averageScore = entries.length > 0 ? totalScore / entries.length : 0;
+    // Calculate overall score averages
+    const totalScore = entriesArray.reduce((sum, entry) => sum + entry.overallScore, 0);
+    const averageScore = entriesArray.length > 0 ? totalScore / entriesArray.length : 0;
 
     // Weekly average (last 7 days)
     const weekAgoDateStr = getDateStringDaysAgo(7);
-    const weeklyEntries = entries.filter(entry => entry.date >= weekAgoDateStr);
-    const weeklyScore = weeklyEntries.reduce((sum, entry) => sum + entry.wellnessScore, 0);
+    const weeklyEntries = entriesArray.filter(entry => entry.date >= weekAgoDateStr);
+    const weeklyScore = weeklyEntries.reduce((sum, entry) => sum + entry.overallScore, 0);
     const weeklyAverage = weeklyEntries.length > 0 ? weeklyScore / weeklyEntries.length : 0;
+    
+    // Calculate category averages
+    const categoryTotals = entriesArray.reduce((totals, entry) => {
+      totals.sleep += entry.rankings.sleep;
+      totals.nutrition += entry.rankings.nutrition;
+      totals.academics += entry.rankings.academics;
+      totals.social += entry.rankings.social;
+      return totals;
+    }, { sleep: 0, nutrition: 0, academics: 0, social: 0 });
+
+    const categoryAverages = {
+      sleep: entriesArray.length > 0 ? Math.round((categoryTotals.sleep / entriesArray.length) * 10) / 10 : 0,
+      nutrition: entriesArray.length > 0 ? Math.round((categoryTotals.nutrition / entriesArray.length) * 10) / 10 : 0,
+      academics: entriesArray.length > 0 ? Math.round((categoryTotals.academics / entriesArray.length) * 10) / 10 : 0,
+      social: entriesArray.length > 0 ? Math.round((categoryTotals.social / entriesArray.length) * 10) / 10 : 0,
+    };
 
     const stats: WellnessStats = {
       currentStreak,
       longestStreak,
       averageScore: Math.round(averageScore * 10) / 10,
-      totalEntries: entries.length,
+      totalEntries: entriesArray.length,
       weeklyAverage: Math.round(weeklyAverage * 10) / 10,
+      categoryAverages,
     };
 
     set({ stats });
@@ -348,14 +380,16 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
 
   getWeeklyEntries: () => {
     const { entries } = get();
+    const entriesArray = entries || [];
     const weekAgoDateStr = getDateStringDaysAgo(7);
-    return entries.filter(entry => entry.date >= weekAgoDateStr);
+    return entriesArray.filter(entry => entry.date >= weekAgoDateStr);
   },
 
   getMonthlyEntries: () => {
     const { entries } = get();
+    const entriesArray = entries || [];
     const monthAgoDateStr = getDateStringDaysAgo(30);
-    return entries.filter(entry => entry.date >= monthAgoDateStr);
+    return entriesArray.filter(entry => entry.date >= monthAgoDateStr);
   },
 
   loadEntries: async (studentId?: string) => {
@@ -366,59 +400,131 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
     const targetUserId = studentId || user.uid;
 
     try {
-      // Use smart caching for wellness data
-      const wellnessData = await cache.getOrFetch(
+      // Use smart refresh for instant loading with cached data
+      await cache.smartRefresh(
         CACHE_CONFIGS.WELLNESS_DATA,
+        
+        // Fetch function for fresh data
         async () => {
           console.log('🔄 Loading fresh wellness entries...');
           const firebaseEntries = await getWellnessEntries(targetUserId);
           
+          // Validate that firebaseEntries is an array
+          if (!Array.isArray(firebaseEntries)) {
+            console.error('❌ Firebase entries is not an array:', firebaseEntries);
+            return { entries: [], todayEntry: null };
+          }
+          
           // Convert Firebase entries to local format
-          const entries: WellnessEntry[] = firebaseEntries.map(entry => ({
-            id: entry.id || '',
-            date: entry.date || getLocalDateString(entry.created_at.toDate()), // Use stored date or fallback to created_at
-            mood: entry.mood,
-            sleep: entry.sleep_hours,
-            exercise: entry.exercise_minutes,
-            nutrition: entry.nutrition,
-            water: entry.water,
-            social: entry.social,
-            academic: entry.academic,
-            notes: entry.notes,
-            wellnessScore: calculateWellnessScore({
+          const entries: WellnessEntry[] = firebaseEntries.map(entry => {
+
+            // Use actual ranking data from Firebase or default to unique rankings
+            const rankings = {
+              sleep: entry.sleep_ranking || 1,
+              nutrition: entry.nutrition_ranking || 2,
+              academics: entry.academics_ranking || 3,
+              social: entry.social_ranking || 4,
+            };
+            
+            // Validate rankings are unique (1-4) - if not, fix them
+            const usedRanks = new Set();
+            const validatedRankings = { sleep: 1, nutrition: 2, academics: 3, social: 4 };
+            
+            // Check if we have duplicate rankings
+            const rankValues = Object.values(rankings);
+            const hasDuplicates = rankValues.length !== new Set(rankValues).size;
+            
+            if (hasDuplicates) {
+              // Assign unique rankings 1-4
+              const categories = ['sleep', 'nutrition', 'academics', 'social'] as const;
+              categories.forEach((category, index) => {
+                validatedRankings[category] = index + 1;
+              });
+              console.warn('⚠️  Fixed duplicate rankings for entry:', entry.id, 'Original:', rankings, 'Fixed:', validatedRankings);
+            } else {
+              // Use original rankings if they're already unique
+              Object.assign(validatedRankings, rankings);
+            }
+            
+            const convertedEntry = {
+              id: entry.id || '',
+              date: entry.date || getLocalDateString(entry.created_at.toDate()), // Use stored date or fallback to created_at
+              rankings: validatedRankings,
+              overallMood: entry.overall_mood || 5, // Default to middle mood
+              notes: entry.notes,
+            overallScore: calculateOverallScore({
               date: entry.date || getLocalDateString(entry.created_at.toDate()),
-              mood: entry.mood,
-              sleep: entry.sleep_hours,
-              exercise: entry.exercise_minutes,
-              nutrition: entry.nutrition,
-              water: entry.water,
-              social: entry.social,
-              academic: entry.academic,
+              rankings: validatedRankings,
+              overallMood: entry.overall_mood || 5,
               notes: entry.notes,
             }),
-          }));
+            };
+            
+            return convertedEntry;
+          });
 
           const today = getTodayDateString();
           const todayEntry = entries.find(entry => entry.date === today) || null;
           
           return { entries, todayEntry };
         },
+        
+        // Callback for cached data (shows immediately)
+        (cachedData) => {
+          if (cachedData && Array.isArray(cachedData.entries)) {
+            console.log('⚡ Showing cached wellness data immediately');
+            set({ entries: cachedData.entries, todayEntry: cachedData.todayEntry });
+            
+            // Calculate and update stats for cached data
+            const stats = get().calculateStats();
+            set({ stats });
+          }
+        },
+        
+        // Callback for fresh data (updates in background)
+        (freshData) => {
+          if (freshData && Array.isArray(freshData.entries)) {
+            console.log('🔄 Updated with fresh wellness data');
+            set({ entries: freshData.entries, todayEntry: freshData.todayEntry });
+            
+            // Calculate and update stats for fresh data
+            const stats = get().calculateStats();
+            set({ stats });
+            
+            console.log('📦 Loaded wellness data', { 
+              entriesCount: freshData.entries.length, 
+              hasTodayEntry: !!freshData.todayEntry 
+            });
+          }
+        },
+        
         targetUserId
       );
-
-      // Set the data from cache or fresh fetch
-      set({ entries: wellnessData.entries, todayEntry: wellnessData.todayEntry });
-      
-      // Calculate and update stats
-      const stats = get().calculateStats();
-      set({ stats });
-      
-      console.log('📦 Loaded wellness data', { 
-        entriesCount: wellnessData.entries.length, 
-        hasTodayEntry: !!wellnessData.todayEntry 
-      });
     } catch (error) {
-      console.error('Failed to load wellness entries:', error);
+      console.error('❌ Failed to load wellness entries:', error);
+      
+      // Clear potentially corrupted cache data and set safe defaults
+      try {
+        await cache.clear(CACHE_CONFIGS.WELLNESS_DATA, targetUserId);
+        console.log('🧹 Cleared corrupted wellness cache');
+      } catch (clearError) {
+        console.error('❌ Failed to clear cache:', clearError);
+      }
+      
+      // Set safe default state
+      set({ entries: [], todayEntry: null, stats: {
+        currentStreak: 0,
+        longestStreak: 0,
+        averageScore: 0,
+        totalEntries: 0,
+        weeklyAverage: 0,
+        categoryAverages: {
+          sleep: 0,
+          nutrition: 0,
+          academics: 0,
+          social: 0,
+        },
+      }});
     }
   },
 })); 

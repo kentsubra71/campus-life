@@ -1,351 +1,310 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  ScrollView, 
-  RefreshControl, 
-  View, 
-  Text, 
-  StyleSheet,
-  TouchableOpacity,
-  Alert
-} from 'react-native';
-import { useWellnessStore } from '../../stores/wellnessStore';
-import { useAuthStore } from '../../stores/authStore';
+import React, { useState, useMemo, useEffect } from 'react';
 import { theme } from '../../styles/theme';
-import { StatusHeader } from '../../components/StatusHeader';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { formatDateForDisplay } from '../../utils/dateUtils';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  FlatList,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
+import WellnessLineChart from '../../components/charts/WellnessLineChart';
+import CategoriesChart from '../../components/charts/CategoriesChart';
+import WellnessInsightsCard from '../../components/charts/WellnessInsightsCard';
+import { 
+  transformEntriesForCharts, 
+  filterEntriesByPeriod,
+  groupEntriesByPeriod, 
+  calculateWellnessInsights 
+} from '../../utils/chartDataTransform';
 
 interface ChildWellnessScreenProps {
   navigation: any;
-  route?: {
-    params?: {
-      studentId?: string;
+  route: {
+    params: {
+      studentId: string;
+      studentName: string;
     };
   };
 }
 
 export const ChildWellnessScreen: React.FC<ChildWellnessScreenProps> = ({ navigation, route }) => {
-  const insets = useSafeAreaInsets();
-  const { stats, todayEntry, entries, loadEntries } = useWellnessStore();
-  const { getFamilyMembers } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'all'>('week');
-  const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
+  const { studentId, studentName } = route.params;
+  const { entries, stats, loadEntries } = useWellnessStore();
+  const [timeFilter, setTimeFilter] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [viewMode, setViewMode] = useState<'charts' | 'list'>('charts');
   
-  // Get the current student being viewed
-  const studentId = route?.params?.studentId;
-  const currentStudent = familyMembers.students.find(s => s.id === studentId) || familyMembers.students[0];
-  const studentName = currentStudent?.name || 'Student';
-
   useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      const members = await getFamilyMembers();
-      setFamilyMembers(members);
-      // Use studentId from route params or first student
-      const targetStudentId = route?.params?.studentId || members.students[0]?.id;
-      if (targetStudentId) {
-        await loadEntries(targetStudentId);
-      }
-    } catch (error) {
-      console.log('Error loading wellness data:', error);
-    } finally {
-      setIsLoading(false);
+    if (!studentId) {
+      Alert.alert('Error', 'Student ID is required');
+      navigation.goBack();
+      return;
     }
-  };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
+    // Load entries using the wellness store which has proper error handling
+    loadEntries(studentId);
+  }, [studentId, navigation, loadEntries]);
 
-  const getFilteredEntries = () => {
-    const now = new Date();
-    const cutoffDate = new Date();
+  // Memoized data processing for better performance
+  const processedData = useMemo(() => {
+    console.log('🔄 Processing wellness data:', entries.length, 'total entries');
+    console.log('📅 Entries dates:', entries.map(e => e.date));
     
-    switch (selectedPeriod) {
-      case 'week':
-        cutoffDate.setDate(now.getDate() - 7);
-        break;
-      case 'month':
-        cutoffDate.setDate(now.getDate() - 30);
-        break;
-      case 'all':
-        return entries;
+    if (entries.length === 0) {
+      console.log('❌ No entries found');
+      return {
+        filteredEntries: [],
+        chartData: [],
+        insights: {
+          trends: [],
+          overallTrend: { current: 0, previous: 0, change: 0, direction: 'stable' as const },
+          bestCategory: 'sleep',
+          improvingCategory: null,
+        },
+      };
     }
+
+    // Log first few entries to see their structure
+    console.log('📊 Sample entries:', entries.slice(0, 2).map(e => ({
+      date: e.date,
+      rankings: e.rankings,
+      overallScore: e.overallScore,
+      overallMood: e.overallMood
+    })));
+
+    // Filter entries by appropriate date range for each period
+    const dateFilteredEntries = filterEntriesByPeriod(entries, timeFilter);
+    console.log('📅 Date filtered entries for', timeFilter, ':', dateFilteredEntries.length);
+    console.log('📅 Date filtered dates:', dateFilteredEntries.map(e => e.date));
+    console.log('📅 Today is:', new Date().toISOString().split('T')[0]);
     
-    return entries.filter(entry => new Date(entry.date) >= cutoffDate);
+    const filteredEntries = groupEntriesByPeriod(dateFilteredEntries, timeFilter);
+    console.log('📈 Filtered entries:', filteredEntries.length);
+    
+    const chartData = transformEntriesForCharts(filteredEntries);
+    console.log('📊 Chart data generated:', chartData.length, 'points');
+    console.log('📊 Chart data sample:', chartData.slice(-2).map(d => ({ 
+      date: d.date, 
+      overallScore: d.overallScore,
+      sleep: d.sleep,
+      nutrition: d.nutrition,
+      academics: d.academics,
+      social: d.social 
+    })));
+    
+    const insights = calculateWellnessInsights(dateFilteredEntries, timeFilter);
+
+    return { filteredEntries, chartData, insights };
+  }, [entries, timeFilter]);
+
+  const formatDate = (dateString: string) => {
+    return formatDateForDisplay(dateString, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
-  const getWellnessCategory = (score: number) => {
-    if (score >= 8.5) return { label: 'Excellent', color: theme.colors.success };
-    if (score >= 7) return { label: 'Good', color: theme.colors.success };
-    if (score >= 5.5) return { label: 'Fair', color: theme.colors.warning };
-    if (score >= 4) return { label: 'Concerning', color: theme.colors.error };
-    return { label: 'Struggling', color: theme.colors.error };
+  const getScoreColor = (score: number) => {
+    if (score >= 8) return theme.colors.success;
+    if (score >= 6) return theme.colors.warning;
+    return theme.colors.error;
   };
 
   const getMoodLevel = (mood: number) => {
-    if (mood >= 9) return { text: 'Amazing', color: theme.colors.success };
-    if (mood >= 7) return { text: 'Great', color: theme.colors.success };
-    if (mood >= 5) return { text: 'Okay', color: theme.colors.warning };
-    if (mood >= 3) return { text: 'Struggling', color: theme.colors.error };
-    return { text: 'Difficult', color: theme.colors.error };
+    if (mood >= 8) return 'Excellent';
+    if (mood >= 6) return 'Good';
+    if (mood >= 4) return 'Fair';
+    if (mood >= 2) return 'Poor';
+    return 'Very Poor';
   };
 
-  const getSupportSuggestion = (entry: any) => {
-    const suggestions = [];
-    
-    if (entry.sleep < 6) suggestions.push({ text: 'Encourage better sleep routine', area: 'sleep' });
-    if (entry.exercise < 30) suggestions.push({ text: 'Suggest fun physical activity', area: 'exercise' });
-    if (entry.nutrition < 6) suggestions.push({ text: 'Check in about eating habits', area: 'nutrition' });
-    if (entry.social < 5) suggestions.push({ text: 'Ask about friendships and social time', area: 'social' });
-    if (entry.academic < 5) suggestions.push({ text: 'Offer academic support', area: 'academic' });
-    if (entry.mood < 5) suggestions.push({ text: 'Extra emotional support needed', area: 'mood' });
-    
-    return suggestions;
-  };
-
-  const sendEncouragement = (area: string) => {
-    const studentName = familyMembers.students[0]?.name || 'your student';
-    Alert.alert(
-      'Encouragement Sent!',
-      `You sent supportive encouragement about ${area} to ${studentName}.`,
-      [{ text: 'OK' }]
-    );
-  };
-
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.loadingText}>Loading wellness data...</Text>
+  const renderStatsCard = () => (
+    <View style={styles.statsContainer}>
+      <View style={styles.statsHeader}>
+        <Text style={styles.statsTitle}>Wellness Overview</Text>
+        <View style={[styles.statusBadge, { 
+          backgroundColor: stats.currentStreak >= 3 ? '#10b981' : 
+                          stats.currentStreak >= 1 ? '#3b82f6' : '#f59e0b'
+        }]}>
+          <Text style={styles.statusBadgeText}>
+            {stats.currentStreak >= 3 ? 'ON TRACK' : 
+             stats.currentStreak >= 1 ? 'BUILDING' : 'GET STARTED'}
+          </Text>
+        </View>
       </View>
-    );
-  }
+      <Text style={styles.statsSubtitle}>
+        {stats.currentStreak}-day streak • {stats.averageScore} avg score • {stats.totalEntries} total entries
+      </Text>
+    </View>
+  );
 
-  const filteredEntries = getFilteredEntries();
-  const averageScore = filteredEntries.length > 0 
-    ? filteredEntries.reduce((sum, entry) => sum + entry.wellnessScore, 0) / filteredEntries.length 
-    : 0;
+  const renderTimeFilter = () => (
+    <View style={styles.filterSection}>
+      <View style={styles.segmentedControl}>
+        <TouchableOpacity
+          style={[styles.segment, styles.segmentFirst, timeFilter === 'daily' && styles.segmentActive]}
+          onPress={() => setTimeFilter('daily')}
+        >
+          <Text style={[styles.segmentText, timeFilter === 'daily' && styles.segmentTextActive]}>
+            Daily
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segment, timeFilter === 'weekly' && styles.segmentActive]}
+          onPress={() => setTimeFilter('weekly')}
+        >
+          <Text style={[styles.segmentText, timeFilter === 'weekly' && styles.segmentTextActive]}>
+            Weekly
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segment, styles.segmentLast, timeFilter === 'monthly' && styles.segmentActive]}
+          onPress={() => setTimeFilter('monthly')}
+        >
+          <Text style={[styles.segmentText, timeFilter === 'monthly' && styles.segmentTextActive]}>
+            Monthly
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderViewModeToggle = () => (
+    <View style={styles.viewToggle}>
+      <TouchableOpacity
+        style={[styles.toggleButton, viewMode === 'charts' && styles.toggleButtonActive]}
+        onPress={() => setViewMode('charts')}
+      >
+        <Text style={[styles.toggleText, viewMode === 'charts' && styles.toggleTextActive]}>
+          Analytics
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.toggleButton, viewMode === 'list' && styles.toggleButtonActive]}
+        onPress={() => setViewMode('list')}
+      >
+        <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>
+          History
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const getRankingText = (ranking: number) => {
+    switch (ranking) {
+      case 1: return 'Best';
+      case 2: return 'Good';
+      case 3: return 'Fair';
+      case 4: return 'Worst';
+      default: return 'Unknown';
+    }
+  };
+
+  const renderEntryItem = ({ item }: { item: WellnessEntry }) => (
+    <View style={styles.entryCard}>
+      <View style={styles.entryHeader}>
+        <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: getScoreColor(item.overallScore) }]}>
+          <Text style={styles.scoreText}>
+            {item.overallScore}/10
+          </Text>
+        </View>
+      </View>
+      
+      <View style={styles.entryDetails}>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Overall Mood:</Text>
+          <Text style={styles.detailValue}>
+            {getMoodLevel(item.overallMood)} ({item.overallMood}/10)
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Sleep:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.sleep)} (#{item.rankings.sleep})</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Nutrition:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.nutrition)} (#{item.rankings.nutrition})</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Academics:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.academics)} (#{item.rankings.academics})</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Social:</Text>
+          <Text style={styles.detailValue}>{getRankingText(item.rankings.social)} (#{item.rankings.social})</Text>
+        </View>
+      </View>
+
+      {item.notes && (
+        <View style={styles.notesContainer}>
+          <Text style={styles.notesText}>"{item.notes}"</Text>
+        </View>
+      )}
+    </View>
+  );
 
   return (
-    <View style={styles.container}>
-      <StatusHeader title="Wellness" />
-      <ScrollView
-        style={[styles.scrollContainer, { paddingTop: 50 }]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backButton}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>{studentName}'s Wellness</Text>
-          <Text style={styles.subtitle}>Understanding how they're doing</Text>
-        </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>{studentName}'s Wellness</Text>
+        <View style={{ width: 50 }} />
+      </View>
 
-        {/* Period Filter - Segmented Control */}
-        <View style={styles.filterContainer}>
-          <View style={styles.segmentedControl}>
-            <TouchableOpacity 
-              style={[styles.segment, selectedPeriod === 'week' && styles.activeSegment]}
-              onPress={() => setSelectedPeriod('week')}
-            >
-              <Text style={[styles.segmentText, selectedPeriod === 'week' && styles.activeSegmentText]}>
-                Week
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.segment, selectedPeriod === 'month' && styles.activeSegment]}
-              onPress={() => setSelectedPeriod('month')}
-            >
-              <Text style={[styles.segmentText, selectedPeriod === 'month' && styles.activeSegmentText]}>
-                Month
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.segment, selectedPeriod === 'all' && styles.activeSegment]}
-              onPress={() => setSelectedPeriod('all')}
-            >
-              <Text style={[styles.segmentText, selectedPeriod === 'all' && styles.activeSegmentText]}>
-                All Time
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      <View style={styles.controls}>
+        {renderTimeFilter()}
+        {renderViewModeToggle()}
+      </View>
 
-        {/* Overall Status - Clean Layout */}
-        <View style={styles.overallSection}>
-          <View style={styles.overallHeader}>
-            <Text style={styles.overallTitle}>Overall Wellness</Text>
-            <View style={styles.scoreContainer}>
-              <Text style={styles.scoreNumber}>{averageScore?.toFixed(1) || '--'}</Text>
-              <Text style={styles.scoreMax}>/10</Text>
-            </View>
-          </View>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusBadge, { backgroundColor: getWellnessCategory(averageScore).color }]}>
-              <Text style={styles.statusBadgeText}>{getWellnessCategory(averageScore).label}</Text>
-            </View>
-            <Text style={styles.statusSubtext}>
-              Based on {filteredEntries.length} recent entries
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {processedData.filteredEntries.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No wellness data yet</Text>
+            <Text style={styles.emptySubtitle}>
+              {studentName} hasn't logged any wellness entries yet.
             </Text>
           </View>
-        </View>
-
-        {/* Today's Entry - Clean Layout */}
-        {todayEntry && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Today's Check-in</Text>
+        ) : viewMode === 'charts' ? (
+          <>
+            <WellnessInsightsCard 
+              insights={processedData.insights} 
+              period={timeFilter}
+            />
             
-            {/* Wellness & Mood */}
-            <View style={styles.metricRow}>
-              <View style={styles.metricItem}>
-                <Text style={styles.metricLabel}>Wellness Score</Text>
-                <Text style={[styles.metricValue, { color: getWellnessCategory(todayEntry.wellnessScore).color }]}>
-                  {todayEntry.wellnessScore?.toFixed(1) || '--'}/10
-                </Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Text style={styles.metricLabel}>Mood</Text>
-                <Text style={[styles.metricValue, { color: getMoodLevel(todayEntry.mood).color }]}>
-                  {todayEntry.mood}/10
-                </Text>
-              </View>
-            </View>
+            <WellnessLineChart
+              data={processedData.chartData}
+              period={timeFilter}
+              title="Overall Wellness Score"
+              subtitle={`${studentName}'s wellness journey over time`}
+            />
             
-            {/* Details List */}
-            <View style={styles.detailsList}>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Sleep</Text>
-                <Text style={styles.detailValue}>{todayEntry.sleep} hours</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Exercise</Text>
-                <Text style={styles.detailValue}>{todayEntry.exercise} minutes</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Nutrition</Text>
-                <Text style={styles.detailValue}>{todayEntry.nutrition}/10</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Social</Text>
-                <Text style={styles.detailValue}>{todayEntry.social}/10</Text>
-              </View>
-            </View>
-
-            {todayEntry.notes && (
-              <View style={styles.notesSection}>
-                <Text style={styles.notesLabel}>Today's Note</Text>
-                <Text style={styles.notesText}>"{todayEntry.notes}"</Text>
-              </View>
-            )}
-
-            {/* Support Suggestions */}
-            {getSupportSuggestion(todayEntry).length > 0 && (
-              <View style={styles.suggestionsSection}>
-                <Text style={styles.suggestionsTitle}>Ways to Help</Text>
-                {getSupportSuggestion(todayEntry).map((suggestion, index) => (
-                  <TouchableOpacity 
-                    key={index} 
-                    style={styles.suggestionItem}
-                    onPress={() => sendEncouragement(suggestion.area)}
-                  >
-                    <Text style={styles.suggestionText}>{suggestion.text}</Text>
-                    <Text style={styles.suggestionArrow}>→</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
+            <CategoriesChart
+              data={processedData.chartData}
+              period={timeFilter}
+            />
+          </>
+        ) : (
+          <>
+            {renderStatsCard()}
+            <FlatList
+              data={processedData.filteredEntries}
+              renderItem={renderEntryItem}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
+            />
+          </>
         )}
-
-        {/* Wellness Trends - Clean List */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Wellness Trends</Text>
-          <View style={styles.trendsList}>
-            <View style={styles.trendRow}>
-              <Text style={styles.trendLabel}>Current Streak</Text>
-              <Text style={styles.trendValue}>{stats.currentStreak} days</Text>
-            </View>
-            <View style={styles.trendRow}>
-              <Text style={styles.trendLabel}>Total Entries</Text>
-              <Text style={styles.trendValue}>{filteredEntries.length}</Text>
-            </View>
-            <View style={styles.trendRow}>
-              <Text style={styles.trendLabel}>Best Streak</Text>
-              <Text style={styles.trendValue}>{stats.bestStreak || stats.currentStreak} days</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Recent Entries - Clean List */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Wellness Entries</Text>
-          {filteredEntries.slice(0, 7).map((entry, index) => {
-            const category = getWellnessCategory(entry.wellnessScore);
-            const moodLevel = getMoodLevel(entry.mood);
-            return (
-              <View key={entry.id} style={styles.entryItem}>
-                <View style={styles.entryHeader}>
-                  <Text style={styles.entryDate}>
-                    {new Date(entry.date).toLocaleDateString('en-US', { 
-                      weekday: 'short', 
-                      month: 'short', 
-                      day: 'numeric' 
-                    })}
-                  </Text>
-                  <Text style={[styles.entryScore, { color: category.color }]}>
-                    {entry.wellnessScore?.toFixed(1) || '--'}/10
-                  </Text>
-                </View>
-                <View style={styles.entryMetrics}>
-                  <Text style={styles.entryDetail}>
-                    {entry.sleep}h sleep • {entry.exercise}m exercise • {entry.nutrition}/10 nutrition • {entry.social}/10 social
-                  </Text>
-                  <Text style={styles.entryMood}>
-                    Mood: <Text style={{ color: moodLevel.color }}>{entry.mood}/10</Text>
-                  </Text>
-                </View>
-                {entry.notes && (
-                  <Text style={styles.entryNotes}>"{entry.notes}"</Text>
-                )}
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Support Actions - Clean */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Send Support</Text>
-          <View style={styles.supportActionsList}>
-            <TouchableOpacity 
-              style={styles.supportActionItem}
-              onPress={() => sendEncouragement('overall wellness')}
-            >
-              <Text style={styles.supportActionText}>Send Encouragement</Text>
-              <View style={styles.supportActionBadge}>
-                <Text style={styles.supportActionBadgeText}>Send</Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.supportActionItem}
-              onPress={() => navigation.navigate('SendSupport')}
-            >
-              <Text style={styles.supportActionText}>Send Message or Money</Text>
-              <Text style={styles.supportActionArrow}>→</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -354,327 +313,213 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  scrollContainer: {
-    flex: 1,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.background,
-  },
-  loadingText: {
-    color: theme.colors.textSecondary,
-    fontSize: 16,
-  },
   header: {
-    marginBottom: 30,
-    paddingTop: 10,
-    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: theme.colors.backgroundCard,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   backButton: {
+    padding: 8,
+  },
+  backButtonText: {
     fontSize: 16,
     color: theme.colors.primary,
-    fontWeight: '600',
-    marginBottom: 12,
+    fontWeight: '500',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '600',
     color: theme.colors.textPrimary,
-    marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
+  controls: {
+    backgroundColor: theme.colors.backgroundCard,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+  },
+  statsContainer: {
+    paddingVertical: 12,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  statsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  statsTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
+    textTransform: 'uppercase',
+  },
+  statsSubtitle: {
+    fontSize: 13,
     color: theme.colors.textSecondary,
-    marginTop: 6,
+    lineHeight: 16,
   },
-  // Segmented Control
-  filterContainer: {
-    paddingHorizontal: 24,
-    marginBottom: 20,
+  filterSection: {
+    marginBottom: 12,
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+    padding: 2,
+    marginTop: 8,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 6,
+  },
+  toggleButtonActive: {
+    backgroundColor: theme.colors.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+  },
+  toggleTextActive: {
+    color: theme.colors.textPrimary,
+    fontWeight: '600',
   },
   segmentedControl: {
     flexDirection: 'row',
     backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    overflow: 'hidden',
+    borderRadius: 8,
+    padding: 2,
   },
   segment: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRightWidth: 1,
-    borderRightColor: theme.colors.border,
   },
-  activeSegment: {
-    backgroundColor: theme.colors.secondary,
+  segmentFirst: {
+    borderTopLeftRadius: 6,
+    borderBottomLeftRadius: 6,
+  },
+  segmentLast: {
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  segmentActive: {
+    backgroundColor: theme.colors.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
   segmentText: {
     fontSize: 14,
     fontWeight: '500',
     color: theme.colors.textSecondary,
   },
-  activeSegmentText: {
-    color: theme.colors.primaryDark,
+  segmentTextActive: {
+    color: theme.colors.textPrimary,
     fontWeight: '600',
   },
-  // Overall Status - Clean Layout
-  overallSection: {
-    paddingHorizontal: 24,
-    marginBottom: 20,
-  },
-  overallHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  overallTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-  },
-  scoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  scoreNumber: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: theme.colors.textPrimary,
-  },
-  scoreMax: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginLeft: 4,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#ffffff',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statusSubtext: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-  },
-  section: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginBottom: 16,
-  },
-  
-  // Today's Entry Metrics
-  metricRow: {
-    flexDirection: 'row',
-    gap: 20,
-    marginBottom: 16,
-  },
-  metricItem: {
-    flex: 1,
-  },
-  metricLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  metricValue: {
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  
-  // Details List
-  detailsList: {
-    marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
+  entryCard: {
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
-  },
-  detailLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-  },
-  detailValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  
-  // Notes Section
-  notesSection: {
-    backgroundColor: theme.colors.backgroundTertiary,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  notesLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
-  },
-  notesText: {
-    fontSize: 15,
-    color: theme.colors.textPrimary,
-    fontStyle: 'italic',
-    lineHeight: 20,
-  },
-  
-  // Suggestions Section
-  suggestionsSection: {
-    marginTop: 16,
-  },
-  suggestionsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 12,
-  },
-  suggestionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  suggestionText: {
-    fontSize: 15,
-    color: theme.colors.textPrimary,
-    flex: 1,
-  },
-  suggestionArrow: {
-    fontSize: 16,
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
-  
-  // Trends List
-  trendsList: {
-    gap: 4,
-  },
-  trendRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  trendLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-  },
-  trendValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-  },
-  
-  // Entry Items
-  entryItem: {
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    paddingHorizontal: 0,
   },
   entryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   entryDate: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: theme.colors.textPrimary,
   },
-  entryScore: {
-    fontSize: 16,
-    fontWeight: '700',
+  scoreText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
+    textTransform: 'uppercase',
   },
-  entryMetrics: {
-    gap: 4,
+  entryDetails: {
+    marginBottom: 8,
   },
-  entryDetail: {
-    fontSize: 13,
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  detailLabel: {
+    fontSize: 14,
     color: theme.colors.textSecondary,
-    lineHeight: 18,
   },
-  entryMood: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textPrimary,
   },
-  entryNotes: {
+  notesContainer: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    paddingTop: 8,
+    marginTop: 8,
+  },
+  notesText: {
     fontSize: 13,
     color: theme.colors.textTertiary,
     fontStyle: 'italic',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    lineHeight: 16,
   },
-  
-  // Support Actions
-  supportActionsList: {
-    gap: 4,
-  },
-  supportActionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    paddingVertical: 60,
   },
-  supportActionText: {
-    fontSize: 15,
-    fontWeight: '500',
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
     color: theme.colors.textPrimary,
-    flex: 1,
+    marginBottom: 8,
   },
-  supportActionBadge: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  supportActionBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#ffffff',
-    textTransform: 'uppercase',
-  },
-  supportActionArrow: {
+  emptySubtitle: {
     fontSize: 16,
-    color: theme.colors.primary,
-    fontWeight: '600',
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 20,
   },
 });

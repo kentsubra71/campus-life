@@ -1,0 +1,9 @@
+node_modules
+.git
+.expo
+android/.gradle
+android/build
+android/app/build
+verification-website
+*.log
+.DS_Store

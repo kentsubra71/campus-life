@@ -26,13 +26,29 @@ import { NetworkStatusIndicator } from './src/components/NetworkStatusIndicator'
 const Stack = createStackNavigator<AuthStackParamList>();
 
 export default function App() {
-  const { isAuthenticated, user, isLoading } = useAuthStore();
+  const { isAuthenticated, user, isLoading, initialize } = useAuthStore();
   const navigationRef = useRef<any>(null);
+
+  // CRITICAL: Initialize auth state listener on app start
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
 
   // Handle deep links for email verification and password reset
   useEffect(() => {
+    // Track when the app was opened to avoid processing stale deep links
+    const appOpenTime = Date.now();
+    
     const handleDeepLink = (url: string) => {
       console.log('Deep link received:', url);
+      
+      // Ignore deep links that are older than 30 seconds after app open
+      // This prevents stale payment links from being processed on login
+      const timeSinceAppOpen = Date.now() - appOpenTime;
+      if (timeSinceAppOpen > 30000 && (url.includes('campuslife://pay/') || url.includes('campuslife://paypal-return'))) {
+        console.log('Ignoring stale payment deep link:', url);
+        return;
+      }
       
       if (url.includes('campuslife://verified')) {
         Alert.alert(
@@ -70,12 +86,23 @@ export default function App() {
           
           console.log('Payment deep link parsed:', { action, paymentId, queryString });
           
+          // Handle cancel action - don't require authentication
+          if (action === 'cancel') {
+            console.log('Payment was cancelled by user');
+            Alert.alert(
+              'Payment Cancelled',
+              'Your payment was cancelled. You can try again later.',
+              [{ text: 'OK', style: 'default' }]
+            );
+            return; // Don't navigate anywhere for cancels
+          }
+          
           if (paymentId) {
             if (!isAuthenticated) {
-              console.log('User not authenticated, showing login prompt');
+              console.log('User not authenticated for payment return');
               Alert.alert(
                 'Login Required',
-                'Please log in to view your payment details.',
+                'Please log in to complete your payment process.',
                 [{ text: 'OK', style: 'default' }]
               );
               return;
@@ -85,7 +112,7 @@ export default function App() {
               console.log('Navigation ref not ready, retrying...');
               // Retry after a short delay if navigation isn't ready
               setTimeout(() => {
-                if (navigationRef.current) {
+                if (navigationRef.current && user?.role === 'parent') {
                   navigationRef.current.navigate('PaymentReturn', { 
                     paymentId, 
                     action,
@@ -93,19 +120,36 @@ export default function App() {
                     PayerID: params.get('PayerID'),
                     status: params.get('status')
                   });
+                } else if (user?.role === 'student') {
+                  Alert.alert(
+                    'Payment Completed',
+                    'Your payment has been processed successfully!',
+                    [{ text: 'OK', style: 'default' }]
+                  );
                 }
               }, 1000);
               return;
             }
             
-            // Navigate to PaymentReturn screen
-            navigationRef.current.navigate('PaymentReturn', { 
-              paymentId, 
-              action,
-              token: params.get('token'),
-              PayerID: params.get('PayerID'),
-              status: params.get('status')
-            });
+            // Only navigate to PaymentReturn for success/return, not cancel
+            // Check if user is parent (PaymentReturn screen only exists for parents)
+            if (user?.role === 'parent') {
+              navigationRef.current.navigate('PaymentReturn', { 
+                paymentId, 
+                action,
+                token: params.get('token'),
+                PayerID: params.get('PayerID'),
+                status: params.get('status')
+              });
+            } else {
+              // Students don't have PaymentReturn screen, just show success message
+              console.log('Student user - showing payment success message instead of navigation');
+              Alert.alert(
+                'Payment Completed',
+                'Your payment has been processed successfully!',
+                [{ text: 'OK', style: 'default' }]
+              );
+            }
             
             console.log('Navigated to PaymentReturn screen');
           } else {
@@ -142,27 +186,42 @@ export default function App() {
               console.log('Navigation ref not ready, retrying...');
               // Retry after a short delay if navigation isn't ready
               setTimeout(() => {
-                if (navigationRef.current) {
+                if (navigationRef.current && user?.role === 'parent') {
                   navigationRef.current.navigate('PayPalP2PReturn', {
                     transactionId,
                     orderId,
                     payerID,
                     status
                   });
+                } else if (user?.role === 'student') {
+                  Alert.alert(
+                    'Payment Completed',
+                    'Your PayPal payment has been processed successfully!',
+                    [{ text: 'OK', style: 'default' }]
+                  );
                 }
               }, 1000);
               return;
             }
             
-            // Navigate to PayPalP2PReturn screen
-            navigationRef.current.navigate('PayPalP2PReturn', {
-              transactionId,
-              orderId, 
-              payerID,
-              status
-            });
-            
-            console.log('Navigated to PayPalP2PReturn screen');
+            // Navigate to PayPalP2PReturn screen (only for parents)
+            if (user?.role === 'parent') {
+              navigationRef.current.navigate('PayPalP2PReturn', {
+                transactionId,
+                orderId, 
+                payerID,
+                status
+              });
+              console.log('Navigated to PayPalP2PReturn screen');
+            } else {
+              // Students don't have PayPalP2PReturn screen, just show success message
+              console.log('Student user - showing PayPal payment success message instead of navigation');
+              Alert.alert(
+                'PayPal Payment Completed',
+                'Your PayPal payment has been processed successfully!',
+                [{ text: 'OK', style: 'default' }]
+              );
+            }
           } else {
             console.error('Missing transactionId or orderId in PayPal deep link');
           }

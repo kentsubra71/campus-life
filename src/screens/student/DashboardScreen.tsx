@@ -6,7 +6,9 @@ import {
   Text, 
   StyleSheet,
   TouchableOpacity,
-  Alert
+  Alert,
+  Modal,
+  TextInput
 } from 'react-native';
 import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
@@ -46,6 +48,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingErrors, setLoadingErrors] = useState<AppError[]>([]);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportMessage, setSupportMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -181,15 +185,34 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
 
   const getMoodLevel = useMemo(() => {
     // Use today's entry mood if available, otherwise fallback to stored mood
-    const currentMood = todayEntry?.mood || null;
+    const currentMood = todayEntry?.overallMood || null;
     
     if (currentMood === null) return 'Not logged';
-    if (currentMood >= 9) return 'Amazing';
-    if (currentMood >= 7) return 'Great';
-    if (currentMood >= 5) return 'Okay';
-    if (currentMood >= 3) return 'Struggling';
-    return 'Difficult';
-  }, [todayEntry?.mood]);
+    if (currentMood >= 9) return 'amazing';
+    if (currentMood >= 7) return 'great';
+    if (currentMood >= 5) return 'okay';
+    if (currentMood >= 3) return 'a bit down';
+    return 'rough';
+  }, [todayEntry?.overallMood]);
+
+  const handleSupportRequest = () => {
+    if (lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000) {
+      Alert.alert('Support Already Requested', 'You recently requested support. Your family has been notified and will reach out soon.');
+      return;
+    }
+    setShowSupportModal(true);
+  };
+
+  const sendSupportRequest = async () => {
+    try {
+      await requestSupport(supportMessage.trim() || undefined);
+      setShowSupportModal(false);
+      setSupportMessage('');
+      Alert.alert('Family Notified', 'Your support request has been sent to your family.');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to send support request. Please try again.');
+    }
+  };
 
 
   if (isLoading) {
@@ -223,7 +246,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           <View style={styles.statusHeader}>
             <Text style={styles.statusTitle}>
               {todayEntry 
-                ? `You're feeling ${getMoodLevel.toLowerCase()}` 
+                ? `You're feeling ${getMoodLevel}` 
                 : 'Ready to start your day?'}
             </Text>
             <View style={[styles.statusBadge, { 
@@ -236,8 +259,8 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           </View>
           <Text style={styles.statusSubtitle}>
             {todayEntry 
-              ? `Wellness score: ${Math.round(todayEntry.wellnessScore * 10) / 10}/10 — ${todayEntry.wellnessScore >= 8 ? 'Great work!' : todayEntry.wellnessScore >= 6 ? 'Keep it up!' : 'Every step counts'}`
-              : 'Track your mood, sleep, meals, and exercise to see how you\'re doing'
+              ? `Wellness score: ${Math.round(todayEntry.overallScore * 10) / 10}/10 — ${todayEntry.overallScore >= 8 ? 'Great work!' : todayEntry.overallScore >= 6 ? 'Keep it up!' : 'Every step counts'}`
+              : 'Track your mood, sleep, nutrition, academics, and social to see how you\'re doing'
             }
           </Text>
           <TouchableOpacity 
@@ -250,36 +273,6 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           </TouchableOpacity>
         </View>
 
-        {/* Support Messages - Priority #1 */}
-        {supportMessages.length > 0 && (
-          <View style={styles.messagesSection}>
-            <View style={styles.messagesHeader}>
-              <Text style={styles.sectionTitle}>Messages from Family</Text>
-              {supportMessages.filter(m => !m.read).length > 0 && (
-                <Text style={styles.newMessagesBadge}>
-                  {supportMessages.filter(m => !m.read).length} new
-                </Text>
-              )}
-            </View>
-            
-            {supportMessages.slice(0, 3).map((message) => (
-              <TouchableOpacity 
-                key={message.id} 
-                style={[styles.messageCard, !message.read && styles.unreadMessage]}
-                onPress={() => markMessageRead(message.id)}
-              >
-                <View style={styles.messageTypeContainer}>
-                  <Text style={styles.messageType}>{getMessageType(message.type)}</Text>
-                </View>
-                <View style={styles.messageContent}>
-                  <Text style={styles.messageText}>{message.content}</Text>
-                  <Text style={styles.messageTime}>{formatTimeAgo(message.timestamp)}</Text>
-                </View>
-                {!message.read && <View style={styles.unreadDot} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
 
         {/* Key Metrics */}
         <View style={styles.metricsSection}>
@@ -356,7 +349,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           <View style={styles.secondaryActions}>
             <TouchableOpacity 
               style={styles.actionItem}
-              onPress={() => requestSupport()}
+              onPress={handleSupportRequest}
             >
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Request Support</Text>
@@ -384,75 +377,57 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
           </View>
         </View>
 
-        {/* Recent Activity */}
-        <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Your Activity</Text>
-          
-          {todayEntry && (
-            <TouchableOpacity 
-              style={styles.activityItem}
-              onPress={() => navigation.navigate('WellnessLog')}
-            >
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Today's Wellness</Text>
-                <Text style={styles.activitySubtitle}>
-                  Score: {Math.round(todayEntry.wellnessScore * 10) / 10}/10
-                </Text>
-              </View>
-              <Text style={[styles.activityScore, {
-                color: todayEntry.wellnessScore > 7 ? theme.colors.success : 
-                       todayEntry.wellnessScore < 5 ? theme.colors.warning : theme.colors.primary
-              }]}>
-                {Math.round(todayEntry.wellnessScore * 10) / 10}/10
-              </Text>
-            </TouchableOpacity>
-          )}
-          
-          {stats.totalEntries > 0 && (
-            <TouchableOpacity 
-              style={styles.activityItem}
-              onPress={() => navigation.navigate('WellnessHistory')}
-            >
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Wellness Summary</Text>
-                <Text style={styles.activitySubtitle}>
-                  {stats.totalEntries} entries • {stats.averageScore.toFixed(1)} avg score
-                </Text>
-              </View>
-              <Text style={styles.activityAction}>View All</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Care Boosts - Simplified */}
-          {activeRewards.length > 0 && (
-            <TouchableOpacity 
-              style={styles.activityItem}
-              onPress={() => claimReward(activeRewards[0].id)}
-            >
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Care Boost Available</Text>
-                <Text style={styles.activitySubtitle}>
-                  ${activeRewards[0].amount} • {getCategoryName(activeRewards[0].category)}
-                </Text>
-              </View>
-              <Text style={styles.activityAction}>Claim</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Show helpful message if no activity */}
-          {!todayEntry && stats.totalEntries === 0 && activeRewards.length === 0 && (
-            <View style={styles.activityItem}>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Get started!</Text>
-                <Text style={styles.activitySubtitle}>Log your wellness to begin tracking progress</Text>
-              </View>
-            </View>
-          )}
-        </View>
 
         {/* Received Payments Summary */}
         <ReceivedPaymentsSummary />
       </ScrollView>
+
+      {/* Support Request Modal */}
+      <Modal
+        visible={showSupportModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowSupportModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              onPress={() => setShowSupportModal(false)}
+              style={styles.modalCancelButton}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Request Support</Text>
+            <TouchableOpacity 
+              onPress={sendSupportRequest}
+              style={styles.modalSendButton}
+            >
+              <Text style={styles.modalSendText}>Send</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.modalContent}>
+            <Text style={styles.modalSubtitle}>
+              Let your family know what kind of support you need right now.
+            </Text>
+            
+            <TextInput
+              style={styles.modalTextInput}
+              placeholder="I could use some extra support right now..."
+              placeholderTextColor={theme.colors.textTertiary}
+              value={supportMessage}
+              onChangeText={setSupportMessage}
+              multiline
+              textAlignVertical="top"
+              maxLength={500}
+            />
+            
+            <Text style={styles.modalHint}>
+              Your family will be notified and can see this message in their activity history.
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -817,5 +792,67 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: theme.colors.primary,
     marginLeft: 8,
+  },
+  
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    paddingTop: 60,
+  },
+  modalCancelButton: {
+    padding: 4,
+  },
+  modalCancelText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  modalSendButton: {
+    padding: 4,
+  },
+  modalSendText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  modalTextInput: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    minHeight: 120,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  modalHint: {
+    fontSize: 14,
+    color: theme.colors.textTertiary,
+    lineHeight: 20,
   },
 }); 

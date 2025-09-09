@@ -1,14 +1,135 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPasswordResetEmailHttp = exports.resetPasswordHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = void 0;
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
-const axios_1 = require("axios");
+exports.sendPasswordResetEmailHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = exports.getUserProgress = exports.updateUserXP = exports.markUserVerified = void 0;
+const functions = __importStar(require("firebase-functions"));
+const admin = __importStar(require("firebase-admin"));
+const axios_1 = __importDefault(require("axios"));
 const expo_server_sdk_1 = require("expo-server-sdk");
 const params_1 = require("firebase-functions/params");
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
+// Export auth trigger functions
+__exportStar(require("./auth-triggers"), exports);
+// SECURITY: Email verification function
+exports.markUserVerified = functions.https.onCall(async (data, context) => {
+    const { userId } = data;
+    if (!context.auth || context.auth.uid !== userId) {
+        throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    }
+    try {
+        // Update user's custom claims to include admin flag
+        const existingUser = await admin.auth().getUser(userId);
+        const existingClaims = existingUser.customClaims || {};
+        await admin.auth().setCustomUserClaims(userId, Object.assign(Object.assign({}, existingClaims), { email_verified: true, admin: true, role_verified_at: Math.floor(Date.now() / 1000) }));
+        // Update Firestore with admin privileges
+        await db.collection('users').doc(userId).update({
+            email_verified: true,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return { success: true, userId };
+    }
+    catch (error) {
+        functions.logger.error('Failed to mark user as verified', { userId, error: error.message });
+        throw new functions.https.HttpsError('internal', 'Verification failed');
+    }
+});
+// SECURITY: XP update function
+exports.updateUserXP = functions.https.onCall(async (data, context) => {
+    const { userId, experienceGained } = data;
+    if (!context.auth || context.auth.uid !== userId) {
+        throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    }
+    if (!userId || typeof experienceGained !== 'number' || experienceGained < 0 || experienceGained > 100) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid XP data');
+    }
+    try {
+        const progressRef = db.collection('user_progress').doc(userId);
+        const currentProgress = await progressRef.get();
+        let currentXP = 0;
+        let currentLevel = 1;
+        if (currentProgress.exists) {
+            const data = currentProgress.data();
+            currentXP = data.experience || 0;
+            currentLevel = data.level || 1;
+        }
+        const newXP = currentXP + experienceGained;
+        const newLevel = Math.floor((newXP - 100) / 50) + 2;
+        const leveledUp = newLevel > currentLevel;
+        // Update with server privileges (bypasses Firestore rules)
+        await progressRef.set({
+            user_id: userId,
+            experience: newXP,
+            level: Math.max(newLevel, 1),
+            last_updated: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        return {
+            success: true,
+            newExperience: newXP,
+            newLevel: Math.max(newLevel, 1),
+            leveledUp,
+            experienceGained
+        };
+    }
+    catch (error) {
+        throw new functions.https.HttpsError('internal', 'XP update failed');
+    }
+});
+// SECURITY: Get user progress function
+exports.getUserProgress = functions.https.onCall(async (data, context) => {
+    const { userId } = data;
+    if (!context.auth || context.auth.uid !== userId) {
+        throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    }
+    try {
+        const progressDoc = await db.collection('user_progress').doc(userId).get();
+        if (!progressDoc.exists) {
+            return {
+                exists: false,
+                experience: 0,
+                level: 1
+            };
+        }
+        const progress = progressDoc.data();
+        return {
+            exists: true,
+            experience: progress.experience || 0,
+            level: progress.level || 1
+        };
+    }
+    catch (error) {
+        throw new functions.https.HttpsError('internal', 'Failed to get progress');
+    }
+});
 // Initialize Expo SDK for push notifications
 const expo = new expo_server_sdk_1.Expo();
 // Secure secret definitions using Firebase Secret Manager
@@ -93,8 +214,8 @@ exports.createPayPalOrder = functions
                     }
                 }],
             application_context: {
-                return_url: `https://campus-life-verification.vercel.app/api/paypal-success`,
-                cancel_url: `https://campus-life-verification.vercel.app/api/paypal-cancel`,
+                return_url: `https://campus-life-auth-website.vercel.app/api/paypal-success`,
+                cancel_url: `https://campus-life-auth-website.vercel.app/api/paypal-cancel`,
                 brand_name: 'Campus Life',
                 user_action: 'PAY_NOW'
             }
@@ -229,7 +350,9 @@ exports.verifyPayPalPayment = functions
                 updateData.status = 'failed';
                 debugLog('verifyPayPalPayment', 'Payment capture failed', { captureStatus });
             }
+            // Update payment status immediately with faster write
             await paymentRef.update(updateData);
+            debugLog('verifyPayPalPayment', 'Payment status updated in database', { status: updateData.status });
             return {
                 success: captureStatus === 'COMPLETED' || captureStatus === 'PENDING',
                 status: captureStatus,
@@ -824,6 +947,65 @@ exports.resetPasswordHttp = functions.https.onRequest(async (req, res) => {
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
         debugLog('resetPassword', 'Password reset completed successfully', { userId: tokenData.user_id });
+        // Send password reset confirmation email
+        try {
+            const userDoc = await db.collection('users').doc(tokenData.user_id).get();
+            const userData = userDoc.data();
+            if (userData && userData.email) {
+                await fetch('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${functions.config().resend.api_key}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        from: 'Campus Life <noreply@campus-life.app>',
+                        to: userData.email,
+                        subject: 'Password Reset Confirmation - Campus Life',
+                        html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+                <div style="text-align: center; margin-bottom: 40px;">
+                  <div style="background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%); width: 80px; height: 80px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 28px; margin-bottom: 20px;">CL</div>
+                  <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Password Reset Successful</h1>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 24px; border: 2px solid #d1fae5; margin-bottom: 32px;">
+                  <h2 style="color: #10b981; margin: 0 0 12px 0; font-size: 20px; font-weight: 700;">✓ Your password has been successfully reset</h2>
+                  <p style="color: #059669; margin: 0; font-size: 16px;">Your Campus Life account password was changed on ${new Date().toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}.</p>
+                </div>
+                
+                <div style="background: #ffffff; border-radius: 12px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 32px;">
+                  <h3 style="color: #1e293b; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">Security Notice</h3>
+                  <p style="color: #64748b; margin: 0 0 12px 0; font-size: 16px; line-height: 1.6;">If you did not request this password reset, please contact our support team immediately at <strong>help@campus-life.app</strong></p>
+                  <p style="color: #64748b; margin: 0; font-size: 16px; line-height: 1.6;">For your security, we recommend using a strong, unique password that you don't use for other accounts.</p>
+                </div>
+                
+                <div style="text-align: center; padding-top: 32px; border-top: 1px solid #e2e8f0;">
+                  <p style="color: #64748b; margin: 0; font-size: 14px;">
+                    <strong>Campus Life</strong><br>
+                    Connecting families through wellness
+                  </p>
+                  <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 12px;">
+                    Having trouble? Contact support at help@campus-life.app
+                  </p>
+                </div>
+              </div>
+            `
+                    })
+                });
+                debugLog('resetPassword', 'Confirmation email sent', { email: userData.email });
+            }
+        }
+        catch (emailError) {
+            debugLog('resetPassword', 'Failed to send confirmation email', emailError);
+            // Don't fail the password reset if email fails
+        }
         res.status(200).json({
             success: true,
             message: 'Password reset successfully'
@@ -835,6 +1017,94 @@ exports.resetPasswordHttp = functions.https.onRequest(async (req, res) => {
         res.status(500).json({
             success: false,
             error: `Password reset failed: ${errorMessage}`
+        });
+    }
+});
+// Send Password Change Confirmation Email via HTTP
+exports.sendPasswordChangeConfirmationHttp = functions.https.onRequest(async (req, res) => {
+    var _a, _b;
+    // Set CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({ success: false, error: 'Method not allowed' });
+        return;
+    }
+    const { email, userId } = req.body;
+    if (!email || !userId) {
+        res.status(400).json({ success: false, error: 'Missing email or userId' });
+        return;
+    }
+    try {
+        // Get user data for full name
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+        const userName = (userData === null || userData === void 0 ? void 0 : userData.full_name) || 'Campus Life User';
+        await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${functions.config().resend.api_key}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                from: 'Campus Life <noreply@campus-life.app>',
+                to: email,
+                subject: 'Password Changed Successfully - Campus Life',
+                html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+            <div style="text-align: center; margin-bottom: 40px;">
+              <div style="background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%); width: 80px; height: 80px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 28px; margin-bottom: 20px;">CL</div>
+              <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Password Changed</h1>
+            </div>
+            
+            <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 24px; border: 2px solid #d1fae5; margin-bottom: 32px;">
+              <h2 style="color: #10b981; margin: 0 0 12px 0; font-size: 20px; font-weight: 700;">✓ Password successfully changed</h2>
+              <p style="color: #059669; margin: 0; font-size: 16px;">Hi ${userName}, your Campus Life account password was changed from within the app on ${new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}.</p>
+            </div>
+            
+            <div style="background: #ffffff; border-radius: 12px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 32px;">
+              <h3 style="color: #1e293b; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">Security Notice</h3>
+              <p style="color: #64748b; margin: 0 0 12px 0; font-size: 16px; line-height: 1.6;">If you did not make this change, please contact our support team immediately at <strong>help@campus-life.app</strong> or sign into your account and change your password.</p>
+              <p style="color: #64748b; margin: 0; font-size: 16px; line-height: 1.6;">This notification helps keep your account secure by alerting you to important changes.</p>
+            </div>
+            
+            <div style="text-align: center; padding-top: 32px; border-top: 1px solid #e2e8f0;">
+              <p style="color: #64748b; margin: 0; font-size: 14px;">
+                <strong>Campus Life</strong><br>
+                Connecting families through wellness
+              </p>
+              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 12px;">
+                Having trouble? Contact support at help@campus-life.app
+              </p>
+            </div>
+          </div>
+        `
+            })
+        });
+        debugLog('sendPasswordChangeConfirmation', 'Password change confirmation email sent', { email });
+        res.status(200).json({
+            success: true,
+            message: 'Password change confirmation email sent'
+        });
+    }
+    catch (error) {
+        debugLog('sendPasswordChangeConfirmation', 'Error sending confirmation email', error);
+        const errorMessage = ((_b = (_a = error.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.message) || error.message || 'Failed to send confirmation email';
+        res.status(500).json({
+            success: false,
+            error: `Email service error: ${errorMessage}`
         });
     }
 });

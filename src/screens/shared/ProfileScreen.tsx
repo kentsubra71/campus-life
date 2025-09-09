@@ -9,7 +9,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Switch,
   ActivityIndicator
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -18,7 +17,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { StatusHeader } from '../../components/StatusHeader';
 import { theme } from '../../styles/theme';
 import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
-import { pushNotificationService } from '../../services/pushNotificationService';
+import { changePassword } from '../../lib/passwordReset';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -28,20 +27,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, family, logout, updateProfile, getFamilyMembers } = useAuthStore();
   const insets = useSafeAreaInsets();
   const [isEditing, setIsEditing] = useState(false);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [loadingMembers, setLoadingMembers] = useState(true);
-  const [notificationPreferences, setNotificationPreferences] = useState({
-    enabled: true,
-    supportMessages: true,
-    paymentUpdates: true,
-    wellnessReminders: true,
-    careRequests: true,
-    weeklyReports: true,
-    dailySummaries: true,
-    studentWellnessLogged: true,
-  });
-  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [isEmailVerified, setIsEmailVerified] = useState(true);
   const [loadingVerification, setLoadingVerification] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -50,7 +43,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     loadFamilyMembers();
-    loadNotificationPreferences();
     checkEmailVerificationStatus();
   }, [user?.id]);
 
@@ -175,99 +167,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
-  const loadNotificationPreferences = async () => {
-    if (!user) return;
-    
-    try {
-      const { doc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('../../lib/firebase');
-      
-      const userDoc = await getDoc(doc(db, 'users', user.id));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.notificationPreferences) {
-          setNotificationPreferences({
-            ...notificationPreferences,
-            ...userData.notificationPreferences,
-            // Add new preferences with defaults if they don't exist
-            dailySummaries: userData.notificationPreferences.dailySummaries ?? true,
-            studentWellnessLogged: userData.notificationPreferences.studentWellnessLogged ?? true,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load notification preferences:', error);
-    }
-  };
-
-  const saveNotificationPreferences = async (newPreferences: typeof notificationPreferences) => {
-    if (!user) return;
-    
-    setLoadingNotifications(true);
-    try {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('../../lib/firebase');
-      
-      await updateDoc(doc(db, 'users', user.id), {
-        notificationPreferences: newPreferences,
-        updated_at: new Date()
-      });
-      
-      setNotificationPreferences(newPreferences);
-      
-      // Re-initialize push notifications with new preferences
-      if (newPreferences.enabled) {
-        await pushNotificationService.initialize(user.id);
-        
-        // Schedule notifications based on preferences
-        if (newPreferences.wellnessReminders && user.role === 'student') {
-          await pushNotificationService.scheduleDailyWellnessReminder(user.id);
-        }
-        
-        if (newPreferences.dailySummaries) {
-          await pushNotificationService.scheduleDailySummary(user.id);
-        }
-        
-        if (newPreferences.weeklyReports) {
-          await pushNotificationService.scheduleWeeklySummary(user.id);
-        }
-      } else {
-        // Cancel all notifications if disabled
-        await pushNotificationService.cancelScheduledNotifications();
-      }
-      
-      console.log('✅ Notification preferences saved successfully');
-    } catch (error) {
-      console.error('Failed to save notification preferences:', error);
-      Alert.alert('Error', 'Failed to update notification preferences');
-    } finally {
-      setLoadingNotifications(false);
-    }
-  };
 
   const loadFamilyMembers = async () => {
     if (!user) return;
     
     try {
-      await smartRefresh(
-        CACHE_CONFIGS.FAMILY_MEMBERS,
-        async () => {
-          console.log('🔄 Loading fresh family members...');
-          const members = await getFamilyMembers();
-          return members;
-        },
-        (cachedMembers) => {
-          console.log('📦 Using cached family members');
-          setFamilyMembers(cachedMembers);
-          setLoadingMembers(false);
-        },
-        (freshMembers) => {
-          console.log('✅ Updated with fresh family members');
-          setFamilyMembers(freshMembers);
-          setLoadingMembers(false);
-        },
-        user.id
-      );
+      // Clear the family members cache first to force fresh data
+      const { cache, CACHE_CONFIGS } = await import('../../utils/universalCache');
+      await cache.clear(CACHE_CONFIGS.FAMILY_MEMBERS, user.id);
+      console.log('🗑️ Cleared family members cache');
+      
+      // Now load fresh data
+      console.log('🔄 Loading fresh family members...');
+      const members = await getFamilyMembers();
+      console.log('👥 Loaded family members:', members);
+      setFamilyMembers(members);
+      setLoadingMembers(false);
     } catch (error) {
       console.error('Failed to load family members:', error);
       setLoadingMembers(false);
@@ -480,6 +395,47 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      Alert.alert('Error', 'Please fill in all password fields');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert('Error', 'New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      Alert.alert('Error', 'New password must be at least 8 characters long');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const result = await changePassword(currentPassword, newPassword);
+      
+      if (result.success) {
+        Alert.alert(
+          'Success', 
+          'Password changed successfully',
+          [{ text: 'OK', onPress: () => {
+            setShowPasswordChange(false);
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+          }}]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to change password');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to change password. Please try again.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const copyInviteCode = async () => {
     if (family?.inviteCode) {
       await Clipboard.setStringAsync(family.inviteCode);
@@ -647,30 +603,36 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               {familyMembers.parents.length > 0 && (
                 <View style={styles.memberGroup}>
                   <Text style={styles.memberGroupTitle}>Parents</Text>
-                  {familyMembers.parents.map((parent) => (
-                    <View key={parent.id} style={styles.memberItem}>
-                      <Text style={styles.memberName}>
-                        {parent.name}
-                        {parent.id === user.id && ' (You)'}
-                      </Text>
-                      <Text style={styles.memberEmail}>{parent.email}</Text>
-                    </View>
-                  ))}
+                  {familyMembers.parents.map((parent) => {
+                    console.log('👤 Parent data:', { id: parent.id, name: parent.name, email: parent.email });
+                    return (
+                      <View key={parent.id} style={styles.memberItem}>
+                        <Text style={styles.memberName}>
+                          {parent.name || 'No name'}
+                          {parent.id === user.id && ' (You)'}
+                        </Text>
+                        <Text style={styles.memberEmail}>{parent.email}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
 
               {familyMembers.students.length > 0 && (
                 <View style={styles.memberGroup}>
                   <Text style={styles.memberGroupTitle}>Students</Text>
-                  {familyMembers.students.map((student) => (
-                    <View key={student.id} style={styles.memberItem}>
-                      <Text style={styles.memberName}>
-                        {student.name}
-                        {student.id === user.id && ' (You)'}
-                      </Text>
-                      <Text style={styles.memberEmail}>{student.email}</Text>
-                    </View>
-                  ))}
+                  {familyMembers.students.map((student) => {
+                    console.log('👤 Student data:', { id: student.id, name: student.name, email: student.email });
+                    return (
+                      <View key={student.id} style={styles.memberItem}>
+                        <Text style={styles.memberName}>
+                          {student.name || 'No name'}
+                          {student.id === user.id && ' (You)'}
+                        </Text>
+                        <Text style={styles.memberEmail}>{student.email}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </>
@@ -705,185 +667,71 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         </View>
       )}
 
-      {/* Notification Preferences */}
-      <View style={styles.familyCard}>
-        <Text style={styles.familyTitle}>🔔 Notification Preferences</Text>
+
+      {/* Password Change Section */}
+      <View style={styles.passwordSection}>
+        <TouchableOpacity 
+          style={styles.passwordButton} 
+          onPress={() => setShowPasswordChange(!showPasswordChange)}
+        >
+          <Text style={styles.passwordButtonText}>Change Password</Text>
+          <Text style={styles.passwordButtonArrow}>{showPasswordChange ? '▼' : '▶'}</Text>
+        </TouchableOpacity>
         
-        <View style={styles.preferencesContainer}>
-          {/* Master toggle */}
-          <View style={styles.preferenceItem}>
-            <View style={styles.preferenceContent}>
-              <Text style={styles.preferenceLabel}>Push Notifications</Text>
-              <Text style={styles.preferenceDescription}>
-                Enable all push notifications
-              </Text>
-            </View>
-            <Switch
-              value={notificationPreferences.enabled}
-              onValueChange={(value) => {
-                const newPrefs = { ...notificationPreferences, enabled: value };
-                saveNotificationPreferences(newPrefs);
-              }}
-              trackColor={{ false: '#ccc', true: theme.colors.primary }}
-              thumbColor={notificationPreferences.enabled ? '#fff' : '#f4f3f4'}
-              disabled={loadingNotifications}
+        {showPasswordChange && (
+          <View style={styles.passwordForm}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Current Password"
+              secureTextEntry
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              autoCapitalize="none"
             />
-          </View>
-
-          {notificationPreferences.enabled && (
-            <>
-              {/* Support Messages */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Support Messages</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get notified when you receive support messages
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.supportMessages}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, supportMessages: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.supportMessages ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-
-              {/* Payment Updates */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Payment Updates</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get notified about payment status changes
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.paymentUpdates}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, paymentUpdates: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.paymentUpdates ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-
-              {/* Wellness Reminders (Students only) */}
-              {user?.role === 'student' && (
-                <View style={styles.preferenceItem}>
-                  <View style={styles.preferenceContent}>
-                    <Text style={styles.preferenceLabel}>Daily Wellness Reminders</Text>
-                    <Text style={styles.preferenceDescription}>
-                      Get reminded to log your daily wellness (8 PM)
-                    </Text>
-                  </View>
-                  <Switch
-                    value={notificationPreferences.wellnessReminders}
-                    onValueChange={(value) => {
-                      const newPrefs = { ...notificationPreferences, wellnessReminders: value };
-                      saveNotificationPreferences(newPrefs);
-                    }}
-                    trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                    thumbColor={notificationPreferences.wellnessReminders ? '#fff' : '#f4f3f4'}
-                    disabled={loadingNotifications}
-                  />
-                </View>
-              )}
-
-              {/* Student Wellness Logged (Parents only) */}
-              {user?.role === 'parent' && (
-                <View style={styles.preferenceItem}>
-                  <View style={styles.preferenceContent}>
-                    <Text style={styles.preferenceLabel}>Student Check-ins</Text>
-                    <Text style={styles.preferenceDescription}>
-                      Get notified when your student logs their wellness
-                    </Text>
-                  </View>
-                  <Switch
-                    value={notificationPreferences.studentWellnessLogged}
-                    onValueChange={(value) => {
-                      const newPrefs = { ...notificationPreferences, studentWellnessLogged: value };
-                      saveNotificationPreferences(newPrefs);
-                    }}
-                    trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                    thumbColor={notificationPreferences.studentWellnessLogged ? '#fff' : '#f4f3f4'}
-                    disabled={loadingNotifications}
-                  />
-                </View>
-              )}
-
-              {/* Care Requests */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Care Requests</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get notified about urgent care requests
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.careRequests}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, careRequests: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.careRequests ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-
-              {/* Weekly Reports */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Weekly Reports</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get weekly wellness summary reports
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.weeklyReports}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, weeklyReports: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.weeklyReports ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-
-              {/* Daily Summaries */}
-              <View style={styles.preferenceItem}>
-                <View style={styles.preferenceContent}>
-                  <Text style={styles.preferenceLabel}>Daily Summaries</Text>
-                  <Text style={styles.preferenceDescription}>
-                    Get daily activity and wellness summaries (9 PM)
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationPreferences.dailySummaries}
-                  onValueChange={(value) => {
-                    const newPrefs = { ...notificationPreferences, dailySummaries: value };
-                    saveNotificationPreferences(newPrefs);
-                  }}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor={notificationPreferences.dailySummaries ? '#fff' : '#f4f3f4'}
-                  disabled={loadingNotifications}
-                />
-              </View>
-            </>
-          )}
-
-          {loadingNotifications && (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Updating preferences...</Text>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="New Password (min 8 characters)"
+              secureTextEntry
+              value={newPassword}
+              onChangeText={setNewPassword}
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Confirm New Password"
+              secureTextEntry
+              value={confirmNewPassword}
+              onChangeText={setConfirmNewPassword}
+              autoCapitalize="none"
+            />
+            
+            <View style={styles.passwordActions}>
+              <TouchableOpacity 
+                style={styles.cancelPasswordButton} 
+                onPress={() => {
+                  setShowPasswordChange(false);
+                  setCurrentPassword('');
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                }}
+              >
+                <Text style={styles.cancelPasswordButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.changePasswordButton, isChangingPassword && styles.disabledButton]} 
+                onPress={handleChangePassword}
+                disabled={isChangingPassword}
+              >
+                {isChangingPassword ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.changePasswordButtonText}>Change Password</Text>
+                )}
+              </TouchableOpacity>
             </View>
-          )}
-        </View>
+          </View>
+        )}
       </View>
 
       {/* Actions */}
@@ -1206,32 +1054,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
   },
-  preferencesContainer: {
-    gap: 16,
-  },
-  preferenceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  preferenceContent: {
-    flex: 1,
-    marginRight: 16,
-  },
-  preferenceLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
-  },
-  preferenceDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 18,
-  },
   // Verification Panel Styles
   verificationCard: {
     backgroundColor: '#FEF3C7',
@@ -1282,5 +1104,84 @@ const styles = StyleSheet.create({
     color: '#92400E',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  passwordSection: {
+    marginBottom: 24,
+  },
+  passwordButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  passwordButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  passwordButtonArrow: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+  },
+  passwordForm: {
+    backgroundColor: '#ffffff',
+    marginTop: 8,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  passwordInput: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+    backgroundColor: '#f8f9fa',
+  },
+  passwordActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  cancelPasswordButton: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 12,
+    marginRight: 8,
+    alignItems: 'center',
+  },
+  cancelPasswordButtonText: {
+    color: '#64748b',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  changePasswordButton: {
+    flex: 1,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+    padding: 12,
+    marginLeft: 8,
+    alignItems: 'center',
+  },
+  changePasswordButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: '#94a3b8',
   },
 });

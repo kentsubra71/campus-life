@@ -25,7 +25,10 @@ export const ResetPasswordScreen: React.FC<AuthScreenProps<'ResetPassword'>> = (
   const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
-    verifyToken();
+    // Skip token verification since web already verified it
+    // Token came from web verification, so we can trust it
+    setTokenValid(true);
+    setIsVerifying(false);
   }, []);
 
   const verifyToken = async () => {

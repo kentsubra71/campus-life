@@ -29,12 +29,12 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
   }, [paymentId]);
 
   useEffect(() => {
-    // Auto-complete PayPal payments since they're already processed by PayPal
-    if (payment && payment.provider === 'paypal' && status === 'success' && !loading) {
-      console.log('🔄 PayPal payment completed automatically');
-      handleAutoCompletePayment();
+    // Auto-verify PayPal payments - don't trust URL status, always verify with PayPal
+    if (payment && payment.provider === 'paypal' && token && !loading) {
+      console.log('🔄 PayPal payment returned - verifying with PayPal API...');
+      handlePayPalVerification();
     }
-  }, [payment, status]);
+  }, [payment, token]);
 
   const loadPayment = async () => {
     try {
@@ -48,30 +48,49 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
     }
   };
 
-  const handleAutoCompletePayment = async () => {
-    if (!payment) return;
+  const handlePayPalVerification = async () => {
+    if (!payment || !token) return;
 
     try {
       setLoading(true);
       
-      // Use the proper confirmPayment function to update spending caps
-      const result = await confirmPayment(paymentId, payment.idempotency_key);
+      console.log('🔄 Verifying PayPal payment:', paymentId, 'with token:', token);
+      const { verifyPayPalPayment } = await import('../lib/paypalIntegration');
+      const verificationResult = await verifyPayPalPayment(paymentId, token);
       
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to confirm payment');
+      console.log('🔄 PayPal verification result:', verificationResult);
+      
+      if (verificationResult.success) {
+        console.log('✅ PayPal payment verified and completed!');
+        Alert.alert(
+          'Payment Completed! 🎉',
+          `$${(payment.intent_cents / 100).toFixed(2)} sent via PayPal successfully.`,
+          [{ 
+            text: 'Done', 
+            onPress: () => navigation.navigate('ParentTabs') 
+          }]
+        );
+      } else {
+        console.error('❌ PayPal verification failed:', verificationResult.error);
+        Alert.alert(
+          'Payment Failed ❌',
+          verificationResult.error || 'Your PayPal payment could not be processed. The order may have expired or failed.',
+          [
+            { text: 'Try Again', onPress: handleRetry },
+            { text: 'Go Back', onPress: () => navigation.navigate('ParentTabs') }
+          ]
+        );
       }
-      
-      // Show success and navigate
-      Alert.alert(
-        'Payment Completed! 🎉',
-        `$${(payment.intent_cents / 100).toFixed(2)} sent via PayPal successfully.`,
-        [{ 
-          text: 'Done', 
-          onPress: () => navigation.navigate('ParentTabs') 
-        }]
-      );
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to update payment status');
+      console.error('❌ PayPal verification error:', error);
+      Alert.alert(
+        'Payment Verification Failed ❌', 
+        'Could not verify your PayPal payment. Please check your payment status in PayPal.',
+        [
+          { text: 'Try Again', onPress: handleRetry },
+          { text: 'Go Back', onPress: () => navigation.navigate('ParentTabs') }
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -83,31 +102,13 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
     try {
       setLoading(true);
       
-      // If this is a PayPal return with verification data, verify first
-      if (payment.provider === 'paypal' && token && status === 'success') {
-        console.log('🔄 Auto-verifying PayPal payment:', paymentId, 'with token:', token);
-        const { verifyPayPalPayment } = await import('../lib/paypalIntegration');
-        const verificationResult = await verifyPayPalPayment(paymentId, token);
-        
-        console.log('🔄 Verification result:', verificationResult);
-        
-        if (!verificationResult.success) {
-          console.error('❌ PayPal verification failed:', verificationResult.error);
-          Alert.alert('Verification Failed', verificationResult.error || 'Could not verify PayPal payment');
-          return;
-        }
-        
-        console.log('✅ PayPal payment verified automatically!');
-        
-        // If verification successful, the payment status is already updated to 'completed'
-        // Just show success and return
+      // PayPal payments should be verified automatically on return
+      // Manual confirmation not allowed for PayPal to prevent duplicate processing
+      if (payment.provider === 'paypal') {
         Alert.alert(
-          'Payment Verified! 🎉',
-          `Your $${(payment.intent_cents / 100).toFixed(2)} PayPal payment has been completed and verified.`,
-          [{ 
-            text: 'Done', 
-            onPress: () => navigation.navigate('ParentTabs') 
-          }]
+          'PayPal Payment',
+          'PayPal payments are automatically verified when you return from PayPal. No manual confirmation needed.',
+          [{ text: 'OK', onPress: () => navigation.navigate('ParentTabs') }]
         );
         return;
       }

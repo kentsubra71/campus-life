@@ -133,6 +133,23 @@ export const changePassword = async (
       password_reset_requested_at: null,
       updated_at: Timestamp.now()
     });
+
+    // Send password change confirmation email
+    try {
+      await fetch('https://us-central1-campus-life-b0fd3.cloudfunctions.net/sendPasswordChangeConfirmationHttp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user.email,
+          userId: user.uid
+        })
+      });
+    } catch (emailError) {
+      console.log('Failed to send password change confirmation email:', emailError);
+      // Don't fail password change if email fails
+    }
     
     return { success: true };
   } catch (error: any) {

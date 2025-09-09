@@ -120,7 +120,7 @@ export const sendVerificationEmail = async (
   type: 'email_verification' | 'password_reset'
 ): Promise<{ success: boolean; error?: string; messageId?: string }> => {
   try {
-    const verificationUrl = `https://verify.ronaldli.ca/verify/${type}/${token}`;
+    const verificationUrl = `https://campus-life-auth-website.vercel.app/verify/${type}/${token}`;
     
     if (type === 'password_reset') {
       // Use HTTP endpoint for password reset (unauthenticated)
@@ -198,52 +198,51 @@ export const sendVerificationEmail = async (
   }
 };
 
-// Mark user as verified in Firestore
+// FIXED: Mark user as verified using secure Cloud Function
 export const markUserAsVerified = async (userId: string): Promise<{ success: boolean; error?: string }> => {
   try {
-    await updateDoc(doc(db, 'users', userId), {
-      email_verified: true,
-      updated_at: Timestamp.now()
-    });
+    const { httpsCallable } = await import('firebase/functions');
+    const { functions } = await import('./firebase');
     
-    // Also update profiles collection if it exists
-    try {
-      await updateDoc(doc(db, 'profiles', userId), {
-        email_verified: true,
-        updated_at: Timestamp.now()
-      });
-    } catch (profileError) {
-      // Profile might not exist for parents, that's OK
-    }
+    const markUserVerified = httpsCallable(functions, 'markUserVerified');
+    const result = await markUserVerified({ userId });
     
     return { success: true };
   } catch (error: any) {
+    console.error('Failed to mark user as verified:', error);
     return { success: false, error: error.message };
   }
 };
 
-// Complete email verification process
+// FIXED: Complete email verification using secure Cloud Function
 export const completeEmailVerification = async (token: string): Promise<{
   success: boolean;
   userId?: string;
   error?: string;
 }> => {
   try {
-    const tokenResult = await verifyToken(token);
+    const { httpsCallable } = await import('firebase/functions');
+    const { functions } = await import('./firebase');
     
-    if (!tokenResult.valid || tokenResult.type !== 'email_verification') {
-      return { success: false, error: tokenResult.error || 'Invalid verification token' };
-    }
+    const verifyEmailServer = httpsCallable(functions, 'verifyEmailServer');
+    const result = await verifyEmailServer({ token }) as any;
     
-    const markResult = await markUserAsVerified(tokenResult.userId!);
+    console.log('✅ Email verification completed for user:', result.data.userId);
     
-    if (!markResult.success) {
-      return { success: false, error: markResult.error };
-    }
-    
-    return { success: true, userId: tokenResult.userId };
+    return { 
+      success: true, 
+      userId: result.data.userId 
+    };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('Email verification failed:', error);
+    
+    // Extract error message from Cloud Function error
+    const errorMessage = error.message || error.details || 'Email verification failed';
+    
+    return { 
+      success: false, 
+      error: errorMessage 
+    };
   }
 };
 

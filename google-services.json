@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:1028408297935:android:4e9590037f5586fb482aba",
+        "android_client_info": {
+          "package_name": "com.ronaldvedant.campuslife"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArOxuw2DUcKxjoUaWlWNQtks4s5ft703Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:1028408297935:android:7992603242922805482aba",
         "android_client_info": {
           "package_name": "com.vero.campuslife"

@@ -1,0 +1,282 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // CRITICAL: Enhanced helper functions with token claims
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    function getFamilyId() {
+      // Use custom claims for family_id to prevent tampering
+      return request.auth.token.family_id;
+    }
+    
+    function getUserType() {
+      // Use custom claims for user_type to prevent privilege escalation
+      return request.auth.token.user_type;
+    }
+    
+    function isParent() {
+      return getUserType() == 'parent';
+    }
+    
+    function isStudent() {
+      return getUserType() == 'student';
+    }
+    
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+    
+    function isSameFamily(targetUserId) {
+      // FIXED: Safe document access with existence check
+      let targetDoc = get(/databases/$(database)/documents/users/$(targetUserId));
+      return targetDoc != null && targetDoc.data.family_id == getFamilyId();
+    }
+    
+    // CRITICAL: Prevent sensitive field manipulation
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+    
+    function preventSensitiveFieldChanges(sensitiveFields) {
+      return !request.resource.data.keys().hasAny(sensitiveFields);
+    }
+    
+    // FIXED: Email verification can only be done by server/Cloud Functions
+    function isServerRequest() {
+      // Only Cloud Functions should be able to update email_verified
+      return request.auth.token.admin == true;
+    }
+    
+    // Users collection - ENHANCED SECURITY
+    match /users/{userId} {
+      // Read: Own profile or family members (parents can read all family)
+      allow read: if isAuthenticated() && (
+        userId == getUserId() || 
+        (isParent() && isSameFamily(userId))
+      );
+      
+      // Create: Only during registration, limited fields
+      allow create: if isAuthenticated() && 
+        userId == getUserId() &&
+        hasOnlyAllowedFields(['email', 'full_name', 'user_type', 'family_id', 'created_at', 'updated_at']) &&
+        request.resource.data.user_type in ['parent', 'student'] &&
+        request.resource.data.email_verified == false; // Must start as false
+      
+      // Update: Own profile only, prevent privilege escalation
+      allow update: if isAuthenticated() && 
+        userId == getUserId() &&
+        preventSensitiveFieldChanges(['user_type', 'family_id', 'email_verified']) &&
+        isEmailVerified();
+        
+      // FIXED: Email verification ONLY by server/Cloud Functions
+      allow update: if isServerRequest() &&
+        hasOnlyAllowedFields(['email_verified', 'updated_at']) &&
+        request.resource.data.email_verified == true;
+    }
+    
+    // Families collection - STRICT ACCESS CONTROL
+    match /families/{familyId} {
+      // Read: Only family members
+      allow read: if isAuthenticated() && 
+        familyId == getFamilyId() &&
+        isEmailVerified();
+      
+      // FIXED: Create with validation that creator is in parentIds
+      allow create: if isAuthenticated() && 
+        isParent() &&
+        familyId == getFamilyId() &&
+        hasOnlyAllowedFields(['name', 'created_by', 'created_at', 'parentIds', 'studentIds', 'settings']) &&
+        request.resource.data.created_by == getUserId() &&
+        request.resource.data.parentIds.hasAll([getUserId()]) &&
+        request.resource.data.studentIds.size() <= 10;
+      
+      // Update: Parents only, prevent member limit bypass
+      allow update: if isAuthenticated() && 
+        familyId == getFamilyId() &&
+        isParent() &&
+        isEmailVerified() &&
+        // Prevent exceeding 10 student limit
+        request.resource.data.studentIds.size() <= 10 &&
+        preventSensitiveFieldChanges(['created_by', 'created_at']);
+    }
+    
+    // Payment collection - MAXIMUM SECURITY
+    match /payments/{paymentId} {
+      // Read: Only involved parties (parent sender, student recipient)
+      allow read: if isAuthenticated() && 
+        (resource.data.parent_id == getUserId() || 
+         resource.data.student_id == getUserId()) &&
+        isSameFamily(resource.data.parent_id) &&
+        isSameFamily(resource.data.student_id);
+      
+      // Create: Parents only, strict validation
+      allow create: if isAuthenticated() && 
+        isParent() &&
+        isEmailVerified() &&
+        request.resource.data.parent_id == getUserId() &&
+        isSameFamily(request.resource.data.student_id) &&
+        validatePaymentCreation(request.resource.data);
+      
+      // Update: Server-side only (Cloud Functions)
+      allow update: if false; // All updates via Cloud Functions
+      
+      allow delete: if false; // Never allow deletion
+    }
+    
+    // FIXED: Payment validation function
+    function validatePaymentCreation(data) {
+      return data.keys().hasAll(['parent_id', 'student_id', 'amount_cents', 'provider', 'status']) &&
+             data.amount_cents is int &&
+             data.amount_cents > 0 &&
+             data.amount_cents <= 50000 && // Max $500 per transaction
+             data.provider in ['paypal', 'venmo', 'cashapp', 'zelle'] &&
+             data.status in ['pending', 'initiated'] && // FIXED: Allow both statuses
+             data.parent_id is string &&
+             data.student_id is string;
+    }
+    
+    // Wellness entries - FAMILY SCOPED WITH ENHANCED VALIDATION
+    match /wellness_entries/{entryId} {
+      // Read: Own entries or parents can read student entries
+      allow read: if isAuthenticated() && (
+        resource.data.user_id == getUserId() || 
+        (isParent() && isSameFamily(resource.data.user_id))
+      );
+      
+      // Create: Students only, own entries with strict validation
+      allow create: if isAuthenticated() && 
+        isStudent() &&
+        request.resource.data.user_id == getUserId() &&
+        validateWellnessEntry(request.resource.data);
+      
+      // FIXED: Update with validation
+      allow update: if isAuthenticated() && 
+        resource.data.user_id == getUserId() &&
+        request.resource.data.user_id == getUserId() &&
+        validateWellnessEntry(request.resource.data);
+      
+      allow delete: if false; // Prevent wellness data deletion
+    }
+    
+    // FIXED: Enhanced wellness validation with ranking uniqueness
+    function validateWellnessEntry(data) {
+      let rankings = [data.sleep_ranking, data.nutrition_ranking, data.academics_ranking, data.social_ranking];
+      return data.keys().hasAll(['user_id', 'date', 'sleep_ranking', 'nutrition_ranking', 'academics_ranking', 'social_ranking', 'overall_mood']) &&
+             data.sleep_ranking is int && data.sleep_ranking >= 1 && data.sleep_ranking <= 4 &&
+             data.nutrition_ranking is int && data.nutrition_ranking >= 1 && data.nutrition_ranking <= 4 &&
+             data.academics_ranking is int && data.academics_ranking >= 1 && data.academics_ranking <= 4 &&
+             data.social_ranking is int && data.social_ranking >= 1 && data.social_ranking <= 4 &&
+             data.overall_mood is int && data.overall_mood >= 1 && data.overall_mood <= 10 &&
+             // FIXED: Validate ranking uniqueness (all must be 1,2,3,4 in any order)
+             rankings.toSet().size() == 4 && // All 4 values must be unique
+             rankings.hasAll([1, 2, 3, 4]); // Must contain exactly 1,2,3,4
+    }
+    
+    // FIXED: Support requests with field validation and size limits
+    match /support_requests/{requestId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.from_user_id == getUserId() || 
+         (isParent() && isSameFamily(resource.data.from_user_id)));
+      
+      allow create: if isAuthenticated() && 
+        isStudent() &&
+        request.resource.data.from_user_id == getUserId() &&
+        isSameFamily(getUserId()) &&
+        validateSupportRequest(request.resource.data);
+      
+      allow update: if isAuthenticated() && 
+        (resource.data.from_user_id == getUserId() || 
+         (isParent() && isSameFamily(resource.data.from_user_id))) &&
+        preventSensitiveFieldChanges(['from_user_id', 'created_at']);
+    }
+    
+    // FIXED: Support request validation
+    function validateSupportRequest(data) {
+      return data.keys().hasAll(['from_user_id', 'message', 'created_at']) &&
+             data.message is string &&
+             data.message.size() <= 2000 && // Max 2000 characters
+             data.from_user_id is string;
+    }
+    
+    // FIXED: Messages with field validation and size limits
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.from_user_id == getUserId() || 
+         resource.data.to_user_id == getUserId()) &&
+        isSameFamily(resource.data.from_user_id) &&
+        isSameFamily(resource.data.to_user_id);
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.from_user_id == getUserId() &&
+        isSameFamily(request.resource.data.to_user_id) &&
+        isEmailVerified() &&
+        validateMessage(request.resource.data);
+    }
+    
+    // FIXED: Message validation
+    function validateMessage(data) {
+      return data.keys().hasAll(['from_user_id', 'to_user_id', 'message', 'created_at']) &&
+             data.message is string &&
+             data.message.size() <= 2000 && // Max 2000 characters
+             data.from_user_id is string &&
+             data.to_user_id is string;
+    }
+    
+    // FIXED: User progress - SERVER-CONTROLLED ONLY
+    match /user_progress/{userId} {
+      // Read: Own data or parents can read student data
+      allow read: if isAuthenticated() && (
+        userId == getUserId() || 
+        (isParent() && isSameFamily(userId))
+      );
+      
+      // FIXED: Only Cloud Functions can write XP/levels to prevent cheating
+      allow write: if isServerRequest();
+    }
+    
+    // Push tokens - Own tokens only
+    match /push_tokens/{tokenId} {
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == getUserId();
+      allow read, update, delete: if isAuthenticated() && 
+        resource.data.userId == getUserId();
+    }
+    
+    // FIXED: Family join requests with validation
+    match /family_join_requests/{requestId} {
+      allow read: if isAuthenticated() && (
+        resource.data.student_id == getUserId() ||
+        (isParent() && resource.data.family_id == getFamilyId())
+      );
+      
+      allow create: if isAuthenticated() &&
+        isStudent() &&
+        request.resource.data.student_id == getUserId() &&
+        validateJoinRequest(request.resource.data);
+        
+      allow update: if isAuthenticated() &&
+        isParent() &&
+        resource.data.family_id == getFamilyId();
+        
+      allow delete: if isAuthenticated() && (
+        resource.data.student_id == getUserId() ||
+        (isParent() && resource.data.family_id == getFamilyId())
+      );
+    }
+    
+    // Join request validation
+    function validateJoinRequest(data) {
+      return data.keys().hasAll(['student_id', 'family_id', 'student_email', 'created_at']) &&
+             data.student_id is string &&
+             data.family_id is string &&
+             data.student_email is string;
+    }
+  }
+}

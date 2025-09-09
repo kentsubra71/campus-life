@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { theme } from '../../styles/theme';
 import { formatDateForDisplay } from '../../utils/dateUtils';
 import {
@@ -8,9 +8,14 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWellnessStore, WellnessEntry } from '../../stores/wellnessStore';
+import { useRewardsStore } from '../../stores/rewardsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import WellnessLineChart from '../../components/charts/WellnessLineChart';
 import CategoriesChart from '../../components/charts/CategoriesChart';
 import WellnessInsightsCard from '../../components/charts/WellnessInsightsCard';

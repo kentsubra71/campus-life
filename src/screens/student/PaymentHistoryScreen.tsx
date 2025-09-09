@@ -8,7 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuthStore } from '../../stores/authStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
@@ -39,6 +39,8 @@ interface SupportRequest {
   timestamp: any;
   type: 'support_request';
   content: string;
+  acknowledged: boolean;
+  acknowledged_at?: any;
 }
 
 interface SupportMessage {
@@ -56,7 +58,7 @@ interface PaymentHistoryScreenProps {
 }
 
 type FilterPeriod = 'all' | 'day' | 'week' | 'month';
-type FilterType = 'all' | 'payments' | 'messages' | 'items';
+type FilterType = 'all' | 'payments' | 'messages' | 'support';
 
 export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navigation }) => {
   const { user } = useAuthStore();
@@ -128,6 +130,35 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
         } as SupportMessage);
       });
 
+      // Load support requests sent by this student
+      try {
+        console.log('Loading support requests for user:', user.id);
+        const supportRequestsQuery = query(
+          collection(db, 'support_requests'),
+          where('from_user_id', '==', user.id),
+          orderBy('created_at', 'desc'),
+          limit(20)
+        );
+        
+        const supportRequestsSnapshot = await getDocs(supportRequestsQuery);
+        console.log('Found support requests:', supportRequestsSnapshot.size);
+        
+        supportRequestsSnapshot.docs.forEach(doc => {
+          const requestData = doc.data();
+          allActivities.push({
+            id: doc.id,
+            student_id: user.id,
+            timestamp: requestData.created_at?.toDate() || new Date(),
+            type: 'support_request',
+            content: requestData.message || 'Support request',
+            acknowledged: requestData.acknowledged || false,
+            acknowledged_at: requestData.acknowledged_at
+          } as SupportRequest);
+        });
+      } catch (supportRequestsError) {
+        console.log('Could not load support requests:', supportRequestsError);
+      }
+
       console.log('📊 Loaded', allActivities.length, 'activities total');
 
       // Sort all activities by timestamp
@@ -192,8 +223,8 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
             return 'intent_cents' in activity;
           case 'messages':
             return 'content' in activity && activity.type !== 'support_request';
-          case 'items':
-            return 'intent_cents' in activity && activity.item_context;
+          case 'support':
+            return 'content' in activity && activity.type === 'support_request';
           default:
             return true;
         }
@@ -257,6 +288,9 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
         case 'failed': return '#dc2626';
         default: return '#9ca3af';
       }
+    } else if (type === 'request') {
+      // Support request status colors
+      return status === 'acknowledged' ? '#10b981' : '#f59e0b';
     } else {
       switch (status) {
         case 'read': return '#10b981';
@@ -279,6 +313,9 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
         case 'failed': return 'Failed';
         default: return status;
       }
+    } else if (type === 'request') {
+      // Support request status text
+      return status === 'acknowledged' ? 'Acknowledged' : 'Pending';
     } else {
       switch (status) {
         case 'read': return 'Read';
@@ -310,10 +347,16 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
             <Text style={styles.activityTime}>{formatTime(timestamp)}</Text>
           </View>
           <View style={[styles.statusBadge, { 
-            backgroundColor: getStatusColor(activityType, 'intent_cents' in activity ? activity.status : activity.type || 'message') 
+            backgroundColor: getStatusColor(activityType, 
+              'intent_cents' in activity ? activity.status : 
+              activity.type === 'support_request' ? (activity.acknowledged ? 'acknowledged' : 'pending') :
+              activity.type || 'message') 
           }]}>
             <Text style={styles.statusText}>
-              {getStatusText(activityType, 'intent_cents' in activity ? activity.status : activity.type || 'message')}
+              {getStatusText(activityType, 
+                'intent_cents' in activity ? activity.status : 
+                activity.type === 'support_request' ? (activity.acknowledged ? 'acknowledged' : 'pending') :
+                activity.type || 'message')}
             </Text>
           </View>
         </View>
@@ -378,13 +421,13 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: '#3b82f6' }]}>{activities.filter(a => 'content' in a).length}</Text>
+            <Text style={[styles.statValue, { color: '#3b82f6' }]}>{activities.filter(a => 'content' in a && a.type !== 'support_request').length}</Text>
             <Text style={styles.statLabel}>Messages</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: '#f59e0b' }]}>{activities.filter(a => 'intent_cents' in a && a.item_context).length}</Text>
-            <Text style={styles.statLabel}>Items</Text>
+            <Text style={[styles.statValue, { color: '#f59e0b' }]}>{activities.filter(a => 'content' in a && a.type === 'support_request').length}</Text>
+            <Text style={styles.statLabel}>Support</Text>
           </View>
         </View>
 
@@ -424,7 +467,7 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
             {/* Activity Type Filter */}
             <View style={styles.filterSection}>
               <View style={styles.segmentedControl}>
-                {(['all', 'payments', 'messages', 'items'] as FilterType[]).map((type, index) => (
+                {(['all', 'payments', 'messages', 'support'] as FilterType[]).map((type, index) => (
                   <TouchableOpacity
                     key={type}
                     style={[
@@ -441,7 +484,7 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
                     ]}>
                       {type === 'all' ? 'All' : 
                        type === 'payments' ? 'Payments' :
-                       type === 'messages' ? 'Messages' : 'Items'}
+                       type === 'messages' ? 'Messages' : 'Support'}
                     </Text>
                   </TouchableOpacity>
                 ))}

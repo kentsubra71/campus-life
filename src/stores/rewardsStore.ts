@@ -64,7 +64,7 @@ interface ConnectionState {
   addExperience: (amount: number) => void;
   updateMood: (mood: 'great' | 'good' | 'okay' | 'struggling') => void;
   markMessageRead: (id: string) => Promise<void>;
-  requestSupport: () => void;
+  requestSupport: (customMessage?: string) => Promise<void>;
   acknowledgeSupport: (id: string) => void;
   loadUserProgress: () => Promise<void>;
 }
@@ -351,7 +351,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     }
   },
 
-  requestSupport: async () => {
+  requestSupport: async (customMessage?: string) => {
     const current = get();
     const now = new Date();
     
@@ -370,6 +370,9 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const userProfile = await getUserProfile(user.uid);
       if (!userProfile || !userProfile.family_id) return;
 
+      // Use custom message or default
+      const message = customMessage || 'I could use some extra support right now 💙';
+
       // Create support request in Firebase
       const { collection, addDoc, Timestamp } = await import('firebase/firestore');
       const { db } = await import('../lib/firebase');
@@ -377,7 +380,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const supportRequestData = {
         from_user_id: user.uid,
         family_id: userProfile.family_id,
-        message: 'I could use some extra support right now 💙',
+        message,
         created_at: Timestamp.now(),
         acknowledged: false,
         type: 'care_request'
@@ -389,7 +392,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       const newRequest: SupportRequest = {
         id: docRef.id,
         timestamp: now,
-        message: 'I could use some extra support right now 💙',
+        message,
         from: user.uid,
         familyId: userProfile.family_id,
         acknowledged: false,
@@ -410,7 +413,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
         for (const parent of parents) {
           if (parent.pushToken) {
             const notification = {
-              ...NotificationTemplates.careRequest(studentName, 'I could use some extra support right now 💙'),
+              ...NotificationTemplates.careRequest(studentName, message),
               userId: parent.id
             };
             

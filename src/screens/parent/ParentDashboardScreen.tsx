@@ -154,7 +154,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         // PayPal verification (reduced delay)
         setTimeout(async () => {
           try {
-            const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+            const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalFirebase');
             const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
             if (verifiedCount > 0) {
               // Refresh monthly payments to show updates
@@ -486,6 +486,49 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             {hasMultipleStudents ? 'Your Kids' : (studentName && studentName !== 'Loading...' ? studentName.split(' ')[0] : 'Student')}
           </Text>
           <Text style={styles.pullHint}>Pull down to refresh and verify payments</Text>
+          
+          {/* DEBUG: Simple test */}
+          <TouchableOpacity
+            style={{ backgroundColor: '#ff0000', padding: 15, marginTop: 10 }}
+            onPress={async () => {
+              console.log('🔥 MANUAL FIREBASE TEST STARTING...');
+              try {
+                const { getCurrentUser, db, getUserProfile } = await import('../../lib/firebase');
+                const { collection, query, where, getDocs, doc, getDoc } = await import('firebase/firestore');
+                
+                const user = getCurrentUser();
+                console.log('🔍 Current user:', user ? { uid: user.uid, email: user.email } : 'null');
+                
+                if (user) {
+                  console.log('🧪 TEST 1: Reading user document...');
+                  const userDoc = await getDoc(doc(db, 'users', user.uid));
+                  console.log('🧪 TEST 1 RESULT:', userDoc.exists() ? userDoc.data() : 'Document not found');
+                  
+                  console.log('🧪 TEST 2: Query payments...');
+                  const paymentsQuery = query(collection(db, 'payments'), where('parent_id', '==', user.uid));
+                  const paymentsSnapshot = await getDocs(paymentsQuery);
+                  console.log('🧪 TEST 2 RESULT:', paymentsSnapshot.size, 'payments found');
+                  
+                  console.log('🧪 TEST 3: Test ActivityHistoryScreen exact query...');
+                  const { orderBy, limit } = await import('firebase/firestore');
+                  const activityQuery = query(
+                    collection(db, 'payments'),
+                    where('parent_id', '==', user.uid),
+                    orderBy('created_at', 'desc'),
+                    limit(15)
+                  );
+                  const activitySnapshot = await getDocs(activityQuery);
+                  console.log('🧪 TEST 3 RESULT:', activitySnapshot.size, 'payments with orderBy+limit found');
+                }
+              } catch (error) {
+                console.error('❌ MANUAL TEST FAILED:', error);
+              }
+            }}
+          >
+            <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>
+              RUN FIREBASE TEST (CHECK CONSOLE)
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Student Selector - Full Width Segments */}

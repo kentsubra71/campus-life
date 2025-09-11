@@ -29,7 +29,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPasswordResetEmailHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = exports.getUserProgress = exports.updateUserXP = exports.markUserVerified = void 0;
+exports.verifyEmailHttp = exports.verifyEmailServer = exports.createVerificationTokenServer = exports.sendPasswordResetEmailHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.confirmPaymentServer = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = exports.getUserProgress = exports.updateUserXP = exports.markUserVerified = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const axios_1 = __importDefault(require("axios"));
@@ -132,10 +132,10 @@ exports.getUserProgress = functions.https.onCall(async (data, context) => {
 });
 // Initialize Expo SDK for push notifications
 const expo = new expo_server_sdk_1.Expo();
-// Secure secret definitions using Firebase Secret Manager
-const PAYPAL_CLIENT_ID = (0, params_1.defineSecret)('PAYPAL_CLIENT_ID');
-const PAYPAL_CLIENT_SECRET = (0, params_1.defineSecret)('PAYPAL_CLIENT_SECRET');
-const RESEND_API_KEY = (0, params_1.defineSecret)('RESEND_API_KEY');
+// Secure secrets using Firebase Secret Manager
+const PAYPAL_CLIENT_ID = (0, params_1.defineSecret)('paypal-client-id-prod');
+const PAYPAL_CLIENT_SECRET = (0, params_1.defineSecret)('paypal-client-secret-prod');
+const RESEND_API_KEY = (0, params_1.defineSecret)('campus-life-resend-prod');
 // PayPal Configuration
 const PAYPAL_BASE_URL = 'https://api-m.sandbox.paypal.com'; // Use production URL for live app
 // Debug logging function - updated for payments collection
@@ -174,30 +174,19 @@ exports.createPayPalOrder = functions
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
-    const { studentId, amountCents, note } = data;
+    const { amount_cents, recipient_email, payment_id, note } = data;
     // Validate input
-    if (!studentId || !amountCents || amountCents <= 0) {
+    if (!amount_cents || amount_cents <= 0 || !recipient_email || !payment_id) {
         throw new functions.https.HttpsError('invalid-argument', 'Invalid payment data');
     }
     try {
-        // Get student PayPal email
-        const studentDoc = await db.collection('users').doc(studentId).get();
-        if (!studentDoc.exists) {
-            throw new functions.https.HttpsError('not-found', 'Student not found');
-        }
-        const studentData = studentDoc.data();
-        debugLog('createPayPalOrder', 'Student data retrieved', {
-            hasPaypalEmail: !!studentData.paypal_email,
-            hasEmail: !!studentData.email,
-            paypalEmail: studentData.paypal_email || '[not set]',
-            email: studentData.email || '[not set]'
+        debugLog('createPayPalOrder', 'Input validated', {
+            amount_cents,
+            recipient_email,
+            payment_id,
+            note: note || '[none]'
         });
-        const recipientEmail = studentData.paypal_email || studentData.email;
-        if (!recipientEmail) {
-            debugLog('createPayPalOrder', 'No email found for student', studentData);
-            throw new functions.https.HttpsError('failed-precondition', 'Student PayPal email not found');
-        }
-        debugLog('createPayPalOrder', 'Creating order for student', { recipientEmail, amountCents });
+        debugLog('createPayPalOrder', 'Creating PayPal order', { recipient_email, amount_cents });
         // Get PayPal access token
         const accessToken = await getPayPalAccessToken();
         // Create PayPal order
@@ -206,11 +195,11 @@ exports.createPayPalOrder = functions
             purchase_units: [{
                     amount: {
                         currency_code: 'USD',
-                        value: (amountCents / 100).toFixed(2)
+                        value: (amount_cents / 100).toFixed(2)
                     },
-                    description: note || `Campus Life payment: $${(amountCents / 100).toFixed(2)}`,
+                    description: note || `Campus Life payment: $${(amount_cents / 100).toFixed(2)}`,
                     payee: {
-                        email_address: recipientEmail
+                        email_address: recipient_email
                     }
                 }],
             application_context: {
@@ -232,11 +221,11 @@ exports.createPayPalOrder = functions
         // Create payment record in Firestore to match existing payment system
         const paymentData = {
             parent_id: context.auth.uid,
-            student_id: studentId,
+            student_id: payment_id,
             paypal_order_id: orderId,
-            intent_cents: amountCents,
+            intent_cents: amount_cents,
             note: note || '',
-            recipient_email: recipientEmail,
+            recipient_email: recipient_email,
             status: 'initiated',
             provider: 'paypal',
             completion_method: 'direct_paypal',
@@ -244,12 +233,13 @@ exports.createPayPalOrder = functions
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             idempotency_key: `paypal_${orderId}_${Date.now()}`
         };
-        const paymentRef = await db.collection('payments').add(paymentData);
-        debugLog('createPayPalOrder', 'Payment record created', { paymentId: paymentRef.id });
+        // Update existing payment record instead of creating new one
+        const paymentRef = db.collection('payments').doc(payment_id);
+        await paymentRef.update(paymentData);
+        debugLog('createPayPalOrder', 'Payment record updated', { paymentId: payment_id });
         return {
             success: true,
-            transactionId: paymentRef.id,
-            paymentId: paymentRef.id,
+            paymentId: payment_id,
             orderId,
             approvalUrl
         };
@@ -272,13 +262,13 @@ exports.verifyPayPalPayment = functions
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
-    const { transactionId, orderId, payerID } = data;
-    if (!transactionId || !orderId) {
-        throw new functions.https.HttpsError('invalid-argument', 'Missing transaction or order ID');
+    const { paymentId, orderId } = data;
+    if (!paymentId || !orderId) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing payment or order ID');
     }
     try {
         // Get payment record
-        const paymentRef = db.collection('payments').doc(transactionId);
+        const paymentRef = db.collection('payments').doc(paymentId);
         const paymentDoc = await paymentRef.get();
         if (!paymentDoc.exists) {
             throw new functions.https.HttpsError('not-found', 'Payment not found');
@@ -288,7 +278,7 @@ exports.verifyPayPalPayment = functions
         if (payment.parent_id !== context.auth.uid) {
             throw new functions.https.HttpsError('permission-denied', 'Unauthorized access to payment');
         }
-        debugLog('verifyPayPalPayment', 'Verifying PayPal order', { orderId, payerID });
+        debugLog('verifyPayPalPayment', 'Verifying PayPal order', { orderId, paymentId });
         // Get PayPal access token
         const accessToken = await getPayPalAccessToken();
         // First, check the current order status
@@ -313,7 +303,7 @@ exports.verifyPayPalPayment = functions
                 success: false,
                 status: 'pending_payment',
                 message: 'Payment not completed yet. Please complete the payment in PayPal first.',
-                transactionId,
+                paymentId,
                 approvalUrl: (_c = (_b = orderData.links) === null || _b === void 0 ? void 0 : _b.find((link) => link.rel === 'approve')) === null || _c === void 0 ? void 0 : _c.href
             };
         }
@@ -357,7 +347,7 @@ exports.verifyPayPalPayment = functions
                 success: captureStatus === 'COMPLETED' || captureStatus === 'PENDING',
                 status: captureStatus,
                 captureId,
-                transactionId,
+                paymentId,
                 message: captureStatus === 'PENDING' ? 'Payment completed (pending settlement)' : 'Payment completed'
             };
         }
@@ -373,7 +363,7 @@ exports.verifyPayPalPayment = functions
                 success: true,
                 status: 'COMPLETED',
                 message: 'Payment already completed',
-                transactionId
+                paymentId
             };
         }
         // Handle other statuses (CANCELLED, etc.)
@@ -387,7 +377,7 @@ exports.verifyPayPalPayment = functions
             success: false,
             status: orderStatus,
             message: `Payment ${orderStatus.toLowerCase()}`,
-            transactionId
+            paymentId
         };
     }
     catch (error) {
@@ -395,7 +385,7 @@ exports.verifyPayPalPayment = functions
         const errorMessage = ((_k = (_j = error.response) === null || _j === void 0 ? void 0 : _j.data) === null || _k === void 0 ? void 0 : _k.message) || error.message;
         // Update payment as failed
         try {
-            await db.collection('payments').doc(transactionId).update({
+            await db.collection('payments').doc(paymentId).update({
                 status: 'failed',
                 error: errorMessage,
                 updated_at: admin.firestore.FieldValue.serverTimestamp()
@@ -417,12 +407,12 @@ exports.getTransactionStatus = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
-    const { transactionId } = data;
-    if (!transactionId) {
+    const { paymentId } = data;
+    if (!paymentId) {
         throw new functions.https.HttpsError('invalid-argument', 'Transaction ID required');
     }
     try {
-        const paymentDoc = await db.collection('payments').doc(transactionId).get();
+        const paymentDoc = await db.collection('payments').doc(paymentId).get();
         if (!paymentDoc.exists) {
             throw new functions.https.HttpsError('not-found', 'Payment not found');
         }
@@ -431,11 +421,11 @@ exports.getTransactionStatus = functions.https.onCall(async (data, context) => {
         if (payment.parent_id !== context.auth.uid && payment.student_id !== context.auth.uid) {
             throw new functions.https.HttpsError('permission-denied', 'Unauthorized access to payment');
         }
-        debugLog('getTransactionStatus', 'Payment found', { transactionId, status: payment.status });
+        debugLog('getTransactionStatus', 'Payment found', { paymentId, status: payment.status });
         return {
             success: true,
             transaction: {
-                id: transactionId,
+                id: paymentId,
                 status: payment.status,
                 amountCents: payment.intent_cents,
                 note: payment.note,
@@ -451,6 +441,103 @@ exports.getTransactionStatus = functions.https.onCall(async (data, context) => {
             throw error;
         }
         throw new functions.https.HttpsError('internal', 'Failed to get transaction status');
+    }
+});
+// SECURITY: Confirm payment server-side (Phase 4 compliance)
+exports.confirmPaymentServer = functions.https.onCall(async (data, context) => {
+    var _a;
+    debugLog('confirmPaymentServer', 'Function called', { userId: (_a = context.auth) === null || _a === void 0 ? void 0 : _a.uid, data });
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const { paymentId, idempotencyKey } = data;
+    if (!paymentId || !idempotencyKey) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing payment ID or idempotency key');
+    }
+    try {
+        // Use transaction for atomicity
+        const result = await db.runTransaction(async (transaction) => {
+            const paymentRef = db.collection('payments').doc(paymentId);
+            const paymentDoc = await transaction.get(paymentRef);
+            if (!paymentDoc.exists) {
+                throw new functions.https.HttpsError('not-found', 'Payment not found');
+            }
+            const payment = paymentDoc.data();
+            // Verify user is the parent for this payment
+            if (payment.parent_id !== context.auth.uid) {
+                throw new functions.https.HttpsError('permission-denied', 'Only the parent can confirm payments');
+            }
+            // Verify idempotency key
+            if (payment.idempotency_key !== idempotencyKey) {
+                throw new functions.https.HttpsError('invalid-argument', 'Invalid idempotency key');
+            }
+            // If already confirmed, return success (idempotent)
+            if (payment.status === 'confirmed_by_parent') {
+                return { success: true, alreadyConfirmed: true };
+            }
+            // Get user's active subscription to check caps
+            const subscriptionsQuery = db.collection('subscriptions')
+                .where('user_id', '==', context.auth.uid)
+                .where('status', '==', 'active')
+                .limit(1);
+            const subscriptionsSnapshot = await transaction.get(subscriptionsQuery);
+            if (subscriptionsSnapshot.empty) {
+                throw new functions.https.HttpsError('failed-precondition', 'No active subscription found');
+            }
+            const subscription = subscriptionsSnapshot.docs[0].data();
+            // Get current monthly spend
+            const now = new Date();
+            const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const spendQuery = db.collection('monthly_spend')
+                .where('parent_id', '==', context.auth.uid)
+                .where('period_start_utc', '==', admin.firestore.Timestamp.fromDate(periodStart))
+                .limit(1);
+            const spendSnapshot = await transaction.get(spendQuery);
+            let currentSpentCents = 0;
+            let spendRef;
+            if (!spendSnapshot.empty) {
+                const spendData = spendSnapshot.docs[0].data();
+                currentSpentCents = spendData.spent_cents || 0;
+                spendRef = spendSnapshot.docs[0].ref;
+            }
+            else {
+                // Create new monthly spend record
+                spendRef = db.collection('monthly_spend').doc();
+                const spendData = {
+                    parent_id: context.auth.uid,
+                    family_id: payment.family_id,
+                    period_start_utc: admin.firestore.Timestamp.fromDate(periodStart),
+                    spent_cents: 0,
+                    created_at: admin.firestore.FieldValue.serverTimestamp(),
+                    updated_at: admin.firestore.FieldValue.serverTimestamp()
+                };
+                transaction.set(spendRef, spendData);
+            }
+            // Check spending cap
+            if (currentSpentCents + payment.intent_cents > subscription.cap_cents) {
+                throw new functions.https.HttpsError('failed-precondition', 'Payment would exceed monthly spending cap');
+            }
+            // Update payment status
+            transaction.update(paymentRef, {
+                status: 'confirmed_by_parent',
+                confirmed_at: admin.firestore.FieldValue.serverTimestamp()
+            });
+            // Update monthly spend
+            transaction.update(spendRef, {
+                spent_cents: currentSpentCents + payment.intent_cents,
+                updated_at: admin.firestore.FieldValue.serverTimestamp()
+            });
+            return { success: true };
+        });
+        debugLog('confirmPaymentServer', 'Payment confirmed successfully', { paymentId });
+        return result;
+    }
+    catch (error) {
+        debugLog('confirmPaymentServer', 'Error confirming payment', error);
+        if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
+        throw new functions.https.HttpsError('internal', `Failed to confirm payment: ${error.message}`);
     }
 });
 // Debug endpoint for testing PayPal connection
@@ -1218,6 +1305,216 @@ exports.sendPasswordResetEmailHttp = functions
             success: false,
             error: `Email service error: ${errorMessage}`
         });
+    }
+});
+// Server-side verification token creation (for password reset without auth)
+exports.createVerificationTokenServer = functions.https.onRequest(async (req, res) => {
+    // Set CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({ success: false, error: 'Method not allowed' });
+        return;
+    }
+    const { email, type } = req.body;
+    debugLog('createVerificationTokenServer', 'Request received', { email: '[REDACTED]', type });
+    // Validate input
+    if (!email || !type || !['password_reset', 'email_verification'].includes(type)) {
+        res.status(400).json({ success: false, error: 'Invalid email or type' });
+        return;
+    }
+    try {
+        // Find user by email with retry logic for race conditions during registration
+        let usersSnapshot;
+        let retries = 0;
+        do {
+            usersSnapshot = await db.collection('users').where('email', '==', email).limit(1).get();
+            if (!usersSnapshot.empty)
+                break;
+            if (retries < 3) {
+                await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+                retries++;
+            }
+        } while (retries <= 3);
+        if (usersSnapshot.empty) {
+            // Don't reveal whether email exists for security
+            res.status(200).json({ success: true, message: 'If account exists, token created' });
+            return;
+        }
+        const userDoc = usersSnapshot.docs[0];
+        const userId = userDoc.id;
+        // Invalidate existing tokens
+        const existingTokensQuery = db.collection('verification_tokens')
+            .where('user_id', '==', userId)
+            .where('type', '==', type)
+            .where('used', '==', false);
+        const existingTokens = await existingTokensQuery.get();
+        const batch = db.batch();
+        existingTokens.docs.forEach(tokenDoc => {
+            batch.update(tokenDoc.ref, {
+                used: true,
+                invalidated_at: admin.firestore.FieldValue.serverTimestamp(),
+                invalidated_reason: 'new_token_requested'
+            });
+        });
+        // Generate new token
+        const token = require('crypto').randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        const verificationToken = {
+            token,
+            user_id: userId,
+            email,
+            type,
+            expires_at: admin.firestore.Timestamp.fromDate(expiresAt),
+            used: false,
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+        };
+        // Create new token
+        batch.set(db.collection('verification_tokens').doc(token), verificationToken);
+        // Commit all changes
+        await batch.commit();
+        debugLog('createVerificationTokenServer', 'Token created successfully', { type, userId });
+        res.status(200).json({
+            success: true,
+            token,
+            userId,
+            message: 'Verification token created'
+        });
+    }
+    catch (error) {
+        debugLog('createVerificationTokenServer', 'Error creating token', error);
+        res.status(500).json({ success: false, error: 'Failed to create verification token' });
+    }
+});
+// SECURITY: Email verification server-side (Phase 4 compliance)
+exports.verifyEmailServer = functions.https.onCall(async (data, context) => {
+    const { token } = data;
+    debugLog('verifyEmailServer', 'Function called', { token: '[REDACTED]' });
+    if (!token) {
+        throw new functions.https.HttpsError('invalid-argument', 'Token is required');
+    }
+    try {
+        // Verify token using admin privileges
+        const tokenDoc = await db.collection('verification_tokens').doc(token).get();
+        if (!tokenDoc.exists) {
+            throw new functions.https.HttpsError('not-found', 'Invalid verification token');
+        }
+        const tokenData = tokenDoc.data();
+        // Check if token is already used
+        if (tokenData.used) {
+            throw new functions.https.HttpsError('failed-precondition', 'Token already used');
+        }
+        // Check if token is expired
+        if (tokenData.expires_at.toDate() < new Date()) {
+            throw new functions.https.HttpsError('failed-precondition', 'Token expired');
+        }
+        // Check token type
+        if (tokenData.type !== 'email_verification') {
+            throw new functions.https.HttpsError('invalid-argument', 'Invalid token type');
+        }
+        // Mark token as used and update user
+        const batch = db.batch();
+        // Mark token as used
+        batch.update(db.collection('verification_tokens').doc(token), {
+            used: true,
+            used_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        // Mark user as email verified
+        batch.update(db.collection('users').doc(tokenData.user_id), {
+            email_verified: true,
+            email_verified_at: admin.firestore.FieldValue.serverTimestamp(),
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        debugLog('verifyEmailServer', 'Email verification completed', { userId: tokenData.user_id });
+        return {
+            success: true,
+            userId: tokenData.user_id,
+            message: 'Email verified successfully'
+        };
+    }
+    catch (error) {
+        debugLog('verifyEmailServer', 'Error verifying email', error);
+        if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
+        throw new functions.https.HttpsError('internal', `Email verification failed: ${error.message}`);
+    }
+});
+// SECURITY: Email verification HTTP endpoint (for website verification)
+exports.verifyEmailHttp = functions.https.onRequest(async (req, res) => {
+    // Set CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({ success: false, error: 'Method not allowed' });
+        return;
+    }
+    const { token } = req.body;
+    debugLog('verifyEmailHttp', 'HTTP request received', { token: '[REDACTED]' });
+    if (!token) {
+        res.status(400).json({ success: false, error: 'Token is required' });
+        return;
+    }
+    try {
+        // Verify token using admin privileges
+        const tokenDoc = await db.collection('verification_tokens').doc(token).get();
+        if (!tokenDoc.exists) {
+            res.status(404).json({ success: false, error: 'Invalid verification token' });
+            return;
+        }
+        const tokenData = tokenDoc.data();
+        // Check if token is already used
+        if (tokenData.used) {
+            res.status(400).json({ success: false, error: 'Token already used' });
+            return;
+        }
+        // Check if token is expired
+        if (tokenData.expires_at.toDate() < new Date()) {
+            res.status(400).json({ success: false, error: 'Token expired' });
+            return;
+        }
+        // Check token type
+        if (tokenData.type !== 'email_verification') {
+            res.status(400).json({ success: false, error: 'Invalid token type' });
+            return;
+        }
+        // Mark token as used and update user
+        const batch = db.batch();
+        // Mark token as used
+        batch.update(db.collection('verification_tokens').doc(token), {
+            used: true,
+            used_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        // Mark user as email verified
+        batch.update(db.collection('users').doc(tokenData.user_id), {
+            email_verified: true,
+            email_verified_at: admin.firestore.FieldValue.serverTimestamp(),
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        await batch.commit();
+        debugLog('verifyEmailHttp', 'Email verification completed', { userId: tokenData.user_id });
+        res.status(200).json({
+            success: true,
+            userId: tokenData.user_id,
+            message: 'Email verified successfully'
+        });
+    }
+    catch (error) {
+        debugLog('verifyEmailHttp', 'Error verifying email', error);
+        res.status(500).json({ success: false, error: 'Email verification failed' });
     }
 });
 //# sourceMappingURL=index.js.map

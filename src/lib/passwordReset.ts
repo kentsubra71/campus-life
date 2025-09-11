@@ -21,15 +21,22 @@ export const requestPasswordReset = async (email: string): Promise<{
     const userDoc = userSnapshot.docs[0];
     const userData = userDoc.data();
     
-    // Create password reset token
-    const tokenResult = await createVerificationToken(
-      userDoc.id,
-      email,
-      'password_reset'
-    );
+    // Create password reset token via server function (no auth required)
+    const tokenResponse = await fetch('https://us-central1-campus-life-b0fd3.cloudfunctions.net/createVerificationTokenServer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        type: 'password_reset'
+      })
+    });
     
-    if (tokenResult.error) {
-      return { success: false, error: tokenResult.error };
+    const tokenResult = await tokenResponse.json();
+    
+    if (!tokenResult.success) {
+      return { success: false, error: tokenResult.error || 'Failed to create reset token' };
     }
     
     // Send password reset email

@@ -140,11 +140,17 @@ export interface Family {
 // Auth functions
 export const signUpUser = async (email: string, password: string, fullName: string, userType: 'student' | 'parent', sendVerificationEmail: boolean = true) => {
   try {
+    console.log('🔐 Starting signUpUser:', { email, fullName, userType, sendVerificationEmail });
+    
+    console.log('Step 1: Creating Firebase Auth user...');
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    console.log('✅ Firebase Auth user created:', user.uid);
 
     // Update display name
+    console.log('Step 2: Updating display name...');
     await updateProfile(user, { displayName: fullName });
+    console.log('✅ Display name updated');
 
     // Create user profile in Firestore with email verification status
     const userProfile: UserProfile = {
@@ -183,18 +189,32 @@ export const signUpUser = async (email: string, password: string, fullName: stri
     let verificationToken = '';
     
     if (sendVerificationEmail) {
-      // Use custom email verification system (future-proof)
-      const { createVerificationToken, sendVerificationEmail: sendEmail } = await import('./emailVerification');
-      
-      const tokenResult = await createVerificationToken(user.uid, email, 'email_verification');
-      if (tokenResult.error) {
-        console.error('Failed to create verification token:', tokenResult.error);
-        return { user, error: null, emailSent: false };
+      // Use server-side token creation (Phase 4 compliant)
+      try {
+        const tokenResponse = await fetch('https://us-central1-campus-life-b0fd3.cloudfunctions.net/createVerificationTokenServer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            type: 'email_verification'
+          })
+        });
+        
+        const tokenResult = await tokenResponse.json();
+        
+        if (tokenResult.success) {
+          const { sendVerificationEmail: sendEmail } = await import('./emailVerification');
+          const emailResult = await sendEmail(email, fullName, tokenResult.token, 'email_verification');
+          emailSent = emailResult.success;
+          verificationToken = tokenResult.token;
+        } else {
+          console.error('Failed to create verification token:', tokenResult.error);
+        }
+      } catch (error: any) {
+        console.error('Error in verification flow:', error);
       }
-      
-      const emailResult = await sendEmail(email, fullName, tokenResult.token, 'email_verification');
-      emailSent = emailResult.success;
-      verificationToken = tokenResult.token;
     }
     
     return { 
@@ -210,22 +230,33 @@ export const signUpUser = async (email: string, password: string, fullName: stri
 
 export const sendUserVerificationEmail = async (userId: string, email: string, fullName: string) => {
   try {
-    // Use custom email verification system
-    const { createVerificationToken, sendVerificationEmail } = await import('./emailVerification');
+    // Use server-side token creation (Phase 4 compliant)
+    const tokenResponse = await fetch('https://us-central1-campus-life-b0fd3.cloudfunctions.net/createVerificationTokenServer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        type: 'email_verification'
+      })
+    });
     
-    const tokenResult = await createVerificationToken(userId, email, 'email_verification');
-    if (tokenResult.error) {
+    const tokenResult = await tokenResponse.json();
+    
+    if (tokenResult.success) {
+      const { sendVerificationEmail } = await import('./emailVerification');
+      const emailResult = await sendVerificationEmail(email, fullName, tokenResult.token, 'email_verification');
+      
+      return { 
+        success: emailResult.success, 
+        error: emailResult.error,
+        verificationToken: tokenResult.token 
+      };
+    } else {
       console.error('Failed to create verification token:', tokenResult.error);
       return { success: false, error: tokenResult.error };
     }
-    
-    const emailResult = await sendVerificationEmail(email, fullName, tokenResult.token, 'email_verification');
-    
-    return { 
-      success: emailResult.success, 
-      error: emailResult.error,
-      verificationToken: tokenResult.token 
-    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -487,6 +518,7 @@ export const initializeCollections = async () => {
 // Family functions
 export const createFamily = async (familyName: string, parentId: string): Promise<{ familyId?: string; inviteCode?: string; error?: string }> => {
   try {
+    console.log('🏗️ Creating family:', { familyName, parentId });
     const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
     
     const family: Omit<Family, 'id'> = {
@@ -498,7 +530,9 @@ export const createFamily = async (familyName: string, parentId: string): Promis
       updated_at: Timestamp.now(),
     };
 
+    console.log('📝 About to create family document:', family);
     const docRef = await addDoc(collection(db, 'families'), family);
+    console.log('✅ Family document created with ID:', docRef.id);
     
     // Update the parent's profile with the family ID
     await updateUserProfile(parentId, { family_id: docRef.id });
@@ -604,10 +638,14 @@ export const getFamily = async (familyId: string): Promise<Family | null> => {
 
 export const getFamilyMembers = async (familyId: string): Promise<{ parents: UserProfile[]; students: UserProfile[] }> => {
   try {
+    console.log('🔍 getFamilyMembers (Firebase) called for familyId:', familyId);
     const family = await getFamily(familyId);
     if (!family) {
+      console.log('❌ No family found for familyId:', familyId);
       return { parents: [], students: [] };
     }
+    
+    console.log('📊 Family data loaded:', { name: family.name, parentIds: family.parentIds, studentIds: family.studentIds });
     
     const parents: UserProfile[] = [];
     const students: UserProfile[] = [];
@@ -636,6 +674,7 @@ export const getFamilyMembers = async (familyId: string): Promise<{ parents: Use
       }
     }
     
+    console.log('✅ getFamilyMembers (Firebase) returning:', { parentCount: parents.length, studentCount: students.length });
     return { parents, students };
   } catch (error) {
     console.error('Error getting family members:', error);

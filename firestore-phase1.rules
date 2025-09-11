@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // PHASE 1: Basic Authentication Only
+    // Just verify users are logged in, allow all operations
+    // This should work exactly like current permissive rules but slightly more secure
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    // All collections: Require authentication only
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

@@ -90,7 +90,7 @@ export const buildProviderUrl = async (
     case 'paypal':
       // Create real PayPal order
       try {
-        const { createPayPalOrder } = await import('./paypalIntegration');
+        const { createPayPalOrder } = await import('./paypalFirebase');
         const { approvalUrl } = await createPayPalOrder(
           amount_cents,
           recipient.email || recipient.paypal_email,
@@ -312,121 +312,71 @@ export const createPaymentIntent = async (
   }
 };
 
-// Confirm payment (idempotent)
+// Confirm payment (idempotent) - PHASE 4 SECURE VERSION
 export const confirmPayment = async (
   paymentId: string,
   idempotencyKey: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // TESTING: Skip all complex checks for development
-    const TESTING_MODE = true;
+    console.log('🔒 PHASE 4: Using server-side payment confirmation');
     
-    if (TESTING_MODE) {
-      console.log('🧪 TESTING MODE: Simplified payment confirmation');
-      const paymentRef = doc(db, 'payments', paymentId);
-      const paymentDoc = await getDoc(paymentRef);
-      
-      if (!paymentDoc.exists()) {
-        throw new Error('Payment not found');
-      }
-      
-      const payment = paymentDoc.data() as Payment;
-      
-      // Simple confirmation - just update status
-      await updateDoc(paymentRef, {
-        status: 'confirmed_by_parent',
-        confirmed_at: Timestamp.now()
-      });
-
-      // Send payment status notification
+    // Use server-side function for secure payment confirmation
+    const { httpsCallable } = await import('firebase/functions');
+    const { functions } = await import('./firebase');
+    
+    const confirmPaymentServer = httpsCallable(functions, 'confirmPaymentServer');
+    const result = await confirmPaymentServer({ paymentId, idempotencyKey });
+    
+    const data = result.data as any;
+    
+    if (data.success) {
+      // Send payment status notification on client side
       try {
-        const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+        const paymentRef = doc(db, 'payments', paymentId);
+        const paymentDoc = await getDoc(paymentRef);
         
-        const notification = {
-          ...NotificationTemplates.paymentStatus(
-            'confirmed',
-            `$${(payment.intent_cents / 100).toFixed(2)}`
-          ),
-          userId: payment.student_id
-        };
-        
-        await pushNotificationService.sendPushNotification(notification);
-        console.log('📧 Payment confirmation notification sent');
+        if (paymentDoc.exists()) {
+          const payment = paymentDoc.data() as Payment;
+          
+          const { pushNotificationService, NotificationTemplates } = await import('../services/pushNotificationService');
+          
+          const notification = {
+            ...NotificationTemplates.paymentStatus(
+              'confirmed',
+              `$${(payment.intent_cents / 100).toFixed(2)}`
+            ),
+            userId: payment.student_id
+          };
+          
+          await pushNotificationService.sendPushNotification(notification);
+          console.log('📧 Payment confirmation notification sent');
+        }
       } catch (notifError) {
         console.error('Failed to send payment status notification:', notifError);
+        // Don't fail payment confirmation if notification fails
       }
       
       return { success: true };
+    } else {
+      return { success: false, error: data.error || 'Payment confirmation failed' };
     }
-    
-    return await runTransaction(db, async (transaction) => {
-      const paymentRef = doc(db, 'payments', paymentId);
-      const paymentDoc = await transaction.get(paymentRef);
-      
-      if (!paymentDoc.exists()) {
-        throw new Error('Payment not found');
-      }
-      
-      const payment = paymentDoc.data() as Payment;
-      
-      // Verify idempotency key
-      if (payment.idempotency_key !== idempotencyKey) {
-        throw new Error('Invalid idempotency key');
-      }
-      
-      // If already confirmed, return success (idempotent)
-      if (payment.status === 'confirmed_by_parent') {
-        return { success: true };
-      }
-      
-      // Get monthly spend record
-      const user = getCurrentUser();
-      if (!user || user.uid !== payment.parent_id) {
-        throw new Error('Unauthorized');
-      }
-      
-      const subscription = await getActiveSubscription(payment.parent_id);
-      if (!subscription) {
-        throw new Error('No active subscription');
-      }
-      
-      const spendQuery = query(
-        collection(db, 'monthly_spend'),
-        where('parent_id', '==', payment.parent_id),
-        where('period_start_utc', '==', subscription.current_period_start_utc)
-      );
-      const spendSnapshot = await getDocs(spendQuery);
-      
-      if (spendSnapshot.empty) {
-        throw new Error('Monthly spend record not found');
-      }
-      
-      const spendDoc = spendSnapshot.docs[0];
-      const spendRef = doc(db, 'monthly_spend', spendDoc.id);
-      const spendData = spendDoc.data() as MonthlySpend;
-      
-      // Check cap again
-      if (spendData.spent_cents + payment.intent_cents > subscription.cap_cents) {
-        throw new Error('Payment would exceed monthly cap');
-      }
-      
-      // Update payment status
-      transaction.update(paymentRef, {
-        status: 'confirmed_by_parent',
-        confirmed_at: Timestamp.now()
-      });
-      
-      // Update monthly spend atomically
-      transaction.update(spendRef, {
-        spent_cents: spendData.spent_cents + payment.intent_cents,
-        updated_at: Timestamp.now()
-      });
-      
-      return { success: true };
-    });
   } catch (error: any) {
     console.error('Error confirming payment:', error);
-    return { success: false, error: error.message };
+    
+    // Handle specific Cloud Function errors
+    if (error.code === 'functions/not-found') {
+      return { success: false, error: 'Payment confirmation service unavailable. Please try again.' };
+    }
+    
+    if (error.code === 'functions/permission-denied') {
+      return { success: false, error: 'Unauthorized to confirm this payment' };
+    }
+    
+    if (error.code === 'functions/failed-precondition') {
+      return { success: false, error: error.message };
+    }
+    
+    return { success: false, error: error.message || 'Payment confirmation failed' };
   }
 };
 

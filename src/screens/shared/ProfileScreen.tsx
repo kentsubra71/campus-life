@@ -452,7 +452,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
 
-  if (!user || !family) {
+  if (!user) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>Profile not available</Text>
@@ -544,8 +544,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       </View>
 
       {/* Family Info Card */}
-      <View style={styles.familyCard}>
-        <Text style={styles.familyTitle}>{family.name}</Text>
+      {family ? (
+        <View style={styles.familyCard}>
+          <Text style={styles.familyTitle}>{family.name}</Text>
         
         {user.role === 'parent' && (
           <>
@@ -638,7 +639,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             </>
           )}
         </View>
-      </View>
+        </View>
+      ) : (
+        <View style={styles.familyCard}>
+          <Text style={styles.familyTitle}>Loading family information...</Text>
+          <Text style={styles.loadingText}>Please wait while we load your family details.</Text>
+        </View>
+      )}
 
       {/* Email Verification Panel */}
       {!isEmailVerified && (
@@ -1124,7 +1131,7 @@ const styles = StyleSheet.create({
   passwordButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: theme.colors.textPrimary,
   },
   passwordButtonArrow: {
     fontSize: 16,

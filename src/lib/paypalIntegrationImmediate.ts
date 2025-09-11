@@ -1,6 +1,6 @@
 import { db } from './firebase';
 import { doc, updateDoc, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
-import { checkPayPalOrderStatus, verifyPayPalPayment } from './paypalIntegration';
+import { checkPayPalOrderStatus, verifyPayPalPayment } from './paypalFirebase';
 
 /**
  * IMMEDIATE PayPal verification - runs without delays for testing

@@ -13,15 +13,12 @@ service cloud.firestore {
     }
     
     // Simplified: Get family_id from user document only (no custom claims dependency)
-    // Handle case where user document doesn't exist yet during registration
     function getUserFamilyId() {
-      return exists(/databases/$(database)/documents/users/$(getUserId())) ? 
-        get(/databases/$(database)/documents/users/$(getUserId())).data.family_id : null;
+      return get(/databases/$(database)/documents/users/$(getUserId())).data.family_id;
     }
     
     function getUserType() {
-      return exists(/databases/$(database)/documents/users/$(getUserId())) ? 
-        get(/databases/$(database)/documents/users/$(getUserId())).data.user_type : null;
+      return get(/databases/$(database)/documents/users/$(getUserId())).data.user_type;
     }
     
     function isParent() {
@@ -30,27 +27,10 @@ service cloud.firestore {
     
     // Users collection
     match /users/{userId} {
-      // Allow reading own user document (needed for getUserFamilyId function)
-      // Also allow family members to read each other's documents (with error handling)
-      allow read: if isAuthenticated() && (
-        userId == getUserId() ||
-        (exists(/databases/$(database)/documents/users/$(getUserId())) &&
-         get(/databases/$(database)/documents/users/$(getUserId())).data.family_id != null && 
-         exists(/databases/$(database)/documents/users/$(userId)) &&
-         get(/databases/$(database)/documents/users/$(getUserId())).data.family_id == 
-         get(/databases/$(database)/documents/users/$(userId)).data.family_id)
-      );
-      
-      allow create: if isAuthenticated() && userId == getUserId();
-      allow update: if isAuthenticated() && userId == getUserId();
-    }
-    
-    // Profiles collection (extended student data)
-    match /profiles/{userId} {
       allow read: if isAuthenticated() && (
         userId == getUserId() ||
         (getUserFamilyId() != null && 
-         getUserFamilyId() == get(/databases/$(database)/documents/profiles/$(userId)).data.family_id)
+         getUserFamilyId() == get(/databases/$(database)/documents/users/$(userId)).data.family_id)
       );
       
       allow create: if isAuthenticated() && userId == getUserId();
@@ -60,53 +40,34 @@ service cloud.firestore {
     // Families collection
     match /families/{familyId} {
       allow read: if isAuthenticated() && getUserFamilyId() == familyId;
-      
-      // Allow family creation during registration (before user has family_id)
-      // Don't check getUserType() since user document might not exist yet
-      allow create: if isAuthenticated() && 
-        getUserId() in request.resource.data.parentIds;
-        
-      // Allow updates for joining family (students adding themselves)
-      allow update: if isAuthenticated() && (
-        (getUserFamilyId() == familyId && isParent()) ||
-        // Allow students to join family during registration
-        (getUserId() in request.resource.data.studentIds && 
-         request.resource.data.studentIds.size() == resource.data.studentIds.size() + 1)
-      );
+      allow write: if isAuthenticated() && isParent() && getUserFamilyId() == familyId;
     }
     
     // Messages collection
     match /messages/{messageId} {
-      // Allow read if user is sender, recipient, or family member
-      allow read: if isAuthenticated() && (
-        getUserId() == resource.data.from_user_id ||
-        getUserId() == resource.data.to_user_id ||
-        (getUserFamilyId() != null && getUserFamilyId() == resource.data.family_id)
-      );
-        
-      allow create: if isAuthenticated() && 
-        getUserFamilyId() != null &&
-        getUserFamilyId() == request.resource.data.family_id &&
-        getUserId() == request.resource.data.from_user_id;
-        
-      allow update: if isAuthenticated() && 
-        getUserId() == resource.data.from_user_id;
-    }
-    
-    // Support requests collection
-    match /support_requests/{requestId} {
-      // Allow read if user is in the same family (uses family_id field in database)
       allow read: if isAuthenticated() && 
         getUserFamilyId() != null &&
         getUserFamilyId() == resource.data.family_id;
         
-      // Allow create if user is creating for their own family
       allow create: if isAuthenticated() && 
         getUserFamilyId() != null &&
         getUserFamilyId() == request.resource.data.family_id &&
-        getUserId() == request.resource.data.from_user_id;
+        getUserId() == request.resource.data.sender_id;
         
-      // Allow update if user is in the same family (for acknowledgment)
+      allow update: if isAuthenticated() && 
+        getUserId() == resource.data.sender_id;
+    }
+    
+    // Support requests collection
+    match /support_requests/{requestId} {
+      allow read: if isAuthenticated() && 
+        getUserFamilyId() != null &&
+        getUserFamilyId() == resource.data.family_id;
+        
+      allow create: if isAuthenticated() && 
+        getUserFamilyId() != null &&
+        getUserFamilyId() == request.resource.data.family_id;
+        
       allow update: if isAuthenticated() && 
         getUserFamilyId() != null &&
         getUserFamilyId() == resource.data.family_id;
@@ -127,22 +88,6 @@ service cloud.firestore {
         getUserId() == resource.data.user_id;
     }
     
-    // Item requests collection - Student requests for items
-    match /item_requests/{requestId} {
-      allow read: if isAuthenticated() && 
-        getUserFamilyId() != null &&
-        getUserFamilyId() == resource.data.family_id;
-        
-      allow create: if isAuthenticated() && 
-        getUserFamilyId() != null &&
-        getUserFamilyId() == request.resource.data.family_id &&
-        getUserId() == request.resource.data.student_id;
-        
-      allow update: if isAuthenticated() && 
-        getUserFamilyId() != null &&
-        getUserFamilyId() == resource.data.family_id;
-    }
-    
     // XP/Progress collection - SERVER ONLY
     match /user_progress/{userId} {
       allow read: if isAuthenticated() && userId == getUserId();
@@ -151,12 +96,9 @@ service cloud.firestore {
     
     // Payments collection - CRITICAL SECURITY
     match /payments/{paymentId} {
-      // Allow read if user is the parent who created payment, student who received it, or family member
-      allow read: if isAuthenticated() && (
-        getUserId() == resource.data.parent_id ||
-        getUserId() == resource.data.student_id ||
-        (getUserFamilyId() != null && getUserFamilyId() == resource.data.family_id)
-      );
+      allow read: if isAuthenticated() && 
+        getUserFamilyId() != null &&
+        getUserFamilyId() == resource.data.family_id;
         
       allow create: if isAuthenticated() && 
         isParent() &&
@@ -183,12 +125,9 @@ service cloud.firestore {
         getUserFamilyId() == resource.data.family_id;
     }
     
-    // Push tokens - Allow users to manage their own tokens
+    // Push tokens
     match /push_tokens/{tokenId} {
-      // Allow read/write if the token belongs to the current user
-      allow read, write: if isAuthenticated() && resource.data.userId == getUserId();
-      // Allow create for authenticated users (they set userId in the document)
-      allow create: if isAuthenticated() && request.resource.data.userId == getUserId();
+      allow read, write: if isAuthenticated() && tokenId == getUserId();
     }
     
     // Subscriptions collection - CRITICAL SECURITY

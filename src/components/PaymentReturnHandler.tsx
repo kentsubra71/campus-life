@@ -55,12 +55,12 @@ export const PaymentReturnHandler: React.FC<PaymentReturnHandlerProps> = ({
       setLoading(true);
       
       console.log('🔄 Verifying PayPal payment:', paymentId, 'with token:', token);
-      const { verifyPayPalPayment } = await import('../lib/paypalIntegration');
+      const { verifyPayPalPayment } = await import('../lib/paypalFirebase');
       const verificationResult = await verifyPayPalPayment(paymentId, token);
       
       console.log('🔄 PayPal verification result:', verificationResult);
       
-      if (verificationResult.success) {
+      if (verificationResult) {
         console.log('✅ PayPal payment verified and completed!');
         Alert.alert(
           'Payment Completed! 🎉',

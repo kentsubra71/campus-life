@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // PHASE 3: Family-Level Security (SAFE VERSION)
+    // Family-based access but with simpler rules to avoid custom claims issues
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    // Get family_id from user document (avoid custom claims issues)
+    function getUserFamilyId() {
+      return get(/databases/$(database)/documents/users/$(getUserId())).data.family_id;
+    }
+    
+    // Users collection: Own data + family members
+    match /users/{userId} {
+      // Read: Own data OR same family members
+      allow read: if isAuthenticated() && (
+        userId == getUserId() ||
+        (getUserFamilyId() != null && 
+         getUserFamilyId() == get(/databases/$(database)/documents/users/$(userId)).data.family_id)
+      );
+      
+      // Write: Own data only
+      allow write: if isAuthenticated() && userId == getUserId();
+    }
+    
+    // Families collection: Family members only
+    match /families/{familyId} {
+      allow read, write: if isAuthenticated() && getUserFamilyId() == familyId;
+    }
+    
+    // Messages: Family members only  
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && 
+        getUserFamilyId() != null &&
+        getUserFamilyId() == resource.data.family_id;
+        
+      allow write: if isAuthenticated() && 
+        getUserFamilyId() != null &&
+        getUserFamilyId() == request.resource.data.family_id;
+    }
+    
+    // Support requests: Family members only
+    match /support_requests/{requestId} {
+      allow read: if isAuthenticated() && 
+        getUserFamilyId() != null &&
+        getUserFamilyId() == resource.data.family_id;
+        
+      allow write: if isAuthenticated() && 
+        getUserFamilyId() != null &&
+        getUserFamilyId() == request.resource.data.family_id;
+    }
+    
+    // Wellness entries: Family members only
+    match /wellness_entries/{entryId} {
+      allow read: if isAuthenticated() && 
+        getUserFamilyId() != null &&
+        (getUserId() == resource.data.user_id ||
+         getUserFamilyId() == resource.data.family_id);
+         
+      allow write: if isAuthenticated() && 
+        getUserId() == request.resource.data.user_id;
+    }
+    
+    // Push tokens: Own tokens only
+    match /push_tokens/{tokenId} {
+      allow read, write: if isAuthenticated() && tokenId == getUserId();
+    }
+    
+    // All other collections: Still permissive (payments, user_progress, etc.)
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

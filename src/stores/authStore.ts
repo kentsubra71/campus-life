@@ -270,10 +270,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   createFamily: async (parentData: ParentRegisterData) => {
     console.log('🔥 CREATE FAMILY FUNCTION CALLED - Firebase implementation active');
+    console.log('Parent data:', { name: parentData.name, email: parentData.email, familyName: parentData.familyName });
     set({ isLoading: true });
     
     try {
       // First register the parent (without sending verification email yet)
+      console.log('Step 1: Registering parent user...');
       const { user: firebaseUser, error } = await signUpUser(
         parentData.email,
         parentData.password,
@@ -306,18 +308,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await sendWelcomeEmail(parentData.email, parentData.name, 'parent', parentData.familyName, inviteCode);
       
       // Get the updated profile with family ID
+      console.log('Step 3: Getting updated user profile...');
       const profile = await getUserProfile(firebaseUser.uid);
       if (!profile) {
+        console.log('❌ Failed to get user profile');
         set({ isLoading: false });
         return { success: false, error: 'Failed to get user profile' };
       }
       
+      console.log('✅ User profile loaded:', { id: profile.id, name: profile.full_name, familyId: profile.family_id });
+      
       // Get the family data
+      console.log('Step 4: Getting family data...');
       const familyData = await getFamily(familyId);
       if (!familyData) {
+        console.log('❌ Failed to get family data');
         set({ isLoading: false });
         return { success: false, error: 'Failed to get family data' };
       }
+      
+      console.log('✅ Family data loaded:', { id: familyData.id, name: familyData.name, parentIds: familyData.parentIds, studentIds: familyData.studentIds });
       
       const user: User = {
         id: profile.id,
@@ -336,6 +346,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         studentIds: familyData.studentIds,
         createdAt: familyData.created_at.toDate(),
       };
+      
+      console.log('✅ Setting auth state after PARENT family creation:', { 
+        user: { id: user.id, name: user.name, email: user.email, familyId: user.familyId },
+        family: { id: family.id, name: family.name, parentIds: family.parentIds, studentIds: family.studentIds }
+      });
       
       set({ 
         isAuthenticated: true, 
@@ -374,10 +389,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   joinFamily: async (studentData: StudentRegisterData, inviteCode: string) => {
     console.log('🔥 JOIN FAMILY FUNCTION CALLED - Firebase implementation active');
+    console.log('Student data:', { name: studentData.name, email: studentData.email, inviteCode });
     set({ isLoading: true });
     
     try {
       // First register the student (without sending verification email yet)
+      console.log('Step 1: Registering student user...');
       const { user: firebaseUser, error } = await signUpUser(
         studentData.email,
         studentData.password,
@@ -387,20 +404,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
       
       if (error || !firebaseUser) {
+        console.log('❌ Student user registration failed:', error);
         set({ isLoading: false });
         return { success: false, error: error || 'Registration failed' };
       }
       
+      console.log('✅ Student user registered:', firebaseUser.uid);
+      
       // Join the family
+      console.log('Step 2: Joining family with invite code...');
       const { familyId, error: familyError } = await joinFamilyFirebase(
         inviteCode,
         firebaseUser.uid
       );
       
       if (familyError || !familyId) {
+        console.log('❌ Family joining failed:', familyError);
         set({ isLoading: false });
         return { success: false, error: familyError || 'Failed to join family' };
       }
+      
+      console.log('✅ Student joined family:', familyId);
       
       // Now that all steps succeeded, send verification and welcome emails
       const { sendUserVerificationEmail } = await import('../lib/firebase');
@@ -443,6 +467,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         createdAt: familyData.created_at.toDate(),
       };
       
+      console.log('✅ Setting auth state after STUDENT family joining:', { 
+        user: { id: user.id, name: user.name, email: user.email, familyId: user.familyId },
+        family: { id: family.id, name: family.name, parentIds: family.parentIds, studentIds: family.studentIds }
+      });
+      
       set({ 
         isAuthenticated: true, 
         user, 
@@ -480,7 +509,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   getFamilyMembers: async () => {
     const { user } = get();
+    console.log('🔍 getFamilyMembers called - user:', user ? { id: user.id, email: user.email, familyId: user.familyId } : 'No user');
     if (!user || !user.familyId) {
+      console.log('❌ No user or familyId, returning empty lists');
       return { parents: [], students: [] };
     }
     
@@ -492,8 +523,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     
     try {
-      console.log('🔄 Loading fresh family members...');
+      console.log('🔄 Loading fresh family members for familyId:', user.familyId);
       const { parents: parentProfiles, students: studentProfiles } = await getFamilyMembersFirebase(user.familyId);
+      console.log('📊 Raw Firebase data:', { parentCount: parentProfiles.length, studentCount: studentProfiles.length });
       
       const parents: User[] = parentProfiles.map(profile => ({
         id: profile.id,
@@ -514,6 +546,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }));
       
       const result = { parents, students };
+      console.log('✅ Processed family members:', { parentCount: parents.length, studentCount: students.length, parents: parents.map(p => p.name), students: students.map(s => s.name) });
       
       // Cache the result
       await cache.set(CACHE_CONFIGS.FAMILY_MEMBERS, result, user.id);

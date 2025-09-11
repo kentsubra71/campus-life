@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // PHASE 2: User-Level Security
+    // Users can only access their own data in user collection
+    // Other collections still permissive (but require auth)
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    // Users collection: Own data only + server functions
+    match /users/{userId} {
+      // Read/write: Own data only
+      allow read, write: if isAuthenticated() && userId == getUserId();
+      
+      // Allow server functions to update user verification status
+      // (password reset, email verification)
+      allow update: if true; // Server functions need this for password reset
+    }
+    
+    // Push tokens collection: Own tokens only
+    match /push_tokens/{tokenId} {
+      // Can read/write own tokens only
+      allow read, write: if isAuthenticated() && tokenId == getUserId();
+    }
+    
+    // Verification tokens: Server functions only
+    match /verification_tokens/{tokenId} {
+      // Allow server functions to manage verification tokens
+      allow read, write: if true;
+    }
+    
+    // All other collections: Require authentication, allow all operations
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

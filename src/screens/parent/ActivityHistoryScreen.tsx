@@ -292,6 +292,16 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   const loadActivities = async (isRefresh = false, forceRefresh = false) => {
     if (!user) return;
 
+    // Get Firebase user directly (since we know this works)
+    const { getCurrentUser } = await import('../../lib/firebase');
+    const firebaseUser = getCurrentUser();
+    if (!firebaseUser) {
+      console.error('❌ Firebase user not found');
+      return;
+    }
+    
+    console.log('🔍 Using Firebase UID directly:', firebaseUser.uid);
+
     try {
       // Try to load from cache first (only on initial load, not on refresh)
       if (!isRefresh && !forceRefresh && activities.length === 0) {
@@ -318,13 +328,15 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       const allActivities: ActivityItem[] = [];
 
       // Load payments with optimized student name caching - limit to latest 15
+      console.log('🔄 About to query payments...');
       const paymentsQuery = query(
         collection(db, 'payments'),
-        where('parent_id', '==', user.id),
+        where('parent_id', '==', firebaseUser.uid),
         orderBy('created_at', 'desc'),
         limit(15)
       );
       const paymentsSnapshot = await getDocs(paymentsQuery);
+      console.log('✅ Payments query succeeded');
       
       console.log(`📄 Found ${paymentsSnapshot.size} payments (latest 15)`);
       
@@ -336,13 +348,10 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
         
         if (!studentName) {
-          // Query database for student name
-          const studentQuery = query(
-            collection(db, 'users'),
-            where('id', '==', studentId)
-          );
-          const studentSnapshot = await getDocs(studentQuery);
-          studentName = studentSnapshot.docs[0]?.data()?.full_name || 'Student';
+          // Get student document directly by ID
+          const { doc, getDoc } = await import('firebase/firestore');
+          const studentDoc = await getDoc(doc(db, 'users', studentId));
+          studentName = studentDoc.exists() ? studentDoc.data()?.full_name || 'Student' : 'Student';
           
           // Cache the student name
           await cache.set(CACHE_CONFIGS.STUDENT_NAMES, studentName, `${user.id}_${studentId}`);
@@ -380,12 +389,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           let recipientName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${recipientId}`)) as string || '';
           
           if (!recipientName) {
-            const recipientQuery = query(
-              collection(db, 'users'),
-              where('id', '==', recipientId)
-            );
-            const recipientSnapshot = await getDocs(recipientQuery);
-            recipientName = recipientSnapshot.docs[0]?.data()?.full_name || 'Student';
+            const { doc, getDoc } = await import('firebase/firestore');
+            const recipientDoc = await getDoc(doc(db, 'users', recipientId));
+            recipientName = recipientDoc.exists() ? recipientDoc.data()?.full_name || 'Student' : 'Student';
             
             // Cache the recipient name
             await cache.set(CACHE_CONFIGS.STUDENT_NAMES, recipientName, `${user.id}_${recipientId}`);
@@ -416,12 +422,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           
           let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
           if (!studentName) {
-            const studentQuery = query(
-              collection(db, 'users'),
-              where('id', '==', studentId)
-            );
-            const studentSnapshot = await getDocs(studentQuery);
-            studentName = studentSnapshot.docs[0]?.data()?.full_name || 'Student';
+            const { doc, getDoc } = await import('firebase/firestore');
+            const studentDoc = await getDoc(doc(db, 'users', studentId));
+            studentName = studentDoc.exists() ? studentDoc.data()?.full_name || 'Student' : 'Student';
             await cache.set(CACHE_CONFIGS.STUDENT_NAMES, studentName, `${user.id}_${studentId}`);
           }
 
@@ -466,12 +469,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             let studentName: string = (await cache.get(CACHE_CONFIGS.STUDENT_NAMES, `${user.id}_${studentId}`)) as string || '';
             
             if (!studentName) {
-              const studentQuery = query(
-                collection(db, 'users'),
-                where('id', '==', studentId)
-              );
-              const studentSnapshot = await getDocs(studentQuery);
-              studentName = studentSnapshot.docs[0]?.data()?.full_name || 'Student';
+              const { doc, getDoc } = await import('firebase/firestore');
+              const studentDoc = await getDoc(doc(db, 'users', studentId));
+              studentName = studentDoc.exists() ? studentDoc.data()?.full_name || 'Student' : 'Student';
               
               // Cache the student name
               await cache.set(CACHE_CONFIGS.STUDENT_NAMES, studentName, `${user.id}_${studentId}`);

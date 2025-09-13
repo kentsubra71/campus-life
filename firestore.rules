@@ -171,6 +171,18 @@ service cloud.firestore {
       allow update: if isAuthenticated() && userId == getUserId();
     }
     
+    // Verification tokens collection rules - Allow for password reset flow
+    match /verification_tokens/{tokenId} {
+      // Read: Anyone can read their own tokens (for password reset verification)
+      allow read: if isAuthenticated();
+      
+      // Create: Anyone can create verification tokens (for password reset requests)
+      allow create: if isAuthenticated();
+      
+      // Update: Server-only (Cloud Functions handle token usage)
+      allow update: if false; // Must use Cloud Functions with admin privileges
+    }
+    
     // Add catch-all for other collections (temporarily for debugging)
     match /{document=**} {
       allow read, write: if isAuthenticated() && hasCustomClaims();

@@ -29,7 +29,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPasswordResetEmailHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = exports.getUserProgress = exports.updateUserXP = exports.markUserVerified = void 0;
+exports.sendPasswordResetEmailHttp = exports.requestPasswordResetHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.verifyPasswordResetTokenHttp = exports.verifyEmailHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = exports.getUserProgress = exports.updateUserXP = exports.markUserVerified = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const axios_1 = __importDefault(require("axios"));
@@ -960,6 +960,126 @@ exports.sendEmail = functions
         throw new functions.https.HttpsError('internal', `Email service error: ${errorMessage}`);
     }
 });
+// Verify Email Token via HTTP (for verification website)
+exports.verifyEmailHttp = functions.https.onRequest(async (req, res) => {
+    // Set CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({ success: false, error: 'Method not allowed' });
+        return;
+    }
+    const { token } = req.body;
+    if (!token) {
+        res.status(400).json({ success: false, error: 'Token is required' });
+        return;
+    }
+    try {
+        // Get token document
+        const tokenDoc = await db.collection('verification_tokens').doc(token).get();
+        if (!tokenDoc.exists) {
+            res.status(400).json({ success: false, error: 'Invalid token' });
+            return;
+        }
+        const tokenData = tokenDoc.data();
+        // Check if token is valid
+        if (tokenData.used || tokenData.type !== 'email_verification') {
+            res.status(400).json({ success: false, error: 'Invalid or used token' });
+            return;
+        }
+        // Check if token is expired
+        if (tokenData.expires_at.toDate() < new Date()) {
+            res.status(400).json({ success: false, error: 'Token expired' });
+            return;
+        }
+        // Mark token as used
+        await tokenDoc.ref.update({
+            used: true,
+            used_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        // Mark user as verified using admin privileges
+        await db.collection('users').doc(tokenData.user_id).update({
+            email_verified: true,
+            verified_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        // Set custom claims
+        await admin.auth().setCustomUserClaims(tokenData.user_id, {
+            email_verified: true
+        });
+        res.status(200).json({
+            success: true,
+            userId: tokenData.user_id,
+            message: 'Email verified successfully'
+        });
+    }
+    catch (error) {
+        debugLog('verifyEmailHttp', 'Error verifying email', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to verify email'
+        });
+    }
+});
+// Verify Password Reset Token via HTTP (for verification website)
+exports.verifyPasswordResetTokenHttp = functions.https.onRequest(async (req, res) => {
+    // Set CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({ success: false, error: 'Method not allowed' });
+        return;
+    }
+    const { token } = req.body;
+    if (!token) {
+        res.status(400).json({ success: false, error: 'Token is required' });
+        return;
+    }
+    try {
+        // Get token document
+        const tokenDoc = await db.collection('verification_tokens').doc(token).get();
+        if (!tokenDoc.exists) {
+            res.status(400).json({ success: false, error: 'Invalid token' });
+            return;
+        }
+        const tokenData = tokenDoc.data();
+        // Check if token is valid
+        if (tokenData.used || tokenData.type !== 'password_reset') {
+            res.status(400).json({ success: false, error: 'Invalid or used token' });
+            return;
+        }
+        // Check if token is expired
+        if (tokenData.expires_at.toDate() < new Date()) {
+            res.status(400).json({ success: false, error: 'Token expired' });
+            return;
+        }
+        // Don't mark as used yet - just verify it's valid
+        res.status(200).json({
+            success: true,
+            userId: tokenData.user_id,
+            email: tokenData.email,
+            message: 'Password reset token is valid'
+        });
+    }
+    catch (error) {
+        debugLog('verifyPasswordResetTokenHttp', 'Error verifying token', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to verify password reset token'
+        });
+    }
+});
 // Reset Password using Firebase Admin SDK (unauthenticated endpoint for password reset)
 exports.resetPasswordHttp = functions.https.onRequest(async (req, res) => {
     // Set CORS headers
@@ -1180,6 +1300,152 @@ exports.sendPasswordChangeConfirmationHttp = functions.https.onRequest(async (re
         res.status(500).json({
             success: false,
             error: `Email service error: ${errorMessage}`
+        });
+    }
+});
+// Complete Password Reset Request via HTTP (unauthenticated endpoint)
+exports.requestPasswordResetHttp = functions
+    .runWith({ secrets: [RESEND_API_KEY] })
+    .https.onRequest(async (req, res) => {
+    // Set CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({ success: false, error: 'Method not allowed' });
+        return;
+    }
+    const { email } = req.body;
+    debugLog('requestPasswordReset', 'HTTP request received', {
+        email: email || 'missing'
+    });
+    // Validate input
+    if (!email) {
+        res.status(400).json({ success: false, error: 'Email is required' });
+        return;
+    }
+    try {
+        // Check if user exists with this email
+        const usersQuery = await db.collection('users').where('email', '==', email).get();
+        if (usersQuery.empty) {
+            // Don't reveal if email exists or not for security
+            res.status(200).json({ success: true });
+            return;
+        }
+        const userDoc = usersQuery.docs[0];
+        const userData = userDoc.data();
+        // Generate secure verification token
+        const token = await admin.firestore().collection('temp').doc().id + '-' + Date.now();
+        const expiresAt = admin.firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)); // 24 hours
+        // Invalidate any existing password reset tokens for this user
+        const existingTokens = await db.collection('verification_tokens')
+            .where('user_id', '==', userDoc.id)
+            .where('type', '==', 'password_reset')
+            .where('used', '==', false)
+            .get();
+        const invalidationPromises = existingTokens.docs.map(tokenDoc => tokenDoc.ref.update({
+            used: true,
+            invalidated_at: admin.firestore.FieldValue.serverTimestamp(),
+            invalidated_reason: 'new_token_requested'
+        }));
+        if (invalidationPromises.length > 0) {
+            await Promise.all(invalidationPromises);
+            debugLog('requestPasswordReset', `Invalidated ${invalidationPromises.length} existing tokens for user ${userDoc.id}`);
+        }
+        // Create new verification token
+        const verificationToken = {
+            token,
+            user_id: userDoc.id,
+            email,
+            type: 'password_reset',
+            expires_at: expiresAt,
+            used: false,
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+        };
+        await db.collection('verification_tokens').doc(token).set(verificationToken);
+        // Generate verification URL
+        const verificationUrl = `https://campus-life-auth-website.vercel.app/verify/password_reset/${token}`;
+        // Send password reset email using Resend
+        const apiKey = RESEND_API_KEY.value();
+        if (!apiKey) {
+            throw new Error('Email service not configured');
+        }
+        const cleanApiKey = apiKey.trim().replace(/[\r\n\t]/g, '');
+        const template = {
+            subject: 'Reset your Campus Life password',
+            html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Reset Password - Campus Life</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: #ffffff; border-radius: 12px; padding: 40px; border: 1px solid #e2e8f0;">
+              <div style="text-align: center; margin-bottom: 30px;">
+                <div style="width: 64px; height: 64px; background: #60a5fa; border-radius: 12px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 24px;">CL</div>
+                <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Campus Life</h1>
+                <p style="color: #64748b; margin: 10px 0 0 0; font-size: 16px;">Connecting families through wellness</p>
+              </div>
+              
+              <h2 style="color: #1e293b; font-size: 20px; font-weight: 700; margin-bottom: 16px;">Hi ${userData.full_name || 'there'},</h2>
+              
+              <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                We received a request to reset your Campus Life password. Click the button below to create a new password.
+              </p>
+              
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${verificationUrl}" style="background: #dc2626; color: white; padding: 16px 24px; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px; display: inline-block;">Reset Password</a>
+              </div>
+              
+              <p style="color: #64748b; font-size: 14px; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+                If you didn't request this password reset, you can safely ignore this email.<br>
+                This reset link will expire in 24 hours for security.
+              </p>
+              
+              <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
+                <p>Campus Life<br>
+                <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `
+        };
+        debugLog('requestPasswordReset', 'Sending email via Resend', { to: email, subject: template.subject });
+        // Send email using Resend API
+        const response = await axios_1.default.post('https://api.resend.com/emails', {
+            from: 'Campus Life <noreply@ronaldli.ca>',
+            to: [email],
+            subject: template.subject,
+            html: template.html
+        }, {
+            headers: {
+                'Authorization': `Bearer ${cleanApiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 10000
+        });
+        debugLog('requestPasswordReset', 'Email sent successfully', {
+            messageId: response.data.id,
+            to: email
+        });
+        res.status(200).json({
+            success: true,
+            messageId: response.data.id
+        });
+    }
+    catch (error) {
+        debugLog('requestPasswordReset', 'Error processing request', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to process password reset request'
         });
     }
 });

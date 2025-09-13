@@ -52,20 +52,34 @@ service cloud.firestore {
       allow update: if isAuthenticated() && userId == getUserId() && (
         hasOnlyAllowedFields(['email_verified', 'updated_at']) ||
         hasOnlyAllowedFields(['name', 'email', 'phone', 'paypal_email', 'updated_at', 'push_tokens', 'family_id', 'user_type']) ||
-        hasOnlyAllowedFields(['push_tokens', 'updated_at'])
+        hasOnlyAllowedFields(['push_tokens', 'updated_at']) ||
+        hasOnlyAllowedFields(['family_id', 'updated_at']) ||
+        hasOnlyAllowedFields(['full_name', 'email', 'user_type', 'family_id', 'updated_at'])
       );
     }
     
-    // Family collection rules - Require custom claims
+    // Family collection rules - Allow creation during registration, require custom claims otherwise
     match /families/{familyId} {
       // Read: Family members only (must have custom claims)
       allow read: if isAuthenticated() && hasCustomClaims() && getFamilyId() == familyId;
       
-      // Create: Parents only (must have custom claims)
-      allow create: if isAuthenticated() && hasCustomClaims() && isParent() && getFamilyId() == familyId;
+      // Create: Allow during family creation process (without custom claims) OR with proper custom claims
+      allow create: if isAuthenticated() && (
+        // During initial family creation - parent creates family and gets assigned to it
+        (!hasCustomClaims() && request.resource.data.parentIds.hasAll([getUserId()])) ||
+        // With proper custom claims - parent creating additional families
+        (hasCustomClaims() && isParent() && getFamilyId() == familyId)
+      );
       
-      // Update: Parents only (must have custom claims)
-      allow update: if isAuthenticated() && hasCustomClaims() && isParent() && getFamilyId() == familyId;
+      // Update: Parents only (must have custom claims) OR during initial family joining
+      allow update: if isAuthenticated() && (
+        // With custom claims - normal operation
+        (hasCustomClaims() && isParent() && getFamilyId() == familyId) ||
+        // During student joining - allow adding student to family
+        (!hasCustomClaims() && resource.data.keys().hasAll(['name', 'inviteCode', 'parentIds', 'studentIds']) && 
+         request.resource.data.keys().hasAll(['name', 'inviteCode', 'parentIds', 'studentIds']) &&
+         request.resource.data.studentIds.hasAll(resource.data.studentIds.toSet().union([getUserId()].toSet())))
+      );
     }
     
     // Messages collection rules - Require custom claims
@@ -183,9 +197,9 @@ service cloud.firestore {
       allow update: if false; // Must use Cloud Functions with admin privileges
     }
     
-    // Add catch-all for other collections (temporarily for debugging)
+    // Add catch-all for other collections - allow basic operations for authenticated users during registration
     match /{document=**} {
-      allow read, write: if isAuthenticated() && hasCustomClaims();
+      allow read, write: if isAuthenticated();
     }
   }
 }

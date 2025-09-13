@@ -131,9 +131,9 @@ export const getUserProgress = functions.https.onCall(async (data, context) => {
 const expo = new Expo();
 
 // Secure secret definitions using Firebase Secret Manager
-const PAYPAL_CLIENT_ID = defineSecret('PAYPAL_CLIENT_ID');
-const PAYPAL_CLIENT_SECRET = defineSecret('PAYPAL_CLIENT_SECRET');
-const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+const PAYPAL_CLIENT_ID = defineSecret('paypal-client-id-prod');
+const PAYPAL_CLIENT_SECRET = defineSecret('paypal-client-secret-prod');
+const RESEND_API_KEY = defineSecret('campus-life-resend-prod');
 
 // PayPal Configuration
 const PAYPAL_BASE_URL = 'https://api-m.sandbox.paypal.com'; // Use production URL for live app
@@ -187,6 +187,44 @@ export const createPayPalOrder = functions
   }
 
   try {
+    // Basic duplicate protection using existing parent_id index only
+    // Client-side protection should handle most cases, this is just backup
+    const recentPaymentsQuery = await db.collection('payments')
+      .where('parent_id', '==', context.auth.uid)
+      .orderBy('created_at', 'desc')
+      .limit(5)
+      .get();
+
+    // Check if there's a very recent payment with same parameters (last 30 seconds)
+    const thirtySecondsAgo = admin.firestore.Timestamp.fromDate(new Date(Date.now() - 30 * 1000));
+    const matchingPayments = recentPaymentsQuery.docs.filter(doc => {
+      const data = doc.data();
+      return data.created_at > thirtySecondsAgo &&
+             data.student_id === studentId && 
+             data.intent_cents === amountCents && 
+             ['initiated', 'pending', 'processing'].includes(data.status);
+    });
+
+    if (matchingPayments.length > 0) {
+      const existingPayment = matchingPayments[0];
+      const existingData = existingPayment.data();
+      
+      debugLog('createPayPalOrder', 'Found recent duplicate payment, returning it', { 
+        existingPaymentId: existingPayment.id,
+        existingOrderId: existingData.paypal_order_id,
+        existingStatus: existingData.status
+      });
+      
+      // Return existing payment details instead of creating duplicate
+      return {
+        success: true,
+        transactionId: existingPayment.id,
+        paymentId: existingPayment.id,
+        orderId: existingData.paypal_order_id,
+        approvalUrl: existingData.paypal_approval_url || `https://www.sandbox.paypal.com/checkoutnow?token=${existingData.paypal_order_id}`
+      };
+    }
+
     // Get student PayPal email
     const studentDoc = await db.collection('users').doc(studentId).get();
     if (!studentDoc.exists) {
@@ -251,6 +289,7 @@ export const createPayPalOrder = functions
       parent_id: context.auth.uid,
       student_id: studentId,
       paypal_order_id: orderId,
+      paypal_approval_url: approvalUrl,
       intent_cents: amountCents,
       note: note || '',
       recipient_email: recipientEmail,
@@ -259,7 +298,7 @@ export const createPayPalOrder = functions
       completion_method: 'direct_paypal',
       created_at: admin.firestore.FieldValue.serverTimestamp(),
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      idempotency_key: `paypal_${orderId}_${Date.now()}`
+      idempotency_key: `paypal_${orderId}_${context.auth.uid}_${studentId}_${amountCents}`
     };
 
     const paymentRef = await db.collection('payments').add(paymentData);
@@ -332,9 +371,28 @@ export const verifyPayPalPayment = functions
     });
 
     const orderData = orderResponse.data;
-    const orderStatus = orderData.status;
+    const orderStatus = orderData?.status;
 
     debugLog('verifyPayPalPayment', 'PayPal order status', { orderStatus, orderData });
+
+    // Handle missing or invalid order status
+    if (!orderStatus) {
+      debugLog('verifyPayPalPayment', 'Order status is missing or invalid', { orderData });
+      
+      await paymentRef.update({
+        status: 'failed',
+        error: 'PayPal order status unavailable - order may be cancelled or expired',
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      return {
+        success: false,
+        status: 'failed',
+        error: 'Payment was cancelled or expired',
+        message: 'PayPal order not found or cancelled',
+        transactionId
+      };
+    }
 
     // Handle different order statuses
     if (orderStatus === 'CREATED') {
@@ -438,16 +496,33 @@ export const verifyPayPalPayment = functions
     return {
       success: false,
       status: orderStatus,
-      message: `Payment ${orderStatus.toLowerCase()}`,
+      error: `Payment was ${orderStatus ? orderStatus.toLowerCase() : 'cancelled'}`,
+      message: `Payment ${orderStatus ? orderStatus.toLowerCase() : 'cancelled'}`,
       transactionId
     };
 
   } catch (error: any) {
     debugLog('verifyPayPalPayment', 'Error verifying payment', error);
     
-    const errorMessage = error.response?.data?.message || error.message;
+    // Handle different types of errors with better messages
+    let errorMessage = 'Unknown verification error';
+    let userFriendlyMessage = 'Payment verification failed';
     
-    // Update payment as failed
+    if (error.response?.status === 404) {
+      errorMessage = 'PayPal order not found or expired';
+      userFriendlyMessage = 'Payment was cancelled or expired';
+    } else if (error.response?.status === 422) {
+      errorMessage = 'PayPal order cannot be captured (likely cancelled)';
+      userFriendlyMessage = 'Payment was cancelled or not completed';
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+      userFriendlyMessage = 'Payment verification failed';
+    } else if (error.message) {
+      errorMessage = error.message;
+      userFriendlyMessage = 'Payment verification failed';
+    }
+    
+    // Update payment as failed with clear status
     try {
       await db.collection('payments').doc(transactionId).update({
         status: 'failed',
@@ -462,7 +537,12 @@ export const verifyPayPalPayment = functions
       throw error;
     }
     
-    throw new functions.https.HttpsError('internal', `Failed to verify payment: ${errorMessage}`);
+    return {
+      success: false,
+      error: userFriendlyMessage,
+      details: errorMessage,
+      transactionId
+    };
   }
 });
 

@@ -12,7 +12,7 @@ import {
   Platform
 } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
-import { createPaymentIntent, getCurrentSpendingCaps, SUBSCRIPTION_TIERS, getPaymentProviders } from '../../lib/payments';
+import { getCurrentSpendingCaps, SUBSCRIPTION_TIERS, getPaymentProviders } from '../../lib/payments';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { 
@@ -207,30 +207,38 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
         }
       } else {
         // Use legacy system for other providers
-        console.log('🔍 [SendPayment] Using legacy system for', selectedProvider);
-        
-        const result = await createPaymentIntent(
-          targetStudentId,
-          amountCents,
-          selectedProvider,
-          note || `CampusLife reward: $${amount}`
-        );
+        if (selectedProvider === 'paypal') {
+          console.log('🔍 [SendPayment] Using Cloud Function for PayPal');
+          
+          const result = await createPayPalP2POrder(
+            targetStudentId,
+            amountCents,
+            note || `CampusLife reward: $${amount}`
+          );
 
-        if (result.success) {
-          // Open the provider app/website
-          if (result.redirectUrl) {
-            await Linking.openURL(result.redirectUrl);
+          if (result.success && result.approvalUrl) {
+            // Open PayPal for payment
+            await Linking.openURL(result.approvalUrl);
+            
+            // Navigate to confirmation screen with PayPal details
+            navigation.navigate('PaymentReturn', {
+              paymentId: result.paymentId,
+              transactionId: result.transactionId,
+              orderId: result.orderId,
+              action: 'return'
+            });
+          } else {
+            const friendlyError = getUserFriendlyError(result.error || 'PayPal payment creation failed', 'payment creation');
+            Alert.alert('Payment Issue', friendlyError);
+            logError(result.error, 'PayPal payment creation', { provider: selectedProvider, targetStudentId, amountCents });
           }
-
-          // For manual providers, immediately show confirmation screen
-          navigation.navigate('PaymentReturn', {
-            paymentId: result.paymentId,
-            action: 'return'
-          });
         } else {
-          const friendlyError = getUserFriendlyError(result.error || 'Payment creation failed', 'payment creation');
-          Alert.alert('Payment Issue', friendlyError);
-          logError(result.error, 'Payment creation', { provider: selectedProvider, targetStudentId, amountCents });
+          // For other providers, show temporary message
+          Alert.alert(
+            'Provider Not Available',
+            `${selectedProvider} payments are being updated. Please use PayPal for now.`,
+            [{ text: 'OK' }]
+          );
         }
       }
     } catch (error: any) {

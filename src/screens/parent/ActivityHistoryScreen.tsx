@@ -74,6 +74,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   const [seenActivityIds, setSeenActivityIds] = useState<Set<string>>(new Set());
   const [seenActivitiesLoaded, setSeenActivitiesLoaded] = useState(false);
   const [previousActivities, setPreviousActivities] = useState<ActivityItem[]>([]);
+  const [processingPayments, setProcessingPayments] = useState<Set<string>>(new Set());
   const animatedValues = useRef<{ [key: string]: Animated.Value }>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const allActivityRef = useRef<View>(null);
@@ -177,9 +178,10 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         `${verifiedCount} payments were verified and updated.`,
         [{ text: 'OK' }]
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('🔧 Manual PayPal verification failed:', error);
-      Alert.alert('Error', `Verification failed: ${error.message}`);
+      const errorMessage = error?.message || error?.error || 'Unable to verify payment';
+      Alert.alert('Error', `Verification failed: ${errorMessage}`);
     }
   };
 
@@ -735,6 +737,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
   ) => {
     if (!user) return;
 
+    // Prevent duplicate payments by checking if already processing
+    if (processingPayments.has(requestId)) {
+      console.log('⏳ Payment already in progress for request:', requestId);
+      Alert.alert('Payment In Progress', 'This payment is already being processed. Please wait.');
+      return;
+    }
+
     console.log('🔍 Starting item payment:', {
       requestId,
       itemName,
@@ -743,6 +752,9 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       provider,
       itemDescription
     });
+
+    // Mark as processing
+    setProcessingPayments(prev => new Set(prev).add(requestId));
 
     try {
       // First update the item request status to approved
@@ -795,6 +807,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     } catch (error: any) {
       console.error('❌ Error sending item payment:', error);
       Alert.alert('Error', `Failed to make payment: ${error.message || 'Unknown error'}`);
+    } finally {
+      // Remove from processing state regardless of success/failure
+      setProcessingPayments(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(requestId);
+        return newSet;
+      });
     }
   };
 
@@ -1082,13 +1101,14 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
             {item.status === 'pending' && (
               <View style={styles.requestActions}>
                 <TouchableOpacity
-                  style={styles.declineButton}
+                  style={[styles.declineButton, processingPayments.has(item.id) && styles.buttonDisabled]}
                   onPress={() => handleDeclineItem(item.id, item.item_name || 'item')}
+                  disabled={processingPayments.has(item.id)}
                 >
                   <Text style={styles.declineButtonText}>Decline</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.approveButton}
+                  style={[styles.approveButton, processingPayments.has(item.id) && styles.buttonDisabled]}
                   onPress={() => handleApproveItem(
                     item.id, 
                     item.item_name || 'item', 
@@ -1096,8 +1116,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                     item.student_id || '',
                     item.item_description
                   )}
+                  disabled={processingPayments.has(item.id)}
                 >
-                  <Text style={styles.approveButtonText}>Approve & Send</Text>
+                  <Text style={styles.approveButtonText}>
+                    {processingPayments.has(item.id) ? 'Processing...' : 'Approve & Send'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1718,5 +1741,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: 'white',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+    backgroundColor: theme.colors.backgroundSecondary,
   },
 });

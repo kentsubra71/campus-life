@@ -406,6 +406,7 @@ export const verifyPayPalPayment = functions
       return {
         success: false,
         status: 'pending_payment',
+        error: 'Payment not completed - still waiting for user to complete payment in PayPal',
         message: 'Payment not completed yet. Please complete the payment in PayPal first.',
         transactionId,
         approvalUrl: orderData.links?.find((link: any) => link.rel === 'approve')?.href

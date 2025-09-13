@@ -362,6 +362,7 @@ exports.verifyPayPalPayment = functions
             return {
                 success: false,
                 status: 'pending_payment',
+                error: 'Payment not completed - still waiting for user to complete payment in PayPal',
                 message: 'Payment not completed yet. Please complete the payment in PayPal first.',
                 transactionId,
                 approvalUrl: (_c = (_b = orderData.links) === null || _b === void 0 ? void 0 : _b.find((link) => link.rel === 'approve')) === null || _c === void 0 ? void 0 : _c.href

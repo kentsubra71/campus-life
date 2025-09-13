@@ -225,12 +225,8 @@ export const autoVerifyPendingPayPalPayments = async (userId: string): Promise<n
         }
       } else {
         console.log(`⏳ Payment ${paymentDoc.id} verification pending: ${verifyResult.message || 'Unknown'}`);
-        console.error(`❌ Verification error for ${paymentDoc.id}:`, verifyResult.error);
-        
-        // Debug: Check for undefined error values
-        if (verifyResult.error === undefined) {
-          console.error(`🚨 UNDEFINED ERROR DETECTED for payment ${paymentDoc.id}:`, verifyResult);
-        }
+        const errorMsg = verifyResult.error || 'No error details provided';
+        console.error(`❌ Verification error for ${paymentDoc.id}:`, errorMsg);
       }
       
       // No delays - check all payments as fast as possible

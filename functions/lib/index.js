@@ -133,9 +133,9 @@ exports.getUserProgress = functions.https.onCall(async (data, context) => {
 // Initialize Expo SDK for push notifications
 const expo = new expo_server_sdk_1.Expo();
 // Secure secret definitions using Firebase Secret Manager
-const PAYPAL_CLIENT_ID = (0, params_1.defineSecret)('PAYPAL_CLIENT_ID');
-const PAYPAL_CLIENT_SECRET = (0, params_1.defineSecret)('PAYPAL_CLIENT_SECRET');
-const RESEND_API_KEY = (0, params_1.defineSecret)('RESEND_API_KEY');
+const PAYPAL_CLIENT_ID = (0, params_1.defineSecret)('paypal-client-id-prod');
+const PAYPAL_CLIENT_SECRET = (0, params_1.defineSecret)('paypal-client-secret-prod');
+const RESEND_API_KEY = (0, params_1.defineSecret)('campus-life-resend-prod');
 // PayPal Configuration
 const PAYPAL_BASE_URL = 'https://api-m.sandbox.paypal.com'; // Use production URL for live app
 // Debug logging function - updated for payments collection
@@ -180,6 +180,39 @@ exports.createPayPalOrder = functions
         throw new functions.https.HttpsError('invalid-argument', 'Invalid payment data');
     }
     try {
+        // Basic duplicate protection using existing parent_id index only
+        // Client-side protection should handle most cases, this is just backup
+        const recentPaymentsQuery = await db.collection('payments')
+            .where('parent_id', '==', context.auth.uid)
+            .orderBy('created_at', 'desc')
+            .limit(5)
+            .get();
+        // Check if there's a very recent payment with same parameters (last 30 seconds)
+        const thirtySecondsAgo = admin.firestore.Timestamp.fromDate(new Date(Date.now() - 30 * 1000));
+        const matchingPayments = recentPaymentsQuery.docs.filter(doc => {
+            const data = doc.data();
+            return data.created_at > thirtySecondsAgo &&
+                data.student_id === studentId &&
+                data.intent_cents === amountCents &&
+                ['initiated', 'pending', 'processing'].includes(data.status);
+        });
+        if (matchingPayments.length > 0) {
+            const existingPayment = matchingPayments[0];
+            const existingData = existingPayment.data();
+            debugLog('createPayPalOrder', 'Found recent duplicate payment, returning it', {
+                existingPaymentId: existingPayment.id,
+                existingOrderId: existingData.paypal_order_id,
+                existingStatus: existingData.status
+            });
+            // Return existing payment details instead of creating duplicate
+            return {
+                success: true,
+                transactionId: existingPayment.id,
+                paymentId: existingPayment.id,
+                orderId: existingData.paypal_order_id,
+                approvalUrl: existingData.paypal_approval_url || `https://www.sandbox.paypal.com/checkoutnow?token=${existingData.paypal_order_id}`
+            };
+        }
         // Get student PayPal email
         const studentDoc = await db.collection('users').doc(studentId).get();
         if (!studentDoc.exists) {
@@ -234,6 +267,7 @@ exports.createPayPalOrder = functions
             parent_id: context.auth.uid,
             student_id: studentId,
             paypal_order_id: orderId,
+            paypal_approval_url: approvalUrl,
             intent_cents: amountCents,
             note: note || '',
             recipient_email: recipientEmail,
@@ -242,7 +276,7 @@ exports.createPayPalOrder = functions
             completion_method: 'direct_paypal',
             created_at: admin.firestore.FieldValue.serverTimestamp(),
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            idempotency_key: `paypal_${orderId}_${Date.now()}`
+            idempotency_key: `paypal_${orderId}_${context.auth.uid}_${studentId}_${amountCents}`
         };
         const paymentRef = await db.collection('payments').add(paymentData);
         debugLog('createPayPalOrder', 'Payment record created', { paymentId: paymentRef.id });
@@ -266,7 +300,7 @@ exports.createPayPalOrder = functions
 exports.verifyPayPalPayment = functions
     .runWith({ secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] })
     .https.onCall(async (data, context) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     debugLog('verifyPayPalPayment', 'Function called', { userId: (_a = context.auth) === null || _a === void 0 ? void 0 : _a.uid, data });
     // Verify authentication
     if (!context.auth) {
@@ -299,8 +333,24 @@ exports.verifyPayPalPayment = functions
             },
         });
         const orderData = orderResponse.data;
-        const orderStatus = orderData.status;
+        const orderStatus = orderData === null || orderData === void 0 ? void 0 : orderData.status;
         debugLog('verifyPayPalPayment', 'PayPal order status', { orderStatus, orderData });
+        // Handle missing or invalid order status
+        if (!orderStatus) {
+            debugLog('verifyPayPalPayment', 'Order status is missing or invalid', { orderData });
+            await paymentRef.update({
+                status: 'failed',
+                error: 'PayPal order status unavailable - order may be cancelled or expired',
+                updated_at: admin.firestore.FieldValue.serverTimestamp()
+            });
+            return {
+                success: false,
+                status: 'failed',
+                error: 'Payment was cancelled or expired',
+                message: 'PayPal order not found or cancelled',
+                transactionId
+            };
+        }
         // Handle different order statuses
         if (orderStatus === 'CREATED') {
             // Order was created but not approved/paid by user
@@ -386,14 +436,33 @@ exports.verifyPayPalPayment = functions
         return {
             success: false,
             status: orderStatus,
-            message: `Payment ${orderStatus.toLowerCase()}`,
+            error: `Payment was ${orderStatus ? orderStatus.toLowerCase() : 'cancelled'}`,
+            message: `Payment ${orderStatus ? orderStatus.toLowerCase() : 'cancelled'}`,
             transactionId
         };
     }
     catch (error) {
         debugLog('verifyPayPalPayment', 'Error verifying payment', error);
-        const errorMessage = ((_k = (_j = error.response) === null || _j === void 0 ? void 0 : _j.data) === null || _k === void 0 ? void 0 : _k.message) || error.message;
-        // Update payment as failed
+        // Handle different types of errors with better messages
+        let errorMessage = 'Unknown verification error';
+        let userFriendlyMessage = 'Payment verification failed';
+        if (((_j = error.response) === null || _j === void 0 ? void 0 : _j.status) === 404) {
+            errorMessage = 'PayPal order not found or expired';
+            userFriendlyMessage = 'Payment was cancelled or expired';
+        }
+        else if (((_k = error.response) === null || _k === void 0 ? void 0 : _k.status) === 422) {
+            errorMessage = 'PayPal order cannot be captured (likely cancelled)';
+            userFriendlyMessage = 'Payment was cancelled or not completed';
+        }
+        else if ((_m = (_l = error.response) === null || _l === void 0 ? void 0 : _l.data) === null || _m === void 0 ? void 0 : _m.message) {
+            errorMessage = error.response.data.message;
+            userFriendlyMessage = 'Payment verification failed';
+        }
+        else if (error.message) {
+            errorMessage = error.message;
+            userFriendlyMessage = 'Payment verification failed';
+        }
+        // Update payment as failed with clear status
         try {
             await db.collection('payments').doc(transactionId).update({
                 status: 'failed',
@@ -407,7 +476,12 @@ exports.verifyPayPalPayment = functions
         if (error instanceof functions.https.HttpsError) {
             throw error;
         }
-        throw new functions.https.HttpsError('internal', `Failed to verify payment: ${errorMessage}`);
+        return {
+            success: false,
+            error: userFriendlyMessage,
+            details: errorMessage,
+            transactionId
+        };
     }
 });
 // Get Transaction Status (for debugging and monitoring)

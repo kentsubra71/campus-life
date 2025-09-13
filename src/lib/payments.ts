@@ -88,27 +88,9 @@ export const buildProviderUrl = async (
 
   switch (provider) {
     case 'paypal':
-      // Create real PayPal order
-      try {
-        const { createPayPalOrder } = await import('./paypalIntegration');
-        const { approvalUrl } = await createPayPalOrder(
-          amount_cents,
-          recipient.email || recipient.paypal_email,
-          payment_id || '',
-          note || `Campus Life reward: $${dollars}`
-        );
-        return {
-          redirectUrl: approvalUrl,
-          manual: false
-        };
-      } catch (error) {
-        console.error('PayPal order creation failed:', error);
-        // Fallback to manual
-        return {
-          redirectUrl: `https://paypal.me/${recipient.paypal_username || 'campuslife'}/${dollars}`,
-          manual: true
-        };
-      }
+      // PayPal payments should use createPayPalP2POrder directly for proper Cloud Function integration
+      // This path is disabled to prevent duplicate payment record creation
+      throw new Error('PayPal payments have been migrated to Cloud Functions. Use createPayPalP2POrder instead of createPaymentIntent.');
 
     case 'venmo':
       const venmoRecipient = recipient.venmo_username || recipient.email || recipient.zelle_phone;

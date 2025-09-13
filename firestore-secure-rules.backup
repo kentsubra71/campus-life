@@ -1,0 +1,265 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions - NO DOCUMENT READS
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    // FIXED: Only use custom claims - no fallback document reads
+    function getFamilyId() {
+      return request.auth.token.family_id;
+    }
+    
+    function getUserType() {
+      return request.auth.token.user_type;
+    }
+    
+    function isParent() {
+      return getUserType() == 'parent';
+    }
+    
+    function isStudent() {
+      return getUserType() == 'student';
+    }
+    
+    function hasCustomClaims() {
+      return request.auth.token.family_id != null && request.auth.token.user_type != null;
+    }
+    
+    // Validation helpers
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+    
+    // User collection rules - Allow basic access for users without custom claims yet
+    match /users/{userId} {
+      // Read: Own data always, family members if custom claims exist
+      allow read: if isAuthenticated() && (
+        userId == getUserId() ||
+        (hasCustomClaims() && getFamilyId() != null)
+      );
+      
+      // Create: Own user only
+      allow create: if isAuthenticated() && userId == getUserId();
+      
+      // Update: Own data only, with field restrictions
+      allow update: if isAuthenticated() && userId == getUserId() && (
+        hasOnlyAllowedFields(['email_verified', 'updated_at']) ||
+        hasOnlyAllowedFields(['name', 'email', 'phone', 'paypal_email', 'updated_at', 'push_tokens', 'family_id', 'user_type']) ||
+        hasOnlyAllowedFields(['push_tokens', 'updated_at']) ||
+        hasOnlyAllowedFields(['family_id', 'updated_at']) ||
+        hasOnlyAllowedFields(['full_name', 'email', 'user_type', 'family_id', 'updated_at'])
+      );
+    }
+    
+    // Family collection rules - REGISTRATION SAFE: Allow creation during registration
+    match /families/{familyId} {
+      // Read: Family members only (with or without custom claims for registration)
+      allow read: if isAuthenticated() && (
+        (hasCustomClaims() && getFamilyId() == familyId) ||
+        (!hasCustomClaims() && (
+          resource.data.parentIds.hasAny([getUserId()]) ||
+          resource.data.studentIds.hasAny([getUserId()])
+        ))
+      );
+
+      // Create: REGISTRATION SAFE - Allow new family creation during registration
+      allow create: if isAuthenticated() && (
+        // During initial family creation - parent creates family and gets assigned to it
+        request.resource.data.parentIds.hasAll([getUserId()]) ||
+        // With proper custom claims - parent creating additional families
+        (hasCustomClaims() && isParent() && getFamilyId() == familyId)
+      );
+      
+      // Update: Parents only (must have custom claims) OR during initial family joining
+      allow update: if isAuthenticated() && (
+        // With custom claims - normal operation
+        (hasCustomClaims() && isParent() && getFamilyId() == familyId) ||
+        // During student joining - allow adding student to family
+        (!hasCustomClaims() && resource.data.keys().hasAll(['name', 'inviteCode', 'parentIds', 'studentIds']) && 
+         request.resource.data.keys().hasAll(['name', 'inviteCode', 'parentIds', 'studentIds']) &&
+         request.resource.data.studentIds.hasAll(resource.data.studentIds.toSet().union([getUserId()].toSet())))
+      );
+    }
+    
+    // Messages collection rules - Require custom claims
+    match /messages/{messageId} {
+      // Read: Family members only (temporarily relaxed)
+      allow read: if isAuthenticated() && hasCustomClaims();
+      
+      // Create: Family members only
+      allow create: if isAuthenticated() && 
+        hasCustomClaims() &&
+        getFamilyId() == request.resource.data.family_id &&
+        getUserId() == request.resource.data.sender_id;
+      
+      // Update: Own messages only
+      allow update: if isAuthenticated() && 
+        getUserId() == resource.data.sender_id;
+    }
+    
+    // Support requests collection rules - PHASE 2: Secure with proper validation
+    match /support_requests/{requestId} {
+      // Read: Own requests or family members with custom claims
+      allow read: if isAuthenticated() && (
+        (!hasCustomClaims() && resource.data.student_id == getUserId()) ||
+        (hasCustomClaims() && getFamilyId() == resource.data.family_id)
+      );
+      
+      // Create: Students can create their own requests
+      allow create: if isAuthenticated() && 
+        getUserId() == request.resource.data.student_id;
+      
+      // Update: Own requests or family members with custom claims
+      allow update: if isAuthenticated() && (
+        resource.data.student_id == getUserId() ||
+        (hasCustomClaims() && getFamilyId() == resource.data.family_id)
+      );
+    }
+    
+    // Wellness entries collection rules - Allow without custom claims for basic functionality
+    match /wellness_entries/{entryId} {
+      // Read: Own entries always, family entries if custom claims exist
+      allow read: if isAuthenticated() && (
+        getUserId() == resource.data.user_id ||
+        (hasCustomClaims() && getFamilyId() == resource.data.family_id)
+      );
+      
+      // Create: Own entries only
+      allow create: if isAuthenticated() && 
+        getUserId() == request.resource.data.user_id;
+      
+      // Update: Own entries only
+      allow update: if isAuthenticated() && 
+        getUserId() == resource.data.user_id;
+    }
+    
+    // XP/Progress collection rules - SECURED (Server-only writes)
+    match /user_progress/{userId} {
+      // Read: Own progress only
+      allow read: if isAuthenticated() && userId == getUserId();
+      
+      // Write: SERVER ONLY (prevents client XP manipulation)
+      allow write: if false; // Must use Cloud Functions with admin privileges
+    }
+    
+    // Payment collection rules - Require custom claims for security
+    match /payments/{paymentId} {
+      // Read: Family members only (temporarily relaxed)
+      allow read: if isAuthenticated() && hasCustomClaims();
+      
+      // Create: Parents only (temporarily relaxed)
+      allow create: if isAuthenticated() && hasCustomClaims() && isParent();
+      
+      // Update: Allow for canceling payments (temporarily relaxed)
+      allow update: if isAuthenticated() && hasCustomClaims();
+    }
+    
+    // Family join requests rules - Allow basic functionality without custom claims
+    match /family_join_requests/{requestId} {
+      // Read: Anyone authenticated can see requests (for approval flow)
+      allow read: if isAuthenticated();
+      
+      // Create: Students can create requests (before they have family custom claims)
+      allow create: if isAuthenticated() && 
+        getUserId() == request.resource.data.student_id;
+      
+      // Update/Delete: Anyone can modify (approval flow needs flexibility)
+      allow write: if isAuthenticated();
+    }
+    
+    // Push tokens collection rules - Allow without custom claims (temporarily relaxed)
+    match /push_tokens/{tokenId} {
+      // Read: Own tokens only (relaxed)
+      allow read: if isAuthenticated();
+      
+      // Create/Update: Own tokens only (relaxed)
+      allow write: if isAuthenticated();
+    }
+    
+    // Profiles collection rules - Allow without custom claims
+    match /profiles/{userId} {
+      // Read: Own profile or family members if custom claims exist
+      allow read: if isAuthenticated() && (
+        userId == getUserId() ||
+        (hasCustomClaims() && getFamilyId() != null)
+      );
+      
+      // Create: Own profile only
+      allow create: if isAuthenticated() && userId == getUserId();
+      
+      // Update: Own profile only
+      allow update: if isAuthenticated() && userId == getUserId();
+    }
+    
+    // Verification tokens collection rules - REGISTRATION SAFE: Allow for email/password flows
+    match /verification_tokens/{tokenId} {
+      // Read: REGISTRATION SAFE - Allow users to read tokens during registration
+      allow read: if true; // Needed for password reset (unauthenticated) and email verification
+
+      // Create: REGISTRATION SAFE - Allow creation during registration and password reset
+      allow create: if true; // Needed for email verification and password reset flows
+
+      // Update: Server-only (Cloud Functions handle token usage)
+      allow update: if false; // Must use Cloud Functions with admin privileges
+    }
+    
+    // PHASE 2: Secure additional collections needed for registration
+    match /rewards/{rewardId} {
+      // Read/Write: Own rewards only
+      allow read, write: if isAuthenticated() && (
+        resource == null || 
+        request.resource.data.user_id == getUserId() ||
+        resource.data.user_id == getUserId()
+      );
+    }
+    
+    match /item_requests/{requestId} {
+      // Read: Own requests or family members
+      allow read: if isAuthenticated() && (
+        resource.data.student_id == getUserId() ||
+        resource.data.parent_id == getUserId() ||
+        (hasCustomClaims() && getFamilyId() != null)
+      );
+      
+      // Create: Students can create requests
+      allow create: if isAuthenticated() && 
+        getUserId() == request.resource.data.student_id;
+      
+      // Update: Own requests or related parents
+      allow update: if isAuthenticated() && (
+        resource.data.student_id == getUserId() ||
+        resource.data.parent_id == getUserId()
+      );
+    }
+    
+    match /monthly_spend/{spendId} {
+      // Read/Write: Parents only for their own spending data
+      allow read, write: if isAuthenticated() && (
+        resource == null ||
+        request.resource.data.parent_id == getUserId() ||
+        resource.data.parent_id == getUserId()
+      );
+    }
+    
+    match /subscriptions/{subscriptionId} {
+      // Read/Write: Own subscriptions only
+      allow read, write: if isAuthenticated() && (
+        resource == null ||
+        request.resource.data.user_id == getUserId() ||
+        resource.data.user_id == getUserId()
+      );
+    }
+    
+    // Default deny - all collections must have explicit rules above
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

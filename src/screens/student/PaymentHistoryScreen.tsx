@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
@@ -95,7 +96,7 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
         const paymentsQuery = query(
           collection(db, 'payments'),
           where('student_id', '==', user.id),
-          where('status', 'in', ['completed', 'confirmed_by_parent', 'initiated', 'pending', 'processing', 'sent'])
+          where('status', 'in', ['completed', 'confirmed', 'confirmed_by_parent', 'initiated', 'pending', 'processing', 'sent', 'failed', 'cancelled', 'disputed', 'retrying'])
         );
         
         const paymentsSnapshot = await getDocs(paymentsQuery);
@@ -279,13 +280,17 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
     if (type === 'payment') {
       switch (status) {
         case 'completed': return '#10b981';
-        case 'confirmed_by_parent': return '#10b981';
+        case 'confirmed': return '#10b981'; // Green for confirmed receipt
+        case 'confirmed_by_parent': return '#f59e0b'; // Orange for awaiting student confirmation
         case 'sent': return '#f59e0b';
         case 'initiated': return theme.colors.primary;
         case 'pending': return theme.colors.primary;
+        case 'processing': return theme.colors.primary;
         case 'timeout': return '#dc2626';
         case 'cancelled': return '#9ca3af';
         case 'failed': return '#dc2626';
+        case 'disputed': return '#dc2626';
+        case 'retrying': return '#f59e0b';
         default: return '#9ca3af';
       }
     } else if (type === 'request') {
@@ -304,13 +309,17 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
     if (type === 'payment') {
       switch (status) {
         case 'completed': return 'Completed';
-        case 'confirmed_by_parent': return 'Confirmed';
+        case 'confirmed': return 'Received'; // Student confirmed receipt
+        case 'confirmed_by_parent': return 'Sent by Parent';
         case 'sent': return 'Sent';
         case 'initiated': return 'Processing';
         case 'pending': return 'Pending';
+        case 'processing': return 'Processing';
         case 'timeout': return 'Timed Out';
         case 'cancelled': return 'Cancelled';
-        case 'failed': return 'Failed';
+        case 'failed': return 'Payment Failed';
+        case 'disputed': return 'Disputed';
+        case 'retrying': return 'Retrying';
         default: return status;
       }
     } else if (type === 'request') {
@@ -325,13 +334,77 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
     }
   };
 
+  const reportPaymentFailed = async (paymentId: string) => {
+    try {
+      const { doc, updateDoc, Timestamp } = await import('firebase/firestore');
+
+      await updateDoc(doc(db, 'payments', paymentId), {
+        status: 'disputed',
+        student_reported_failed_at: Timestamp.now(),
+        student_failure_reason: 'Never received payment',
+        updated_at: Timestamp.now()
+      });
+
+      Alert.alert(
+        'Payment Reported as Failed',
+        'Your parent has been notified that you never received this payment.',
+        [{ text: 'OK' }]
+      );
+
+      // Refresh the activities to show updated status
+      await loadAllActivities();
+    } catch (error) {
+      console.error('Error reporting payment failed:', error);
+      Alert.alert('Error', 'Failed to report payment issue. Please try again.');
+    }
+  };
+
   const renderActivity = (activity: ActivityItem) => {
     const timestamp = getActivityTimestamp(activity);
-    const activityType = 'intent_cents' in activity ? 'payment' : 
+    const activityType = 'intent_cents' in activity ? 'payment' :
                         activity.type === 'support_request' ? 'request' : 'message';
-    
+
+    // Check payment status and available actions
+    const isPaymentPendingConfirmation = 'intent_cents' in activity && activity.status === 'confirmed_by_parent';
+    const isPaymentStuckProcessing = 'intent_cents' in activity && (activity.status === 'processing' || activity.status === 'initiated' || activity.status === 'pending');
+
+    const handleActivityPress = () => {
+      if (isPaymentPendingConfirmation) {
+        navigation.navigate('PaymentConfirmation', {
+          paymentId: activity.id,
+          amount: ((activity.intent_cents || activity.amount_cents) / 100).toFixed(2),
+          parentName: 'Parent' // We can enhance this later with actual parent name lookup
+        });
+      } else if (isPaymentStuckProcessing) {
+        Alert.alert(
+          'Payment Issue?',
+          `This payment has been processing for a while. Have you received $${((activity.intent_cents || activity.amount_cents) / 100).toFixed(2)} from your parent?`,
+          [
+            { text: 'Still Waiting', style: 'cancel' },
+            {
+              text: 'Never Received',
+              style: 'destructive',
+              onPress: () => reportPaymentFailed(activity.id)
+            },
+            {
+              text: 'Yes, Received',
+              onPress: () => navigation.navigate('PaymentConfirmation', {
+                paymentId: activity.id,
+                amount: ((activity.intent_cents || activity.amount_cents) / 100).toFixed(2),
+                parentName: 'Parent'
+              })
+            }
+          ]
+        );
+      }
+    };
+
+    const isClickable = isPaymentPendingConfirmation || isPaymentStuckProcessing;
+    const ActivityContainer = isClickable ? TouchableOpacity : View;
+    const containerProps = isClickable ? { onPress: handleActivityPress } : {};
+
     return (
-      <View key={activity.id} style={styles.activityItem}>
+      <ActivityContainer key={activity.id} style={styles.activityItem} {...containerProps}>
         <View style={styles.activityHeader}>
           <View style={styles.activityInfo}>
             <Text style={styles.activityType}>
@@ -390,7 +463,19 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
             </Text>
           </View>
         )}
-      </View>
+
+        {isPaymentPendingConfirmation && (
+          <View style={styles.confirmationPrompt}>
+            <Text style={styles.confirmationText}>Tap to confirm receipt</Text>
+          </View>
+        )}
+
+        {isPaymentStuckProcessing && (
+          <View style={styles.processingPrompt}>
+            <Text style={styles.processingText}>Tap if you have payment issues</Text>
+          </View>
+        )}
+      </ActivityContainer>
     );
   };
 
@@ -798,5 +883,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
     fontWeight: '500',
+  },
+  clickableActivity: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderColor: theme.colors.primary,
+    borderWidth: 1,
+  },
+  confirmationPrompt: {
+    backgroundColor: theme.colors.primary,
+    padding: 8,
+    borderRadius: 6,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  confirmationText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  processingPrompt: {
+    backgroundColor: '#f59e0b',
+    padding: 8,
+    borderRadius: 6,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  processingText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

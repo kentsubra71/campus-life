@@ -10,8 +10,8 @@ import { ChildWellnessScreen } from '../screens/parent/ChildWellnessScreen';
 import { SendSupportScreen } from '../screens/parent/SendSupportScreen';
 import { ActivityHistoryScreen } from '../screens/parent/ActivityHistoryScreen';
 import { ProfileScreen } from '../screens/shared/ProfileScreen';
-import { PaymentReturnHandler } from '../components/PaymentReturnHandler';
-import { PayPalP2PReturnHandler } from '../components/PayPalP2PReturnHandler';
+import { SendPaymentScreen } from '../screens/parent/SendPaymentScreen';
+import { PaymentAttestationScreen } from '../screens/parent/PaymentAttestationScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -84,8 +84,8 @@ export const ParentNavigator = () => {
       <Stack.Screen name="ParentTabs" component={ParentMainTabs} />
       <Stack.Screen name="ChildWellness" component={ChildWellnessScreen} />
       <Stack.Screen name="SendSupport" component={SendSupportScreen} />
-      <Stack.Screen name="PaymentReturn" component={PaymentReturnHandler} />
-      <Stack.Screen name="PayPalP2PReturn" component={PayPalP2PReturnHandler} />
+      <Stack.Screen name="SendPayment" component={SendPaymentScreen} />
+      <Stack.Screen name="PaymentAttestation" component={PaymentAttestationScreen} />
     </Stack.Navigator>
   );
 }; 

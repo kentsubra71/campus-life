@@ -420,6 +420,7 @@ export const getCurrentSpendingCaps = async (): Promise<{
   remainingCents?: number;
   periodStart?: Date;
   periodEnd?: Date;
+  advisoryOnly?: boolean;
   error?: string;
 }> => {
   const user = getCurrentUser();
@@ -437,12 +438,13 @@ export const getCurrentSpendingCaps = async (): Promise<{
         const TESTING_MODE = true;
         
         if (TESTING_MODE) {
-          console.log('🧪 TESTING MODE: Returning default high spending limits');
+          console.log('🧪 TESTING MODE: Returning default high spending limits (advisory only)');
           return {
             success: true,
             capCents: 10000, // $100 default limit for testing
             spentCents: 0,
             remainingCents: 10000,
+            advisoryOnly: true, // Deep link payments are advisory only
             periodStart: new Date(),
             periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
           };

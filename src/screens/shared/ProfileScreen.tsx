@@ -640,6 +640,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         </View>
       </View>
 
+      {/* PayPal Handle Alert for Students */}
+      {user.role === 'student' && !user.paypal_me_handle && (
+        <View style={styles.paypalAlert}>
+          <View style={styles.alertHeader}>
+            <Text style={styles.alertIcon}>💳</Text>
+            <Text style={styles.alertTitle}>Add PayPal Handle</Text>
+          </View>
+          <Text style={styles.alertDescription}>
+            Set up your PayPal.Me handle to receive payments from family. Go to your profile to add it.
+          </Text>
+          <TouchableOpacity
+            style={styles.alertButton}
+            onPress={() => navigation.navigate('Profile')}
+          >
+            <Text style={styles.alertButtonText}>Set Up PayPal</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Email Verification Panel */}
       {!isEmailVerified && (
         <View style={styles.verificationCard}>
@@ -1076,6 +1095,47 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#92400E',
+  },
+  // PayPal Alert Styles
+  paypalAlert: {
+    backgroundColor: '#EBF8FF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  alertHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  alertIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E40AF',
+  },
+  alertDescription: {
+    fontSize: 14,
+    color: '#1E40AF',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  alertButton: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  alertButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   verificationDescription: {
     fontSize: 15,

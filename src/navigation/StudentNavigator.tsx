@@ -10,6 +10,7 @@ import { PaymentHistoryScreen } from '../screens/student/PaymentHistoryScreen';
 import { ProfileScreen } from '../screens/shared/ProfileScreen';
 import WellnessLogScreen from '../screens/wellness/WellnessLogScreen';
 import WellnessHistoryScreen from '../screens/wellness/WellnessHistoryScreen';
+import { PaymentConfirmationScreen } from '../screens/student/PaymentConfirmationScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
@@ -28,6 +29,7 @@ const ActivityStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="PaymentHistory" component={PaymentHistoryScreen} />
       <Stack.Screen name="RewardsMain" component={RewardsScreen} />
+      <Stack.Screen name="PaymentConfirmation" component={PaymentConfirmationScreen} />
     </Stack.Navigator>
   );
 };

@@ -196,7 +196,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
   }, [todayEntry?.overallMood]);
 
   const handleSupportRequest = () => {
-    if (lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000) {
+    if (lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 24 * 60 * 60 * 1000) {
       Alert.alert('Support Already Requested', 'You recently requested support. Your family has been notified and will reach out soon.');
       return;
     }
@@ -234,6 +234,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
       >
+
         {/* Modern Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>Good morning!</Text>
@@ -354,7 +355,7 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Request Support</Text>
                 <Text style={styles.actionSubtitle}>
-                  {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 60 * 60 * 1000 
+                  {lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 24 * 60 * 60 * 1000 
                     ? 'Family notified' 
                     : 'Let your family know you need help'}
                 </Text>
@@ -854,5 +855,47 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textTertiary,
     lineHeight: 20,
+  },
+  // PayPal Alert Styles
+  paypalAlert: {
+    backgroundColor: '#EBF8FF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    marginHorizontal: 24,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  alertHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  alertIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E40AF',
+  },
+  alertDescription: {
+    fontSize: 14,
+    color: '#1E40AF',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  alertButton: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  alertButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
   },
 }); 

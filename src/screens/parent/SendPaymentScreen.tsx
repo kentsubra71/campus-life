@@ -15,10 +15,10 @@ import { useAuthStore } from '../../stores/authStore';
 import { getCurrentSpendingCaps, SUBSCRIPTION_TIERS, getPaymentProviders } from '../../lib/payments';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { 
-  createPayPalP2POrder, 
-  testPayPalConnection 
-} from '../../lib/paypalP2P';
+import {
+  createDeepLinkPayment,
+  formatPaymentAmount as formatDeepLinkAmount
+} from '../../lib/paypalDeepLink';
 import { 
   validatePaymentInput,
   validatePaymentAmount,
@@ -36,6 +36,11 @@ interface SendPaymentScreenProps {
     params?: {
       selectedStudentId?: string;
       selectedStudentName?: string;
+      prefilledAmount?: number;
+      retryPaymentId?: string;
+      studentId?: string;
+      amount?: string;
+      note?: string;
     };
   };
 }
@@ -44,13 +49,22 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
   const { getFamilyMembers } = useAuthStore();
   const selectedStudentId = route?.params?.selectedStudentId;
   const selectedStudentName = route?.params?.selectedStudentName;
+  const prefilledAmount = route?.params?.prefilledAmount;
+  const retryPaymentId = route?.params?.retryPaymentId;
+  const retryStudentId = route?.params?.studentId;
+  const retryAmount = route?.params?.amount;
+  const retryNote = route?.params?.note;
   
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [providers, setProviders] = useState<any[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState<'paypal' | 'venmo' | 'cashapp' | 'zelle' | null>(null);
-  const [amount, setAmount] = useState('10.00');
-  const [note, setNote] = useState('');
-  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<'paypal' | 'venmo' | 'cashapp' | 'zelle' | null>(retryPaymentId ? 'paypal' : null);
+  const [amount, setAmount] = useState(
+    retryAmount || (prefilledAmount ? prefilledAmount.toFixed(2) : '10.00')
+  );
+  const [note, setNote] = useState(retryNote || '');
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(
+    prefilledAmount && [5, 10, 20, 25, 50].includes(prefilledAmount) ? prefilledAmount : null
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [spendingInfo, setSpendingInfo] = useState<any>(null);
   const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
@@ -88,8 +102,8 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
     }
   };
 
-  const targetStudent = selectedStudentName || familyMembers.students[0]?.full_name || 'Student';
-  const targetStudentId = selectedStudentId || familyMembers.students[0]?.id;
+  const targetStudent = selectedStudentName || familyMembers.students.find(s => s.id === retryStudentId)?.full_name || familyMembers.students[0]?.full_name || 'Student';
+  const targetStudentId = selectedStudentId || retryStudentId || familyMembers.students[0]?.id;
   const amountCents = Math.round(parseFloat(amount || '0') * 100);
 
 
@@ -133,113 +147,119 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
       }
     }
 
-    // TESTING BYPASS: Skip limit checks for development
-    const TESTING_MODE = true; // Set to false when ready for production
-
-    console.log('🔍 [SendPayment] Starting payment process', { 
+    console.log('🔍 [SendPayment] Starting payment process', {
       provider: selectedProvider,
-      amountCents, 
+      amountCents,
       targetStudentId,
       remainingCents: spendingInfo?.remainingCents || 0,
-      TESTING_MODE
+      advisoryOnly: spendingInfo?.advisoryOnly || false
     });
-    
-    if (!TESTING_MODE && spendingInfo && amountCents > (spendingInfo.remainingCents || 0)) {
-      Alert.alert(
-        'Monthly Limit Exceeded',
-        `This payment would exceed your monthly limit. You have $${((spendingInfo.remainingCents || 0) / 100).toFixed(2)} remaining.\n\nUpgrade your plan for a higher limit.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Upgrade Plan', onPress: () => {/* Navigate to upgrade */} }
-        ]
-      );
-      return;
-    }
-    
-    if (TESTING_MODE) {
-      console.log('🧪 TESTING MODE: Skipping spending limit checks');
+
+    // Check spending limits - now advisory only for deep link payments
+    if (spendingInfo && amountCents > (spendingInfo.remainingCents || 0)) {
+      if (spendingInfo.advisoryOnly) {
+        // Show warning but allow to continue
+        const continuePayment = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Monthly Spending Warning',
+            `This payment would exceed your suggested monthly limit of $${((spendingInfo.capCents || 0) / 100).toFixed(2)}.\n\nYou have $${((spendingInfo.remainingCents || 0) / 100).toFixed(2)} remaining in your suggested budget.\n\nWould you like to continue anyway?`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Continue Anyway', onPress: () => resolve(true) }
+            ]
+          );
+        });
+
+        if (!continuePayment) return;
+      } else {
+        // Hard limit enforcement (for other payment methods if needed)
+        Alert.alert(
+          'Monthly Limit Exceeded',
+          `This payment would exceed your monthly limit. You have $${((spendingInfo.remainingCents || 0) / 100).toFixed(2)} remaining.\n\nUpgrade your plan for a higher limit.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Upgrade Plan', onPress: () => {/* Navigate to upgrade */} }
+          ]
+        );
+        return;
+      }
     }
 
     setIsLoading(true);
 
     try {
       if (selectedProvider === 'paypal') {
-        // Use new PayPal P2P system
-        console.log('🔍 [SendPayment] Using PayPal P2P system');
-        
-        const result = await createPayPalP2POrder(
+        // Use new PayPal deep link system
+        console.log('🔍 [SendPayment] Using PayPal deep link system');
+
+        const { user } = useAuthStore.getState();
+        if (!user) {
+          Alert.alert('Authentication Error', 'Please log in to send payments');
+          return;
+        }
+
+        const result = await createDeepLinkPayment(
+          user.id,
           targetStudentId,
           amountCents,
-          note || `Campus Life reward: ${formatPaymentAmount(amountCents)}`
+          note || `Campus Life reward: ${formatDeepLinkAmount(amountCents)}`
         );
 
-        console.log('🔍 [SendPayment] PayPal P2P result:', result);
+        console.log('🔍 [SendPayment] PayPal deep link result:', result);
 
-        if (result.success && result.approvalUrl) {
-          // Store the payment ID for potential cancellation
-          if (result.paymentId) {
-            setCurrentPaymentId(result.paymentId);
+        if (result.success && result.paymentId) {
+          // Store the payment ID for tracking
+          setCurrentPaymentId(result.paymentId);
+
+          if (result.devMode) {
+            // Development mode: Navigate immediately to attestation screen
+            Alert.alert(
+              '🚧 Dev Mode - PayPal Simulated',
+              'In development mode, we simulated opening PayPal. Now you can test the "Mark as Sent" flow.',
+              [
+                {
+                  text: 'Continue to Mark as Sent',
+                  onPress: () => {
+                    navigation.navigate('PaymentAttestation', {
+                      paymentId: result.paymentId,
+                      amount: formatDeepLinkAmount(amountCents),
+                      studentName: targetStudent.split(' ')[0],
+                      paypalUrl: result.paypalUrl
+                    });
+                  }
+                }
+              ]
+            );
+          } else {
+            // Production mode: PayPal should already be open from createDeepLinkPayment
+            // Navigate to attestation screen after a brief delay
+            setTimeout(() => {
+              navigation.navigate('PaymentAttestation', {
+                paymentId: result.paymentId,
+                amount: formatDeepLinkAmount(amountCents),
+                studentName: targetStudent.split(' ')[0],
+                paypalUrl: result.paypalUrl
+              });
+            }, 2000);
+
+            Alert.alert(
+              'PayPal Opened',
+              'Complete your payment in PayPal, then return here to confirm you sent the money.',
+              [{ text: 'OK' }]
+            );
           }
-          
-          // Open PayPal for payment
-          await Linking.openURL(result.approvalUrl);
-          
-          // Show user what to expect
-          Alert.alert(
-            'PayPal Payment Started',
-            'Complete your payment in PayPal, then return to Campus Life. The payment will be automatically verified.',
-            [
-              { text: 'OK' },
-              { 
-                text: 'Debug: Test Success', 
-                onPress: () => navigation.navigate('PayPalP2PReturn', { 
-                  transactionId: result.transactionId,
-                  orderId: result.orderId,
-                  status: 'success'
-                })
-              }
-            ]
-          );
         } else {
-          const friendlyError = getUserFriendlyError(result.error || 'PayPal payment creation failed', 'PayPal payment');
+          const friendlyError = getUserFriendlyError(result.error || 'PayPal link creation failed', 'PayPal payment');
           Alert.alert('Payment Issue', friendlyError);
-          logError(result.error, 'PayPal payment creation', { targetStudentId, amountCents });
+          logError(result.error, 'PayPal deep link creation', { targetStudentId, amountCents });
         }
       } else {
-        // Use legacy system for other providers
-        if (selectedProvider === 'paypal') {
-          console.log('🔍 [SendPayment] Using Cloud Function for PayPal');
-          
-          const result = await createPayPalP2POrder(
-            targetStudentId,
-            amountCents,
-            note || `CampusLife reward: $${amount}`
-          );
-
-          if (result.success && result.approvalUrl) {
-            // Open PayPal for payment
-            await Linking.openURL(result.approvalUrl);
-            
-            // Navigate to confirmation screen with PayPal details
-            navigation.navigate('PaymentReturn', {
-              paymentId: result.paymentId,
-              transactionId: result.transactionId,
-              orderId: result.orderId,
-              action: 'return'
-            });
-          } else {
-            const friendlyError = getUserFriendlyError(result.error || 'PayPal payment creation failed', 'payment creation');
-            Alert.alert('Payment Issue', friendlyError);
-            logError(result.error, 'PayPal payment creation', { provider: selectedProvider, targetStudentId, amountCents });
-          }
-        } else {
-          // For other providers, show temporary message
-          Alert.alert(
-            'Provider Not Available',
-            `${selectedProvider} payments are being updated. Please use PayPal for now.`,
-            [{ text: 'OK' }]
-          );
-        }
+        // For other providers, show temporary message
+        Alert.alert(
+          'Provider Not Available',
+          `${selectedProvider} payments are being updated. Please use PayPal for now.`,
+          [{ text: 'OK' }]
+        );
       }
     } catch (error: any) {
       logError(error, 'Send payment operation', { provider: selectedProvider, targetStudentId, amountCents });
@@ -296,8 +316,8 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Send Money to {targetStudent.split(' ')[0]}</Text>
-          <Text style={styles.subtitle}>External payment via P2P apps</Text>
+          <Text style={styles.title}>{retryPaymentId ? 'Retry Payment to' : 'Send Money to'} {targetStudent.split(' ')[0]}</Text>
+          <Text style={styles.subtitle}>{retryPaymentId ? 'Retry disputed payment' : 'External payment via P2P apps'}</Text>
         </View>
 
         {/* Budget Info */}

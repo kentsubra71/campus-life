@@ -17,6 +17,7 @@ import { useWellnessStore } from '../../stores/wellnessStore';
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { showMessage } from 'react-native-flash-message';
 import { theme } from '../../styles/theme';
+import { testPayPalMeHandle, isValidPayPalHandle } from '../../lib/paypalDeepLink';
 // Removed supabase import as it's not used in this version
 
 interface ProfileScreenProps {
@@ -37,6 +38,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     major: '',
     graduationYear: '',
     paypalEmail: '',
+    paypalMeHandle: '',
   });
   
   const [preferences, setPreferences] = useState({
@@ -71,6 +73,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           major: '',
           graduationYear: '',
           paypalEmail: user?.paypal_email || '',
+          paypalMeHandle: user?.paypal_me_handle || '',
         });
       }
     } catch (error) {
@@ -80,35 +83,70 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   const saveProfile = async () => {
     if (!user) return;
-    
+
+    // Validate PayPal.Me handle if provided
+    if (profile.paypalMeHandle && !isValidPayPalHandle(profile.paypalMeHandle)) {
+      Alert.alert('Invalid PayPal Handle', 'Please enter a valid PayPal.Me handle (6-20 characters, letters/numbers only)');
+      return;
+    }
+
+    // Check if PayPal handle is being changed - require password confirmation
+    const isPayPalChanging = profile.paypalMeHandle !== (user?.paypal_me_handle || '');
+    if (isPayPalChanging && profile.paypalMeHandle) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Alert.prompt(
+          'Confirm PayPal Change',
+          'For security, please enter your password to change your PayPal.Me handle:',
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            {
+              text: 'Confirm',
+              onPress: (password) => {
+                if (password && password.length >= 6) {
+                  resolve(true);
+                } else {
+                  Alert.alert('Invalid Password', 'Password must be at least 6 characters.');
+                  resolve(false);
+                }
+              }
+            }
+          ],
+          'secure-text'
+        );
+      });
+
+      if (!confirmed) return;
+    }
+
     setLoading(true);
     try {
-      // Update profile using Firebase (implement based on your Firebase structure)
-      console.log('Profile update would save:', profile);
-      const error = null; // Placeholder
-      
-      if (error) {
-        showMessage({
-          message: 'Error',
-          description: 'Failed to update profile',
-          type: 'danger',
-          backgroundColor: theme.colors.backgroundCard,
-          color: theme.colors.textPrimary,
-        });
-      } else {
-        showMessage({
-          message: 'Success',
-          description: 'Profile updated successfully',
-          type: 'success',
-          backgroundColor: theme.colors.backgroundCard,
-          color: theme.colors.textPrimary,
-        });
-        setIsEditing(false);
-      }
-    } catch (error) {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const { db } = await import('../../lib/firebase');
+
+      const updateData: any = {
+        paypal_email: profile.paypalEmail || null,
+        paypal_me_handle: profile.paypalMeHandle || null,
+        updated_at: new Date()
+      };
+
+      await updateDoc(doc(db, 'users', user.id), updateData);
+
+      showMessage({
+        message: 'Success',
+        description: profile.paypalMeHandle
+          ? 'PayPal.Me handle updated! Family can now send you money instantly.'
+          : 'Profile updated successfully',
+        type: 'success',
+        backgroundColor: theme.colors.backgroundCard,
+        color: theme.colors.textPrimary,
+      });
+      setIsEditing(false);
+
+    } catch (error: any) {
+      console.error('Error saving profile:', error);
       showMessage({
         message: 'Error',
-        description: 'Failed to update profile',
+        description: error.message || 'Failed to update profile',
         type: 'danger',
         backgroundColor: theme.colors.backgroundCard,
         color: theme.colors.textPrimary,
@@ -330,6 +368,68 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     </View>
   );
 
+  const renderPayPalMeField = () => {
+    const handleValidation = testPayPalMeHandle(profile.paypalMeHandle);
+
+    return (
+      <View style={styles.fieldContainer}>
+        <Text style={styles.fieldLabel}>PayPal.Me Handle</Text>
+        <Text style={styles.fieldDescription}>
+          Your PayPal.Me username (e.g., "johnsmith" for paypal.me/johnsmith)
+        </Text>
+        {isEditing ? (
+          <View>
+            <View style={styles.paypalInputContainer}>
+              <Text style={styles.paypalPrefix}>paypal.me/</Text>
+              <TextInput
+                style={styles.paypalInput}
+                value={profile.paypalMeHandle}
+                onChangeText={(text) => {
+                  // Remove any @ symbols or paypal.me/ prefixes
+                  const cleanText = text.replace(/^@/, '').replace(/^(https?:\/\/)?(www\.)?paypal\.com\/paypalme\//, '');
+                  setProfile({ ...profile, paypalMeHandle: cleanText.toLowerCase() });
+                }}
+                placeholder="yourhandle"
+                placeholderTextColor={theme.colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            {profile.paypalMeHandle && (
+              <View style={[
+                styles.validationContainer,
+                handleValidation.valid ? styles.validationSuccess : styles.validationError
+              ]}>
+                <Text style={[
+                  styles.validationText,
+                  handleValidation.valid ? styles.validationTextSuccess : styles.validationTextError
+                ]}>
+                  {handleValidation.valid ? '✓ Valid handle' : handleValidation.error}
+                </Text>
+                {handleValidation.valid && handleValidation.exampleUrl && (
+                  <Text style={styles.exampleUrl}>
+                    Example: {handleValidation.exampleUrl}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        ) : (
+          <View>
+            <Text style={styles.fieldValue}>
+              {profile.paypalMeHandle ? `paypal.me/${profile.paypalMeHandle}` : 'Not set'}
+            </Text>
+            {!profile.paypalMeHandle && (
+              <Text style={styles.setupPrompt}>
+                👆 Tap edit to set up your PayPal.Me handle for instant payments
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderPreferenceSwitch = (
     label: string,
     description: string,
@@ -446,10 +546,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Setup</Text>
           <Text style={styles.sectionSubtitle}>
-            Add your PayPal email so family can send you money directly
+            Set up your PayPal.Me handle so family can send you money instantly
           </Text>
           <View style={styles.fieldsContainer}>
-            {renderProfileField('PayPal Email', profile.paypalEmail, 'paypalEmail')}
+            {renderPayPalMeField()}
+            {renderProfileField('PayPal Email (Backup)', profile.paypalEmail, 'paypalEmail')}
           </View>
         </View>
 
@@ -694,6 +795,70 @@ const styles = StyleSheet.create({
   multilineInput: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  fieldDescription: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  paypalInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  paypalPrefix: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+  },
+  paypalInput: {
+    flex: 1,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    marginLeft: 4,
+  },
+  validationContainer: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 6,
+  },
+  validationSuccess: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#d1fae5',
+    borderWidth: 1,
+  },
+  validationError: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+    borderWidth: 1,
+  },
+  validationText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  validationTextSuccess: {
+    color: '#059669',
+  },
+  validationTextError: {
+    color: '#dc2626',
+  },
+  exampleUrl: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 4,
+    fontFamily: 'monospace',
+  },
+  setupPrompt: {
+    fontSize: 12,
+    color: '#3b82f6',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   accountDetail: {
     flexDirection: 'row',

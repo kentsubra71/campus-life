@@ -166,10 +166,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     
     console.log('🔧 Running manual PayPal verification...');
     try {
-      const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
-      const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
-      console.log(`🔧 Manual verification completed: ${verifiedCount} payments verified`);
-      
+      // Legacy PayPal verification disabled - using deep links now
+      // const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+      // const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+      console.log('🔧 Manual verification skipped - using deep link payments now');
+
       // Refresh activities to show updates
       await loadActivities(true);
       
@@ -268,14 +269,16 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       paypalVerifyInterval = setInterval(async () => {
         console.log('💙 Running scheduled PayPal auto-verification...');
         try {
-          const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
-          const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
-          if (verifiedCount > 0) {
-            console.log(`✅ Auto-verified ${verifiedCount} PayPal payments`);
-            loadActivities(true);
-          } else {
-            console.log('💙 No PayPal payments were verified');
-          }
+          // Legacy PayPal auto-verification disabled - using deep links now
+          // const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+          // const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+          console.log('💙 Auto-verification skipped - using deep link payments now');
+          // if (verifiedCount > 0) {
+          //   console.log(`✅ Auto-verified ${verifiedCount} PayPal payments`);
+          //   loadActivities(true);
+          // } else {
+          //   console.log('💙 No PayPal payments were verified');
+          // }
         } catch (error) {
           console.error('⚠️ PayPal auto-verification failed:', error);
         }
@@ -354,7 +357,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           id: doc.id,
           type: 'payment',
           timestamp: payment.created_at && payment.created_at.toDate ? payment.created_at.toDate() : new Date(),
-          amount: payment.intent_cents / 100,
+          amount: (payment.intent_cents || payment.amount_cents) / 100, // Support both old and new payment formats
           provider: payment.provider,
           status: payment.status,
           note: payment.note,
@@ -765,20 +768,28 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
       console.log('✅ Item request status updated to approved');
 
-      // Use existing PayPal P2P system (same as support payments)
-      const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
-      
-      console.log('🔍 Calling createPayPalP2POrder with:', {
-        studentId,
-        itemPrice,
-        note: `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
-      });
-      
-      const result = await createPayPalP2POrder(
-        studentId,
-        itemPrice, // itemPrice is already in cents from database
-        `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
+      // Legacy PayPal P2P system disabled - redirect to new payment system
+      Alert.alert(
+        'Payment System Updated',
+        'PayPal payments have been updated. Please use the main "Send Payment" feature to send funds for this item.',
+        [
+          { text: 'OK', onPress: () => navigation.navigate('ParentTabs') }
+        ]
       );
+      return;
+
+      // Legacy PayPal code commented out
+      // const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
+      // console.log('🔍 Calling createPayPalP2POrder with:', {
+      //   studentId,
+      //   itemPrice,
+      //   note: `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
+      // });
+      // const result = await createPayPalP2POrder(
+      //   studentId,
+      //   itemPrice, // itemPrice is already in cents from database
+      //   `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
+      // );
 
       console.log('🔍 PayPal P2P order result:', result);
 
@@ -832,13 +843,16 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     if (type === 'payment') {
       switch (status) {
         case 'completed': return '#10b981';
-        case 'confirmed_by_parent': return '#10b981';
+        case 'confirmed': return '#10b981'; // Green for student confirmed receipt
+        case 'confirmed_by_parent': return '#f59e0b'; // Orange for awaiting student confirmation
         case 'sent': return '#f59e0b';
         case 'initiated': return theme.colors.primary;
         case 'pending': return theme.colors.primary;
         case 'timeout': return '#dc2626';
         case 'cancelled': return '#9ca3af';
         case 'failed': return '#dc2626';
+        case 'disputed': return '#dc2626';
+        case 'retrying': return '#f59e0b';
         default: return '#9ca3af';
       }
     } else if (type === 'item_request') {
@@ -868,16 +882,16 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       switch (status) {
         case 'completed': return 'Completed';
         case 'confirmed_by_parent': return 'Confirmed';
-        case 'confirmed': 
-          console.warn('⚠️ Payment has unexpected status "confirmed" - should be "confirmed_by_parent", "completed", or "failed"');
-          return 'Needs Review';
+        case 'confirmed': return 'Received'; // Student confirmed receipt
         case 'sent': return 'Sent';
         case 'initiated': return 'Processing';
         case 'pending': return 'Pending';
         case 'timeout': return 'Timed Out';
         case 'cancelled': return 'Cancelled';
         case 'failed': return 'Failed';
-        default: 
+        case 'disputed': return 'Disputed';
+        case 'retrying': return 'Retrying';
+        default:
           console.warn(`⚠️ Payment has unknown status: "${status}"`);
           return status;
       }
@@ -982,12 +996,70 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     }
   };
 
+  const retryPayment = async (paymentId: string) => {
+    try {
+      const { doc, updateDoc, Timestamp, getDoc } = await import('firebase/firestore');
+
+      // Get the payment details first
+      const paymentDoc = await getDoc(doc(db, 'payments', paymentId));
+      const paymentData = paymentDoc.data();
+
+      if (!paymentData) {
+        Alert.alert('Error', 'Payment not found');
+        return;
+      }
+
+      // Update status to retrying
+      await updateDoc(doc(db, 'payments', paymentId), {
+        status: 'retrying',
+        retry_attempted_at: Timestamp.now(),
+        updated_at: Timestamp.now()
+      });
+
+      // Navigate directly to send payment screen with pre-filled data
+      navigation.navigate('SendPayment', {
+        retryPaymentId: paymentId,
+        studentId: paymentData.student_id,
+        amount: ((paymentData.intent_cents || paymentData.amount_cents) / 100).toFixed(2),
+        note: paymentData.note || 'Retry payment'
+      });
+
+    } catch (error) {
+      console.error('Error retrying payment:', error);
+      Alert.alert('Error', 'Failed to retry payment. Please try again.');
+    }
+  };
+
+  const handleActivityPress = (item: ActivityItem) => {
+    if (item.type === 'payment') {
+      // Navigate to payment detail screen
+      // For now, show an alert with payment details
+      Alert.alert(
+        'Payment Details',
+        `Amount: $${item.amount?.toFixed(2)}\nStatus: ${getStatusText(item.type, item.status)}\nStudent: ${item.student_name}\nNote: ${item.note || 'No note'}`,
+        [{ text: 'OK' }]
+      );
+    } else if (item.type === 'message') {
+      Alert.alert(
+        'Message Details',
+        `From: Parent\nTo: ${item.student_name}\nMessage: ${item.message_content}`,
+        [{ text: 'OK' }]
+      );
+    } else if (item.type === 'support_request') {
+      Alert.alert(
+        'Support Request Details',
+        `From: ${item.student_name}\nRequest: ${item.support_content || 'Support needed'}\nStatus: ${getStatusText(item.type, item.status)}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
 
   const renderActivityItem = (item: ActivityItem) => {
     return (
       <View key={item.id}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.activityItem}
+          onPress={() => handleActivityPress(item)}
         >
         <View style={styles.activityHeader}>
           <View style={styles.activityInfo}>
@@ -1055,17 +1127,69 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                       </TouchableOpacity>
                     </View>
                   );
+                } else if (item.status === 'confirmed_by_parent') {
+                  return (
+                    <View style={styles.confirmedPaymentActions}>
+                      <Text style={styles.confirmedPaymentText}>Awaiting student confirmation</Text>
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity
+                          style={styles.cancelPaymentButton}
+                          onPress={() => {
+                            Alert.alert(
+                              'Cancel Payment',
+                              'Cancel this payment? The student will be notified.',
+                              [
+                                { text: 'Keep Payment', style: 'cancel' },
+                                { text: 'Cancel Payment', style: 'destructive', onPress: () => cancelPayment(item.id) }
+                              ]
+                            );
+                          }}
+                        >
+                          <Text style={styles.cancelPaymentButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                } else if (item.status === 'disputed') {
+                  return (
+                    <View style={styles.disputedPaymentActions}>
+                      <Text style={styles.disputedPaymentText}>⚠️ Student says they never received this payment</Text>
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity
+                          style={styles.retryPaymentButton}
+                          onPress={() => {
+                            Alert.alert(
+                              'Retry Payment',
+                              'Try sending the payment again?',
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Retry', onPress: () => retryPayment(item.id) }
+                              ]
+                            );
+                          }}
+                        >
+                          <Text style={styles.retryPaymentButtonText}>Retry</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.cancelPaymentButton}
+                          onPress={() => cancelPayment(item.id)}
+                        >
+                          <Text style={styles.cancelPaymentButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
                 } else if (item.status === 'failed' || item.status === 'cancelled' || item.status === 'timeout' || isTimedOut) {
                   return (
                     <View style={styles.failedPaymentActions}>
                       <Text style={styles.failedPaymentText}>
-                        {item.status === 'failed' ? '❌ Payment Failed' : 
+                        {item.status === 'failed' ? '❌ Payment Failed' :
                          item.status === 'cancelled' ? '🚫 Payment Cancelled' : '⏰ Payment Expired'}
                       </Text>
                     </View>
                   );
                 }
-                
+
                 return null;
               })()
             )}
@@ -1745,5 +1869,50 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
     backgroundColor: theme.colors.backgroundSecondary,
+  },
+  confirmedPaymentActions: {
+    backgroundColor: '#fef3c7', // Light yellow background
+    borderColor: '#fde047',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+  },
+  confirmedPaymentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 8,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  disputedPaymentActions: {
+    backgroundColor: '#fef3c7', // Light yellow background
+    borderColor: '#f59e0b',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+  },
+  disputedPaymentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 8,
+  },
+  retryPaymentButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  retryPaymentButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 });

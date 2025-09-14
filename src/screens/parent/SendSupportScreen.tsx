@@ -16,7 +16,8 @@ import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { sendMessage, getCurrentUser } from '../../lib/firebase';
 import { getCurrentSpendingCaps } from '../../lib/payments';
-import { createPayPalP2POrder } from '../../lib/paypalP2P';
+// Legacy PayPal P2P disabled - using deep links now
+// import { createPayPalP2POrder } from '../../lib/paypalP2P';
 import { createTestSubscription } from '../../lib/subscriptionWebhooks';
 import * as Linking from 'expo-linking';
 import { theme } from '../../styles/theme';
@@ -51,6 +52,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
   const [spendingInfo, setSpendingInfo] = useState<any>(null);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
 
   React.useEffect(() => {
     const loadFamilyData = async () => {
@@ -141,6 +143,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
       // For care boost, we need actual payment
       if (!selectedProvider) {
         Alert.alert('Select Payment Method', 'Choose how you want to send the money (PayPal, Venmo, etc.)');
+        setIsLoading(false);
         return;
       }
 
@@ -155,40 +158,110 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
             { text: 'Choose Different Support', onPress: () => setSelectedType('message') }
           ]
         );
+        setIsLoading(false);
         return;
       }
 
       // Create real payment intent
       const studentId = selectedStudentId || familyMembers.students[selectedStudentIndex]?.id || familyMembers.students[0]?.id;
-      
+
       if (!studentId) {
         Alert.alert('Error', 'Unable to find student to send payment to.');
+        setIsLoading(false);
         return;
       }
 
       try {
         if (selectedProvider === 'paypal') {
-          // Use new Cloud Function approach for PayPal
-          const result = await createPayPalP2POrder(
+          // Use new PayPal deep link system (EXACT COPY from SendPayment)
+          console.log('🔍 [SendSupport] Using PayPal deep link system');
+
+          const { user } = useAuthStore.getState();
+          if (!user) {
+            Alert.alert('Authentication Error', 'Please log in to send payments');
+            setIsLoading(false);
+            return;
+          }
+
+          const amountCents = Math.round(boostAmount * 100);
+          const { createDeepLinkPayment, formatPaymentAmount: formatDeepLinkAmount } = await import('../../lib/paypalDeepLink');
+          const { getUserFriendlyError, logError } = await import('../../utils/userFriendlyErrors');
+
+          const result = await createDeepLinkPayment(
+            user.id,
             studentId,
-            boostAmount * 100, // Convert to cents
-            customMessage || `Care boost from Mom/Dad: $${boostAmount}`
+            amountCents,
+            customMessage || supportTemplates[selectedType][0] || `Campus Life reward: ${formatDeepLinkAmount(amountCents)}`
           );
 
-          if (result.success && result.approvalUrl) {
-            // Open PayPal for payment
-            await Linking.openURL(result.approvalUrl);
-            
-            // Navigate to confirmation screen with PayPal details
-            navigation.navigate('PaymentReturn', {
-              paymentId: result.paymentId,
-              transactionId: result.transactionId,
-              orderId: result.orderId,
-              action: 'return'
-            });
+          console.log('🔍 [SendSupport] PayPal deep link result:', result);
+
+          if (result.success && result.paymentId) {
+            // Store the payment ID for tracking
+            setCurrentPaymentId(result.paymentId);
+
+            if (result.devMode) {
+              // Development mode: Navigate immediately to attestation screen
+              Alert.alert(
+                '🚧 Dev Mode - PayPal Simulated',
+                'In development mode, we simulated opening PayPal. Now you can test the "Mark as Sent" flow.',
+                [
+                  {
+                    text: 'Continue to Mark as Sent',
+                    onPress: () => {
+                      navigation.navigate('PaymentAttestation', {
+                        paymentId: result.paymentId,
+                        amount: formatDeepLinkAmount(amountCents),
+                        studentName: targetStudent.split(' ')[0],
+                        paypalUrl: result.paypalUrl
+                      });
+                    }
+                  }
+                ]
+              );
+            } else {
+              // Production mode: PayPal should already be open from createDeepLinkPayment
+              // Navigate to attestation screen after a brief delay
+              setTimeout(() => {
+                navigation.navigate('PaymentAttestation', {
+                  paymentId: result.paymentId,
+                  amount: formatDeepLinkAmount(amountCents),
+                  studentName: targetStudent.split(' ')[0],
+                  paypalUrl: result.paypalUrl
+                });
+              }, 2000);
+
+              Alert.alert(
+                'PayPal Opened',
+                'Complete your payment in PayPal, then return here to confirm you sent the money.',
+                [{ text: 'OK' }]
+              );
+            }
           } else {
-            Alert.alert('Payment Error', result.error || 'PayPal payment creation failed');
+            // Check if user cancelled
+            if (result.error && result.error.includes('cancelled')) {
+              console.log('🔍 [SendSupport] User cancelled PayPal flow');
+              return; // Don't show error for user cancellation
+            }
+
+            const friendlyError = getUserFriendlyError(result.error || 'PayPal link creation failed', 'PayPal payment');
+            Alert.alert('Payment Issue', friendlyError);
+            logError(result.error, 'PayPal deep link creation', { studentId, amountCents });
           }
+          return;
+
+          // Legacy PayPal code commented out
+          // if (result.success && result.approvalUrl) {
+          //   await Linking.openURL(result.approvalUrl);
+          //   navigation.navigate('PaymentReturn', {
+          //     paymentId: result.paymentId,
+          //     transactionId: result.transactionId,
+          //     orderId: result.orderId,
+          //     action: 'return'
+          //   });
+          // } else {
+          //   Alert.alert('Payment Error', result.error || 'PayPal payment creation failed');
+          // }
         } else {
           // For other providers, show temporary message
           Alert.alert(
@@ -198,7 +271,11 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           );
         }
       } catch (error: any) {
-        Alert.alert('Error', error.message || 'Failed to create payment');
+        logError(error, 'Send payment operation', { provider: selectedProvider, studentId, amountCents });
+        const friendlyError = getUserFriendlyError(error, 'payment processing');
+        Alert.alert('Payment Failed', friendlyError);
+      } finally {
+        setIsLoading(false);
       }
       return;
     }
@@ -358,7 +435,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           </View>
         </View>
 
-        {/* Care Boost Amount - Simple Cards */}
+        {/* Care Boost Amount - Simple Cards + Custom Input */}
         {selectedType === 'boost' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Care Boost Amount</Text>
@@ -383,6 +460,25 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+
+            {/* Custom Amount Input */}
+            <View style={styles.customAmountContainer}>
+              <Text style={styles.customAmountLabel}>Or enter custom amount:</Text>
+              <View style={styles.customAmountInputContainer}>
+                <Text style={styles.dollarSign}>$</Text>
+                <TextInput
+                  style={styles.customAmountInput}
+                  value={boostAmount.toString()}
+                  onChangeText={(text) => {
+                    const numericValue = parseFloat(text) || 0;
+                    setBoostAmount(numericValue);
+                  }}
+                  placeholder="25"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  keyboardType="decimal-pad"
+                />
+              </View>
             </View>
           </View>
         )}
@@ -506,6 +602,14 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
               This amount would exceed your monthly limit
             </Text>
           )}
+        </View>
+
+        {/* Important Reminder */}
+        <View style={styles.reminderSection}>
+          <Text style={styles.reminderTitle}>💡 Important Reminder</Text>
+          <Text style={styles.reminderText}>
+            When you send money, make sure to confirm the payment after completing it in PayPal. This lets your student know to check for the funds and keeps everyone on the same page about payment status.
+          </Text>
         </View>
       </ScrollView>
       </KeyboardAvoidingView>
@@ -840,5 +944,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  // Custom Amount Input Styles
+  customAmountContainer: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  customAmountLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 12,
+  },
+  customAmountInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dollarSign: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginRight: 8,
+  },
+  customAmountInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    padding: 0,
+  },
+  // Reminder Section Styles
+  reminderSection: {
+    backgroundColor: '#EBF8FF',
+    marginHorizontal: 24,
+    marginBottom: 24,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  reminderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E40AF',
+    marginBottom: 12,
+  },
+  reminderText: {
+    fontSize: 14,
+    color: '#1E40AF',
+    lineHeight: 20,
   },
 });

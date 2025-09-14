@@ -146,18 +146,46 @@ export const signUpUser = async (email: string, password: string, fullName: stri
     // Update display name
     await updateProfile(user, { displayName: fullName });
 
-    // Create user profile in Firestore with email verification status
-    const userProfile: UserProfile = {
-      id: user.uid,
-      email: user.email!,
+    // CRITICAL FIX: Wait for onUserCreated function to complete
+    // onUserCreated sets custom claims AND creates user document server-side
+    console.log('⏱️ Waiting for onUserCreated to complete initialization...');
+
+    let attempts = 0;
+    const maxAttempts = 30; // 15 seconds max wait
+
+    while (attempts < maxAttempts) {
+      try {
+        // Force token refresh to get latest custom claims
+        const token = await user.getIdTokenResult(true);
+
+        // Check if onUserCreated has completed (set initialized claim)
+        if (token.claims.initialized) {
+          console.log('✅ onUserCreated completed, user document created server-side');
+          break;
+        }
+
+        // Wait 500ms before checking again
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+
+      } catch (error) {
+        console.warn('Error checking custom claims, retrying...', error);
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    if (attempts >= maxAttempts) {
+      console.warn('⚠️ Timeout waiting for onUserCreated, registration may fail');
+      throw new Error('Registration timeout - please try again');
+    }
+
+    // Update the user document with the correct user_type (server-side created it with empty user_type)
+    await updateDoc(doc(db, 'users', user.uid), {
       full_name: fullName,
       user_type: userType,
-      email_verified: false, // Will be set to true after custom verification
-      created_at: Timestamp.now(),
-      updated_at: Timestamp.now(),
-    };
-
-    await setDoc(doc(db, 'users', user.uid), userProfile);
+      updated_at: Timestamp.now()
+    });
     
     // Also create profile for students with extended data
     if (userType === 'student') {

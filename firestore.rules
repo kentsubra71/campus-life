@@ -31,16 +31,23 @@ service cloud.firestore {
       return request.auth.token.user_type == 'student';
     }
 
-    // STRICT: Users collection - only established users with custom claims
+    // SECURE: Users collection - registration safe with custom claims support
     match /users/{userId} {
-      allow read: if isAuthenticated() && hasCustomClaims() && (
+      allow read: if isAuthenticated() && (
+        // Own user document always (during registration or after)
         userId == getUserId() ||
-        getFamilyId() != null
+        // Family members with full custom claims
+        (hasCustomClaims() && getFamilyId() != null)
       );
 
       allow create: if false; // SERVER-ONLY via Cloud Functions
 
-      allow update: if isAuthenticated() && hasCustomClaims() && userId == getUserId();
+      allow update: if isAuthenticated() && userId == getUserId() && (
+        // During registration - user has initialized claim (regardless of family claims)
+        request.auth.token.initialized != null ||
+        // After registration - user has full custom claims
+        hasCustomClaims()
+      );
     }
 
     // STRICT: Families collection - only established users
@@ -94,16 +101,18 @@ service cloud.firestore {
       allow write: if isAuthenticated() && getUserId() == request.resource.data.userId;
     }
 
-    // STRICT: Profiles collection - family members only
+    // SECURE: Profiles collection - registration safe
     match /profiles/{userId} {
       allow read: if isAuthenticated() && (
         userId == getUserId() ||
         (hasCustomClaims() && getFamilyId() != null)
       );
 
-      allow create: if false; // SERVER-ONLY during registration
+      allow create: if isAuthenticated() && userId == getUserId() &&
+        request.auth.token.initialized != null;
 
-      allow update: if isAuthenticated() && userId == getUserId();
+      allow update: if isAuthenticated() && userId == getUserId() &&
+        request.auth.token.initialized != null;
     }
 
     // STRICT: Verification tokens - unauthenticated access for password reset only

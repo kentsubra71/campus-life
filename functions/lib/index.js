@@ -30,7 +30,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.joinFamilyServerSide = exports.createFamilyServerSide = exports.sendPasswordResetEmailHttp = exports.requestPasswordResetHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.verifyPasswordResetTokenHttp = exports.verifyEmailHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = exports.getUserProgress = exports.updateUserXP = exports.markUserVerified = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const axios_1 = __importDefault(require("axios"));
 const expo_server_sdk_1 = require("expo-server-sdk");

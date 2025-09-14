@@ -24,10 +24,11 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.refreshToken = exports.setFamilyClaims = exports.onUserCreated = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
-// FIXED: Set custom claims immediately after user creation
+// FIXED: Set custom claims AND create user documents server-side
 exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
+    const db = admin.firestore();
     try {
         functions.logger.info('New user created', { uid: user.uid, email: user.email });
         // Set basic custom claims immediately - don't wait for user document
@@ -37,10 +38,22 @@ exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
             initialized: Date.now(),
             // family_id and user_type will be set later when user joins/creates family
         });
-        functions.logger.info('Initial custom claims set for new user', { uid: user.uid });
+        // CRITICAL FIX: Create user document server-side (required by Firestore rules)
+        // This prevents "permission denied" errors when client tries to create user doc
+        const userProfile = {
+            id: user.uid,
+            email: user.email || '',
+            full_name: user.displayName || '',
+            user_type: '',
+            email_verified: false,
+            created_at: admin.firestore.FieldValue.serverTimestamp(),
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        await db.collection('users').doc(user.uid).set(userProfile);
+        functions.logger.info('User document and custom claims set for new user', { uid: user.uid });
     }
     catch (error) {
-        functions.logger.error('Failed to set initial custom claims', { uid: user.uid, error: error.message });
+        functions.logger.error('Failed to initialize new user', { uid: user.uid, error: error.message });
     }
 });
 // Email verification is handled by the existing markUserVerified function

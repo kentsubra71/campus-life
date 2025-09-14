@@ -29,7 +29,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPasswordResetEmailHttp = exports.requestPasswordResetHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.verifyPasswordResetTokenHttp = exports.verifyEmailHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = exports.getUserProgress = exports.updateUserXP = exports.markUserVerified = void 0;
+exports.joinFamilyServerSide = exports.createFamilyServerSide = exports.sendPasswordResetEmailHttp = exports.requestPasswordResetHttp = exports.sendPasswordChangeConfirmationHttp = exports.resetPasswordHttp = exports.verifyPasswordResetTokenHttp = exports.verifyEmailHttp = exports.sendEmail = exports.sendPushNotification = exports.testPayPalConnection = exports.getTransactionStatus = exports.verifyPayPalPayment = exports.createPayPalOrder = exports.getUserProgress = exports.updateUserXP = exports.markUserVerified = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const axios_1 = __importDefault(require("axios"));
@@ -1559,6 +1559,127 @@ exports.sendPasswordResetEmailHttp = functions
             success: false,
             error: `Email service error: ${errorMessage}`
         });
+    }
+});
+// SECURE: Server-side family creation to avoid client-side Firestore rule issues
+exports.createFamilyServerSide = functions.https.onCall(async (data, context) => {
+    // Verify authentication
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const { familyName, parentId } = data;
+    // Validate input
+    if (!familyName || !parentId || parentId !== context.auth.uid) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid family creation data');
+    }
+    try {
+        // Generate secure invite code
+        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        const familyData = {
+            name: familyName,
+            inviteCode,
+            parentIds: [parentId],
+            studentIds: [],
+            created_at: admin.firestore.FieldValue.serverTimestamp(),
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        // Create family document with admin privileges (bypasses Firestore rules)
+        const familyRef = await db.collection('families').add(familyData);
+        // Update parent's profile with family ID (with admin privileges)
+        await db.collection('users').doc(parentId).update({
+            family_id: familyRef.id,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        // Set custom claims immediately (with admin privileges)
+        await admin.auth().setCustomUserClaims(parentId, {
+            email_verified: context.auth.token.email_verified || false,
+            admin: true,
+            family_id: familyRef.id,
+            user_type: 'parent',
+            family_joined_at: Math.floor(Date.now() / 1000),
+            initialized: Date.now(),
+        });
+        functions.logger.info('Family created successfully', {
+            familyId: familyRef.id,
+            parentId,
+            familyName
+        });
+        return {
+            success: true,
+            familyId: familyRef.id,
+            inviteCode,
+            message: 'Family created successfully'
+        };
+    }
+    catch (error) {
+        functions.logger.error('Error creating family server-side', { parentId, error: error.message });
+        throw new functions.https.HttpsError('internal', `Failed to create family: ${error.message}`);
+    }
+});
+// SECURE: Server-side family joining to avoid client-side Firestore rule issues
+exports.joinFamilyServerSide = functions.https.onCall(async (data, context) => {
+    // Verify authentication
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const { inviteCode, studentId } = data;
+    // Validate input
+    if (!inviteCode || !studentId || studentId !== context.auth.uid) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid family join data');
+    }
+    try {
+        // Find family by invite code (with admin privileges)
+        const familyQuery = await db.collection('families')
+            .where('inviteCode', '==', inviteCode)
+            .limit(1)
+            .get();
+        if (familyQuery.empty) {
+            throw new functions.https.HttpsError('not-found', 'Invalid invite code');
+        }
+        const familyDoc = familyQuery.docs[0];
+        const familyData = familyDoc.data();
+        // Check if student is already in the family
+        if (familyData.studentIds && familyData.studentIds.includes(studentId)) {
+            throw new functions.https.HttpsError('already-exists', 'Student is already a member of this family');
+        }
+        // Add student to family (with admin privileges)
+        const updatedStudentIds = [...(familyData.studentIds || []), studentId];
+        await familyDoc.ref.update({
+            studentIds: updatedStudentIds,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        // Update student's profile with family ID (with admin privileges)
+        await db.collection('users').doc(studentId).update({
+            family_id: familyDoc.id,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        // Set custom claims immediately (with admin privileges)
+        await admin.auth().setCustomUserClaims(studentId, {
+            email_verified: context.auth.token.email_verified || false,
+            admin: true,
+            family_id: familyDoc.id,
+            user_type: 'student',
+            family_joined_at: Math.floor(Date.now() / 1000),
+            initialized: Date.now(),
+        });
+        functions.logger.info('Student joined family successfully', {
+            familyId: familyDoc.id,
+            studentId,
+            familyName: familyData.name
+        });
+        return {
+            success: true,
+            familyId: familyDoc.id,
+            familyName: familyData.name,
+            message: 'Successfully joined family'
+        };
+    }
+    catch (error) {
+        functions.logger.error('Error joining family server-side', { studentId, error: error.message });
+        if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
+        throw new functions.https.HttpsError('internal', `Failed to join family: ${error.message}`);
     }
 });
 //# sourceMappingURL=index.js.map

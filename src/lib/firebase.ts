@@ -484,106 +484,67 @@ export const initializeCollections = async () => {
   }
 };
 
-// Family functions
+// SECURE: Family functions now use server-side Cloud Functions for security
 export const createFamily = async (familyName: string, parentId: string): Promise<{ familyId?: string; inviteCode?: string; error?: string }> => {
   try {
-    const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-    
-    const family: Omit<Family, 'id'> = {
-      name: familyName,
-      inviteCode,
-      parentIds: [parentId],
-      studentIds: [],
-      created_at: Timestamp.now(),
-      updated_at: Timestamp.now(),
+    console.log('🔒 Creating family server-side for security:', { familyName, parentId });
+
+    // Call server-side Cloud Function (bypasses Firestore rules with admin privileges)
+    const createFamilyFunction = httpsCallable(functions, 'createFamilyServerSide');
+    const result = await createFamilyFunction({
+      familyName,
+      parentId
+    });
+
+    // Force token refresh to get updated custom claims immediately
+    if (auth.currentUser) {
+      await auth.currentUser.getIdToken(true);
+      console.log('✅ Custom claims refreshed for parent:', parentId);
+    }
+
+    return {
+      familyId: result.data.familyId,
+      inviteCode: result.data.inviteCode
     };
 
-    const docRef = await addDoc(collection(db, 'families'), family);
-    
-    // Update the parent's profile with the family ID
-    await updateUserProfile(parentId, { family_id: docRef.id });
-    
-    // CRITICAL: Set custom claims for Firebase Auth
-    try {
-      const setFamilyClaimsFunction = httpsCallable(functions, 'setFamilyClaims');
-      await setFamilyClaimsFunction({
-        userId: parentId,
-        familyId: docRef.id,
-        userType: 'parent'
-      });
-      
-      // Wait for claims to propagate and force token refresh
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (auth.currentUser) {
-        await auth.currentUser.getIdToken(true);
-      }
-      
-      console.log('Custom claims set for parent:', parentId);
-    } catch (claimsError: any) {
-      console.error('Warning: Failed to set custom claims for parent:', claimsError.message);
-      // Don't fail the family creation, but log the issue
-    }
-    
-    return { familyId: docRef.id, inviteCode };
   } catch (error: any) {
-    console.error('Error creating family:', error);
-    return { error: error.message };
+    console.error('❌ Error creating family server-side:', error);
+    return { error: error.message || 'Failed to create family' };
   }
 };
 
 export const joinFamily = async (inviteCode: string, studentId: string): Promise<{ familyId?: string; error?: string }> => {
   try {
-    // Find family by invite code
-    const q = query(collection(db, 'families'), where('inviteCode', '==', inviteCode));
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      return { error: 'Invalid invite code' };
+    console.log('🔒 Joining family server-side for security:', { inviteCode, studentId });
+
+    // Call server-side Cloud Function (bypasses Firestore rules with admin privileges)
+    const joinFamilyFunction = httpsCallable(functions, 'joinFamilyServerSide');
+    const result = await joinFamilyFunction({
+      inviteCode,
+      studentId
+    });
+
+    // Force token refresh to get updated custom claims immediately
+    if (auth.currentUser) {
+      await auth.currentUser.getIdToken(true);
+      console.log('✅ Custom claims refreshed for student:', studentId);
     }
-    
-    const familyDoc = querySnapshot.docs[0];
-    const familyData = familyDoc.data() as Family;
-    
-    // Check if student is already in the family
-    if (familyData.studentIds.includes(studentId)) {
+
+    return {
+      familyId: result.data.familyId
+    };
+
+  } catch (error: any) {
+    console.error('❌ Error joining family server-side:', error);
+
+    // Handle specific Cloud Function errors
+    if (error.code === 'functions/not-found') {
+      return { error: 'Invalid invite code' };
+    } else if (error.code === 'functions/already-exists') {
       return { error: 'Student is already a member of this family' };
     }
-    
-    // Add student to family
-    const updatedStudentIds = [...familyData.studentIds, studentId];
-    await updateDoc(doc(db, 'families', familyDoc.id), {
-      studentIds: updatedStudentIds,
-      updated_at: Timestamp.now()
-    });
-    
-    // Update the student's profile with the family ID
-    await updateUserProfile(studentId, { family_id: familyDoc.id });
-    
-    // CRITICAL: Set custom claims for Firebase Auth
-    try {
-      const setFamilyClaimsFunction = httpsCallable(functions, 'setFamilyClaims');
-      await setFamilyClaimsFunction({
-        userId: studentId,
-        familyId: familyDoc.id,
-        userType: 'student'
-      });
-      
-      // Wait for claims to propagate and force token refresh
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (auth.currentUser) {
-        await auth.currentUser.getIdToken(true);
-      }
-      
-      console.log('Custom claims set for student:', studentId);
-    } catch (claimsError: any) {
-      console.error('Warning: Failed to set custom claims for student:', claimsError.message);
-      // Don't fail the family join, but log the issue
-    }
-    
-    return { familyId: familyDoc.id };
-  } catch (error: any) {
-    console.error('Error joining family:', error);
-    return { error: error.message };
+
+    return { error: error.message || 'Failed to join family' };
   }
 };
 

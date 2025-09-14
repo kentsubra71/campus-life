@@ -122,7 +122,7 @@ service cloud.firestore {
       allow update: if false; // SERVER-ONLY
     }
 
-    // SECURE: Payments - strict participant access only
+    // SECURE: Payments - strict participant access only (supports both legacy and deep link formats)
     match /payments/{paymentId} {
       // Read: Only direct payment participants (parent or student involved)
       allow read: if isAuthenticated() && (
@@ -134,8 +134,12 @@ service cloud.firestore {
       allow create: if isAuthenticated() &&
         request.auth.uid == request.resource.data.parent_id &&
         request.resource.data.student_id is string &&
-        request.resource.data.intent_cents is number &&
-        request.resource.data.intent_cents > 0;
+        (
+          // Legacy format
+          (request.resource.data.intent_cents is number && request.resource.data.intent_cents > 0) ||
+          // New deep link format
+          (request.resource.data.amount_cents is number && request.resource.data.amount_cents > 0)
+        );
 
       // Update: Only direct payment participants
       allow update: if isAuthenticated() && (

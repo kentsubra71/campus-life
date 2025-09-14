@@ -151,19 +151,19 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           `${user.id}_${selectedStudent?.id}`
         );
 
-        // PayPal verification (reduced delay)
-        setTimeout(async () => {
-          try {
-            const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
-            const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
-            if (verifiedCount > 0) {
-              // Refresh monthly payments to show updates
-              fetchMonthlyPayments(selectedStudent?.id);
-            }
-          } catch (verifyError) {
-            console.error('⚠️ Auto-verify failed on dashboard:', verifyError);
-          }
-        }, 100); // Almost immediate verification
+        // Legacy PayPal verification disabled - using deep links now
+        // setTimeout(async () => {
+        //   try {
+        //     const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
+        //     const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+        //     if (verifiedCount > 0) {
+        //       // Refresh monthly payments to show updates
+        //       fetchMonthlyPayments(selectedStudent?.id);
+        //     }
+        //   } catch (verifyError) {
+        //     console.error('⚠️ Auto-verify failed on dashboard:', verifyError);
+        //   }
+        // }, 100); // Almost immediate verification
       }
     } catch (error) {
     } finally {
@@ -210,11 +210,20 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
   const sendSupportMessage = (type: 'message' | 'voice' | 'boost') => {
     // Navigate to detailed send support screen with pre-selected type and selected student
-    navigation.navigate('SendSupport', { 
+    navigation.navigate('SendSupport', {
       preselectedType: type,
       selectedStudentId: currentStudent?.id,
       selectedStudentName: studentName,
       selectedStudentIndex: selectedStudentIndex
+    });
+  };
+
+  const sendPayment = (prefilledAmount?: number) => {
+    // Navigate to new PayPal deep link payment screen
+    navigation.navigate('SendPayment', {
+      selectedStudentId: currentStudent?.id,
+      selectedStudentName: studentName,
+      prefilledAmount: prefilledAmount
     });
   };
 
@@ -601,37 +610,37 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           
           {/* Primary Action - Prominent */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.primaryAction}
-            onPress={() => sendSupportMessage('message')}
+            onPress={() => sendSupportMessage('boost')}
           >
             <View style={styles.primaryActionContent}>
               <View style={styles.primaryActionIcon}>
                 <View style={styles.primaryActionIndicator} />
               </View>
               <View style={styles.primaryActionText}>
-                <Text style={styles.primaryActionTitle}>Send Support</Text>
-                <Text style={styles.primaryActionSubtitle}>Message or money to help your kid</Text>
+                <Text style={styles.primaryActionTitle}>Send Money</Text>
+                <Text style={styles.primaryActionSubtitle}>Send money via PayPal instantly</Text>
               </View>
             </View>
           </TouchableOpacity>
           
           {/* Secondary Actions - Clean List */}
           <View style={styles.secondaryActions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionItem}
-              onPress={() => sendSupportMessage('boost')}
+              onPress={() => sendSupportMessage('message')}
             >
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>$5 Boost</Text>
-                <Text style={styles.actionSubtitle}>Quick money</Text>
+                <Text style={styles.actionTitle}>Send Message</Text>
+                <Text style={styles.actionSubtitle}>Show you care</Text>
               </View>
               <View style={styles.actionBadge}>
                 <Text style={styles.actionBadgeText}>Send</Text>
               </View>
             </TouchableOpacity>
-            
-            
+
+
           </View>
         </View>
 

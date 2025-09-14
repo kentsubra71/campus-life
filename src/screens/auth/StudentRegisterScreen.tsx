@@ -28,6 +28,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
     password: '',
     confirmPassword: '',
     inviteCode: '',
+    paypalMeHandle: '',
   });
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [showPassword, setShowPassword] = useState(false);
@@ -67,6 +68,12 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
       newErrors.privacy = 'You must accept the Privacy Policy to continue';
     }
 
+    if (!formData.paypalMeHandle.trim()) {
+      newErrors.paypalMeHandle = 'PayPal.Me handle is required for receiving payments';
+    } else if (!/^[a-zA-Z0-9._-]+$/.test(formData.paypalMeHandle)) {
+      newErrors.paypalMeHandle = 'PayPal.Me handle can only contain letters, numbers, dots, dashes, and underscores';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -81,6 +88,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
         password: formData.password,
         role: 'student',
         inviteCode: formData.inviteCode,
+        paypal_me_handle: formData.paypalMeHandle,
       },
       formData.inviteCode
     );
@@ -221,6 +229,23 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
               </TouchableOpacity>
             </View>
             {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>PayPal.Me Handle</Text>
+            <View style={styles.paypalContainer}>
+              <Text style={styles.paypalPrefix}>paypal.me/</Text>
+              <TextInput
+                style={[styles.paypalInput, errors.paypalMeHandle ? styles.inputError : null]}
+                placeholder="yourhandle"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={formData.paypalMeHandle}
+                onChangeText={(text) => setFormData({...formData, paypalMeHandle: text})}
+                autoCapitalize="none"
+              />
+            </View>
+            {errors.paypalMeHandle && <Text style={styles.errorText}>{errors.paypalMeHandle}</Text>}
+            <Text style={styles.helpText}>Your PayPal.Me handle for receiving payments from family</Text>
           </View>
 
           {/* Privacy Policy Checkbox */}
@@ -563,5 +588,28 @@ const styles = StyleSheet.create({
   signInLink: {
     color: theme.colors.primary,
     fontWeight: '600',
+  },
+  paypalContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  paypalPrefix: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    marginRight: 4,
+  },
+  paypalInput: {
+    flex: 1,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+    paddingVertical: 0,
   },
 });

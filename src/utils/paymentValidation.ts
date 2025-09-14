@@ -24,7 +24,7 @@ const VALIDATION_RULES = {
   
   // Suspicious activity thresholds
   LARGE_AMOUNT_WARNING_CENTS: 100000, // $1,000
-  FREQUENT_PAYMENT_WARNING_COUNT: 10,  // 10 payments in 24 hours
+  FREQUENT_PAYMENT_WARNING_COUNT: 50,  // 50 payments in 24 hours
 };
 
 export const validatePaymentInput = (data: PaymentData): PaymentValidationResult => {

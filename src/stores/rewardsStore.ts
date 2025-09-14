@@ -355,9 +355,9 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
     const current = get();
     const now = new Date();
     
-    // Check if already requested within last hour
-    if (current.lastSupportRequest && 
-        now.getTime() - current.lastSupportRequest.getTime() < 60 * 60 * 1000) {
+    // Check if already requested within last 24 hours (allow up to 100 requests per day)
+    if (current.lastSupportRequest &&
+        now.getTime() - current.lastSupportRequest.getTime() < 24 * 60 * 60 * 1000 / 100) {
       return;
     }
 

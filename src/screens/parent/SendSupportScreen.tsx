@@ -15,7 +15,8 @@ import {
 import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { sendMessage, getCurrentUser } from '../../lib/firebase';
-import { createPaymentIntent, getCurrentSpendingCaps } from '../../lib/payments';
+import { getCurrentSpendingCaps } from '../../lib/payments';
+import { createPayPalP2POrder } from '../../lib/paypalP2P';
 import { createTestSubscription } from '../../lib/subscriptionWebhooks';
 import * as Linking from 'expo-linking';
 import { theme } from '../../styles/theme';
@@ -166,26 +167,35 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
       }
 
       try {
-        const result = await createPaymentIntent(
-          studentId,
-          boostAmount * 100, // Convert to cents
-          selectedProvider,
-          customMessage || `Care boost from Mom/Dad: $${boostAmount}`
-        );
+        if (selectedProvider === 'paypal') {
+          // Use new Cloud Function approach for PayPal
+          const result = await createPayPalP2POrder(
+            studentId,
+            boostAmount * 100, // Convert to cents
+            customMessage || `Care boost from Mom/Dad: $${boostAmount}`
+          );
 
-        if (result.success) {
-          // Open the provider app/website
-          if (result.redirectUrl) {
-            await Linking.openURL(result.redirectUrl);
+          if (result.success && result.approvalUrl) {
+            // Open PayPal for payment
+            await Linking.openURL(result.approvalUrl);
+            
+            // Navigate to confirmation screen with PayPal details
+            navigation.navigate('PaymentReturn', {
+              paymentId: result.paymentId,
+              transactionId: result.transactionId,
+              orderId: result.orderId,
+              action: 'return'
+            });
+          } else {
+            Alert.alert('Payment Error', result.error || 'PayPal payment creation failed');
           }
-
-          // Navigate to confirmation screen
-          navigation.navigate('PaymentReturn', {
-            paymentId: result.paymentId,
-            action: 'return'
-          });
         } else {
-          Alert.alert('Payment Error', result.error || 'Failed to create payment');
+          // For other providers, show temporary message
+          Alert.alert(
+            'Provider Not Available',
+            `${selectedProvider} payments are being updated. Please use PayPal for now.`,
+            [{ text: 'OK' }]
+          );
         }
       } catch (error: any) {
         Alert.alert('Error', error.message || 'Failed to create payment');

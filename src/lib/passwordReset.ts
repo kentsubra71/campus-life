@@ -9,40 +9,27 @@ export const requestPasswordReset = async (email: string): Promise<{
   error?: string;
 }> => {
   try {
-    // Check if user exists with this email
-    const usersQuery = query(collection(db, 'users'), where('email', '==', email));
-    const userSnapshot = await getDocs(usersQuery);
+    // Use HTTP endpoint for complete password reset flow (no authentication required)
+    const response = await fetch('https://us-central1-campus-life-b0fd3.cloudfunctions.net/requestPasswordResetHttp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: email
+      })
+    });
     
-    if (userSnapshot.empty) {
-      // Don't reveal if email exists or not for security
-      return { success: true }; // Always return success
+    const data = await response.json();
+    
+    if (data.success) {
+      return { success: true };
+    } else {
+      return { success: false, error: data.error || 'Failed to send password reset email' };
     }
-    
-    const userDoc = userSnapshot.docs[0];
-    const userData = userDoc.data();
-    
-    // Create password reset token
-    const tokenResult = await createVerificationToken(
-      userDoc.id,
-      email,
-      'password_reset'
-    );
-    
-    if (tokenResult.error) {
-      return { success: false, error: tokenResult.error };
-    }
-    
-    // Send password reset email
-    const emailResult = await sendVerificationEmail(
-      email,
-      userData.full_name,
-      tokenResult.token,
-      'password_reset'
-    );
-    
-    return emailResult;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('Password reset request error:', error);
+    return { success: false, error: 'Network error. Please check your internet connection and try again.' };
   }
 };
 

@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ronaldvedant.campuslife",
+      "jsEngine": "hermes",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "venmo",
@@ -44,7 +45,8 @@
           ]
         }
       ],
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "jsEngine": "hermes"
     },
     "web": {
       "favicon": "./assets/favicon.png"

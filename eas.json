@@ -36,7 +36,10 @@
       }
     },
     "production": {
-      "distribution": "store", 
+      "distribution": "store",
+      "cache": {
+        "disabled": false
+      },
       "android": {
         "buildType": "app-bundle"
       },
@@ -44,6 +47,7 @@
         "simulator": false
       },
       "env": {
+        "NODE_ENV": "production",
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyC8j70Zk-rxngvd6eOHlrsQ0dIePKj4nks",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "campus-life-b0fd3.firebaseapp.com",
         "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "campus-life-b0fd3",
@@ -51,7 +55,7 @@
         "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "1028408297935",
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:1028408297935:web:45a5f47a3a2d14f7482aba",
         "EXPO_PUBLIC_PAYPAL_CLIENT_ID": "AUwfzm6qAkoeoQRjK--9ovv36PKtRndoZYnFIoACjhSCA8fqAuC-uXYC7nM06eS7eDcsheQg2wSpivQM",
-        "EXPO_PUBLIC_PAYPAL_ENVIRONMENT": "sandbox"
+        "EXPO_PUBLIC_PAYPAL_ENVIRONMENT": "production"
       }
     }
   },

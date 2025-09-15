@@ -13,7 +13,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "validate": "npm run typecheck && npm run lint && npm run test"
+    "validate": "npm run typecheck && npm run lint && npm run test",
+    "bundle:analyze": "npx expo export --clear && npx @expo/bundle-analyzer dist",
+    "build:production": "NODE_ENV=production npx expo export --clear"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.4",

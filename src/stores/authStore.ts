@@ -270,8 +270,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   createFamily: async (parentData: ParentRegisterData) => {
-    console.log('🔥 CREATE FAMILY FUNCTION CALLED - Firebase implementation active');
     set({ isLoading: true });
+    console.log('🔥 CREATE FAMILY FUNCTION CALLED - Firebase implementation active');
     
     try {
       // First register the parent (without sending verification email yet)
@@ -374,8 +374,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   joinFamily: async (studentData: StudentRegisterData, inviteCode: string) => {
-    console.log('🔥 JOIN FAMILY FUNCTION CALLED - Firebase implementation active');
     set({ isLoading: true });
+    console.log('🔥 JOIN FAMILY FUNCTION CALLED - Firebase implementation active');
     
     try {
       // First register the student (without sending verification email yet)
@@ -408,14 +408,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { sendWelcomeEmail } = await import('../lib/emailInvitation');
       
       await sendUserVerificationEmail(firebaseUser.uid, studentData.email, studentData.name);
-      
+
       // Get the updated profile with family ID
       const profile = await getUserProfile(firebaseUser.uid);
       if (!profile) {
         set({ isLoading: false });
         return { success: false, error: 'Failed to get user profile' };
       }
-      
+
+      // Update the user profile with PayPal handle if provided
+      if (studentData.paypal_me_handle) {
+        await updateUserProfile(firebaseUser.uid, {
+          paypal_me_handle: studentData.paypal_me_handle
+        });
+        console.log('✅ PayPal handle saved:', studentData.paypal_me_handle);
+      }
+
       // Get the family data
       const familyData = await getFamily(familyId);
       if (!familyData) {
@@ -425,7 +433,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Send welcome email with family name
       await sendWelcomeEmail(studentData.email, studentData.name, 'student', familyData.name);
-      
+
       const user: User = {
         id: profile.id,
         email: profile.email,
@@ -433,8 +441,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         role: profile.user_type,
         familyId: familyId,
         createdAt: profile.created_at.toDate(),
+        paypal_me_handle: studentData.paypal_me_handle,
       };
-      
+
       const family: Family = {
         id: familyData.id,
         name: familyData.name,
@@ -443,33 +452,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         studentIds: familyData.studentIds,
         createdAt: familyData.created_at.toDate(),
       };
-      
-      set({ 
-        isAuthenticated: true, 
-        user, 
+
+      // Set user data but keep loading true until all setup is complete
+      set({
+        isAuthenticated: true,
+        user,
         family,
-        isLoading: false 
+        isLoading: true
       });
-      
-      // Initialize push notifications for the user
-      pushNotificationService.initialize(user.id).then(async () => {
-        try {
-          // Schedule wellness reminders for students
-          if (user.role === 'student') {
-            await pushNotificationService.scheduleDailyWellnessReminder(user.id);
-          }
-          
-          // Schedule daily and weekly summaries for all users
-          await pushNotificationService.scheduleDailySummary(user.id);
-          await pushNotificationService.scheduleWeeklySummary(user.id);
-          
-          console.log('✅ All notification schedules initialized');
-        } catch (error) {
-          console.warn('Failed to schedule notifications:', error);
+
+      // Initialize push notifications and complete setup
+      try {
+        await pushNotificationService.initialize(user.id);
+
+        // Schedule wellness reminders for students
+        if (user.role === 'student') {
+          await pushNotificationService.scheduleDailyWellnessReminder(user.id);
         }
-      }).catch(error => {
-        console.warn('Failed to initialize push notifications:', error);
-      });
+
+        // Schedule daily and weekly summaries for all users
+        await pushNotificationService.scheduleDailySummary(user.id);
+        await pushNotificationService.scheduleWeeklySummary(user.id);
+
+        console.log('✅ All notification schedules initialized for student');
+
+        // Add a small delay to ensure everything is fully ready
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Now set loading to false - everything is truly ready
+        set({ isLoading: false });
+        console.log('✅ Complete student initialization finished');
+
+      } catch (error) {
+        console.warn('Failed to complete student notification setup:', error);
+        // Still set loading to false even if notifications fail
+        set({ isLoading: false });
+      }
       
       return { success: true };
       
@@ -581,11 +599,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // ADDED: Initialize auth state listener
   initialize: () => {
     console.log('🔄 Initializing auth state listener...');
-    
+
+    // Only set loading if we don't already have user data from registration
+    const currentState = get();
+    if (!currentState.isAuthenticated) {
+      set({ isLoading: true });
+    }
+
     onAuthStateChange(async (firebaseUser: FirebaseUser | null) => {
       console.log('🔐 Auth state changed:', firebaseUser ? 'authenticated' : 'not authenticated');
-      
+
       if (firebaseUser) {
+        // Check if user is already fully set up from registration
+        const currentState = get();
+        if (currentState.isAuthenticated && currentState.user && currentState.user.id === firebaseUser.uid) {
+          console.log('✅ User already initialized from registration, skipping duplicate setup');
+          return;
+        }
+
         try {
           // Force refresh token to get latest custom claims
           await firebaseUser.getIdToken(true);
@@ -667,28 +698,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               createdAt: familyData.created_at.toDate(),
             } : null;
             
-            set({ 
-              isAuthenticated: true, 
-              user, 
+            // Set user data but keep loading true until all setup is complete
+            set({
+              isAuthenticated: true,
+              user,
               family,
-              isLoading: false 
+              isLoading: true
             });
-            
-            // Initialize push notifications for the user
-            pushNotificationService.initialize(user.id).then(async () => {
-              try {
-                if (user.role === 'student') {
-                  await pushNotificationService.scheduleDailyWellnessReminder(user.id);
-                }
-                await pushNotificationService.scheduleDailySummary(user.id);
-                await pushNotificationService.scheduleWeeklySummary(user.id);
-                console.log('✅ All notification schedules initialized');
-              } catch (error) {
-                console.warn('Failed to schedule notifications:', error);
+
+            // Initialize push notifications and complete setup
+            try {
+              await pushNotificationService.initialize(user.id);
+
+              if (user.role === 'student') {
+                await pushNotificationService.scheduleDailyWellnessReminder(user.id);
               }
-            }).catch(error => {
-              console.warn('Failed to initialize push notifications:', error);
-            });
+              await pushNotificationService.scheduleDailySummary(user.id);
+              await pushNotificationService.scheduleWeeklySummary(user.id);
+              console.log('✅ All notification schedules initialized');
+
+              // Add a small delay to ensure everything is fully ready
+              await new Promise(resolve => setTimeout(resolve, 1000));
+
+              // Now set loading to false - everything is truly ready
+              set({ isLoading: false });
+              console.log('✅ Complete app initialization finished');
+
+            } catch (error) {
+              console.warn('Failed to complete notification setup:', error);
+              // Still set loading to false even if notifications fail
+              set({ isLoading: false });
+            }
             
             console.log('✅ User authenticated and profile loaded');
           } else {

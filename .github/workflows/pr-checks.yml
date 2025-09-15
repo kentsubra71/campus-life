@@ -1,0 +1,37 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: TypeScript check
+      run: npx tsc --noEmit
+
+    - name: Expo prebuild check
+      run: npx expo prebuild --no-install
+
+    - name: Check for console.log statements
+      run: |
+        if grep -r "console\.log" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" 2>/dev/null; then
+          echo "Warning: console.log statements found in source code"
+          echo "These will be removed in production builds"
+        else
+          echo "No console.log statements found"
+        fi

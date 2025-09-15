@@ -85,6 +85,7 @@ export interface UserProfile {
   venmo_username?: string;
   cashapp_cashtag?: string;
   paypal_email?: string;
+  paypal_me_handle?: string;
   zelle_email?: string;
   zelle_phone?: string;
   // Push notification fields

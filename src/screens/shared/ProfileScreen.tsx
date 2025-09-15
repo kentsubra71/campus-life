@@ -40,10 +40,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [loadingInvite, setLoadingInvite] = useState(false);
+  const [showPaypalSetup, setShowPaypalSetup] = useState(false);
+  const [paypalHandle, setPaypalHandle] = useState('');
+  const [isUpdatingPaypal, setIsUpdatingPaypal] = useState(false);
 
   useEffect(() => {
     loadFamilyMembers();
     checkEmailVerificationStatus();
+    // Initialize PayPal handle from user data
+    if (user?.paypal_me_handle) {
+      setPaypalHandle(user.paypal_me_handle);
+    }
   }, [user?.id]);
 
   const checkEmailVerificationStatus = async () => {
@@ -76,19 +83,32 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   const handleResendVerificationEmail = async () => {
     if (!user) return;
-    
+
     setLoadingVerification(true);
     try {
-      const { resendVerificationEmail } = await import('../../lib/emailVerification');
-      const result = await resendVerificationEmail(user.id);
-      
-      if (result.success) {
-        Alert.alert('Verification Email Sent', 'A new verification email has been sent to your email address. Please check your inbox and click the verification link.');
-      } else {
-        Alert.alert('Error', result.error || 'Failed to send verification email. Please try again.');
-      }
+      // Use the secure Cloud Function for resending verification email
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../../lib/firebase');
+
+      const resendVerificationEmailFunction = httpsCallable(functions, 'resendVerificationEmail');
+      const result = await resendVerificationEmailFunction({});
+
+      console.log('✅ Verification email resent:', result.data);
+      Alert.alert('Verification Email Sent', 'A new verification email has been sent to your email address. Please check your inbox and click the verification link.');
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to send verification email. Please try again.');
+      console.error('Error resending verification email:', error);
+
+      let errorMessage = 'Failed to send verification email. Please try again.';
+
+      if (error.code === 'functions/already-exists') {
+        errorMessage = 'Your email is already verified.';
+      } else if (error.code === 'functions/not-found') {
+        errorMessage = 'User not found. Please try signing in again.';
+      } else if (error.code === 'functions/unauthenticated') {
+        errorMessage = 'You must be signed in to resend verification email.';
+      }
+
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoadingVerification(false);
     }
@@ -257,141 +277,89 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     if (!user) return;
 
     try {
-      // Import Firebase auth functions
-      const { getCurrentUser, signOutUser } = await import('../../lib/firebase');
-      const { deleteUser } = await import('firebase/auth');
-      const { doc, deleteDoc, collection, query, where, getDocs, writeBatch } = await import('firebase/firestore');
-      const { db } = await import('../../lib/firebase');
-
-      const currentUser = getCurrentUser();
-      if (!currentUser) {
-        Alert.alert('Error', 'No authenticated user found');
-        return;
-      }
-
       // Show loading state
-      Alert.alert('Deleting Account', 'Please wait while we delete your account and data...');
+      Alert.alert('Deleting Account', 'Please wait while we securely delete your account and data...');
 
-      // Delete user's data from Firestore collections
-      const batch = writeBatch(db);
+      // Use the secure Cloud Function for account deletion
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../../lib/firebase');
 
-      // Delete from users collection
-      batch.delete(doc(db, 'users', user.id));
+      const deleteAccountFunction = httpsCallable(functions, 'deleteAccount');
+      const result = await deleteAccountFunction({ confirmationText: 'DELETE' });
 
-      // Delete from profiles collection if it exists
-      try {
-        batch.delete(doc(db, 'profiles', user.id));
-      } catch (error) {
-        // Profile might not exist, continue
-      }
-
-      // Delete wellness entries
-      const wellnessQuery = query(collection(db, 'wellness_entries'), where('user_id', '==', user.id));
-      const wellnessSnapshot = await getDocs(wellnessQuery);
-      wellnessSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete rewards
-      const rewardsQuery = query(collection(db, 'rewards'), where('user_id', '==', user.id));
-      const rewardsSnapshot = await getDocs(rewardsQuery);
-      rewardsSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete messages sent by user
-      const messagesQuery = query(collection(db, 'messages'), where('from_user_id', '==', user.id));
-      const messagesSnapshot = await getDocs(messagesQuery);
-      messagesSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete payments (parent or student)
-      const paymentsParentQuery = query(collection(db, 'payments'), where('parent_id', '==', user.id));
-      const paymentsParentSnapshot = await getDocs(paymentsParentQuery);
-      paymentsParentSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      const paymentsStudentQuery = query(collection(db, 'payments'), where('student_id', '==', user.id));
-      const paymentsStudentSnapshot = await getDocs(paymentsStudentQuery);
-      paymentsStudentSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete item requests
-      const itemRequestsStudentQuery = query(collection(db, 'item_requests'), where('student_id', '==', user.id));
-      const itemRequestsStudentSnapshot = await getDocs(itemRequestsStudentQuery);
-      itemRequestsStudentSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      const itemRequestsParentQuery = query(collection(db, 'item_requests'), where('parent_id', '==', user.id));
-      const itemRequestsParentSnapshot = await getDocs(itemRequestsParentQuery);
-      itemRequestsParentSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete subscriptions
-      const subscriptionsQuery = query(collection(db, 'subscriptions'), where('user_id', '==', user.id));
-      const subscriptionsSnapshot = await getDocs(subscriptionsQuery);
-      subscriptionsSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete monthly spend records
-      const monthlySpendQuery = query(collection(db, 'monthly_spend'), where('parent_id', '==', user.id));
-      const monthlySpendSnapshot = await getDocs(monthlySpendQuery);
-      monthlySpendSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete transactions
-      const transactionsParentQuery = query(collection(db, 'transactions'), where('parentId', '==', user.id));
-      const transactionsParentSnapshot = await getDocs(transactionsParentQuery);
-      transactionsParentSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      const transactionsStudentQuery = query(collection(db, 'transactions'), where('studentId', '==', user.id));
-      const transactionsStudentSnapshot = await getDocs(transactionsStudentQuery);
-      transactionsStudentSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete user progress
-      try {
-        batch.delete(doc(db, 'user_progress', user.id));
-      } catch (error) {
-        // Might not exist, continue
-      }
-
-      // Commit all Firestore deletions
-      await batch.commit();
+      console.log('✅ Account deletion completed:', result.data);
 
       // Clear local cache
       await cache.clearAll();
 
-      // Delete Firebase Auth user (this will also sign them out)
-      await deleteUser(currentUser);
+      // Logout user and navigate to welcome screen
+      logout();
 
       Alert.alert(
         'Account Deleted',
         'Your account and all associated data have been permanently deleted.',
-        [{ text: 'OK' }]
+        [{
+          text: 'OK',
+          onPress: () => {
+            // Navigate to welcome screen
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'RoleSelection' }],
+            });
+          }
+        }]
       );
-
-      // Logout will be handled automatically by auth state change
     } catch (error: any) {
       console.error('Error deleting account:', error);
-      
+
       let errorMessage = 'Failed to delete account. Please try again.';
-      
-      if (error.code === 'auth/requires-recent-login') {
+
+      if (error.code === 'functions/unauthenticated') {
+        errorMessage = 'You must be signed in to delete your account. Please sign in again.';
+      } else if (error.code === 'functions/invalid-argument') {
+        errorMessage = 'Invalid deletion request. Please try again.';
+      } else if (error.code === 'auth/requires-recent-login') {
         errorMessage = 'For security reasons, you need to sign in again before deleting your account. Please sign out and sign back in, then try again.';
       }
 
       Alert.alert('Error', errorMessage);
+    }
+  };
+
+  const handleSavePaypal = async () => {
+    if (!user) return;
+
+    // Basic validation
+    const cleanHandle = paypalHandle.replace(/^@/, '').toLowerCase().trim();
+    if (cleanHandle && !/^[a-zA-Z0-9._-]{6,20}$/.test(cleanHandle)) {
+      Alert.alert('Invalid Handle', 'PayPal handle must be 6-20 characters with only letters, numbers, dots, dashes, and underscores.');
+      return;
+    }
+
+    setIsUpdatingPaypal(true);
+    try {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const { db } = await import('../../lib/firebase');
+
+      await updateDoc(doc(db, 'users', user.id), {
+        paypal_me_handle: cleanHandle || null,
+        updated_at: new Date()
+      });
+
+      // Update local user data (this would normally be handled by auth store)
+      Alert.alert(
+        'Success!',
+        cleanHandle
+          ? `PayPal handle saved! Family can now send you money at paypal.me/${cleanHandle}`
+          : 'PayPal handle removed successfully',
+        [{ text: 'OK', onPress: () => setShowPaypalSetup(false) }]
+      );
+
+    } catch (error: any) {
+      console.error('Error saving PayPal handle:', error);
+      Alert.alert('Error', 'Failed to save PayPal handle. Please try again.');
+    } finally {
+      setIsUpdatingPaypal(false);
     }
   };
 
@@ -622,14 +590,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 <View style={styles.memberGroup}>
                   <Text style={styles.memberGroupTitle}>Students</Text>
                   {familyMembers.students.map((student) => {
-                    console.log('👤 Student data:', { id: student.id, name: student.name, email: student.email });
+                    console.log('👤 Student data:', { id: student.id, name: student.name, email: student.email, paypal_me_handle: student.paypal_me_handle });
                     return (
                       <View key={student.id} style={styles.memberItem}>
-                        <Text style={styles.memberName}>
-                          {student.name || 'No name'}
-                          {student.id === user.id && ' (You)'}
-                        </Text>
-                        <Text style={styles.memberEmail}>{student.email}</Text>
+                        <View style={styles.memberInfo}>
+                          <Text style={styles.memberName}>
+                            {student.name || 'No name'}
+                            {student.id === user.id && ' (You)'}
+                          </Text>
+                          <Text style={styles.memberEmail}>{student.email}</Text>
+                          {student.paypal_me_handle ? (
+                            <View style={styles.paypalContainer}>
+                              <Text style={styles.paypalLabel}>💳 PayPal:</Text>
+                              <Text style={styles.paypalHandle}>paypal.me/{student.paypal_me_handle}</Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.paypalMissing}>💳 PayPal not set up</Text>
+                          )}
+                        </View>
                       </View>
                     );
                   })}
@@ -645,14 +623,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         <View style={styles.paypalAlert}>
           <View style={styles.alertHeader}>
             <Text style={styles.alertIcon}>💳</Text>
-            <Text style={styles.alertTitle}>Add PayPal Handle</Text>
+            <Text style={styles.alertTitle}>Edit PayPal Handle</Text>
           </View>
           <Text style={styles.alertDescription}>
             Set up your PayPal.Me handle to receive payments from family. Go to your profile to add it.
           </Text>
           <TouchableOpacity
             style={styles.alertButton}
-            onPress={() => navigation.navigate('Profile')}
+            onPress={() => setShowPaypalSetup(true)}
           >
             <Text style={styles.alertButtonText}>Set Up PayPal</Text>
           </TouchableOpacity>
@@ -765,6 +743,72 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       </View>
       </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* PayPal Setup Modal */}
+      {showPaypalSetup && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Set Up PayPal Handle</Text>
+              <TouchableOpacity
+                onPress={() => setShowPaypalSetup(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseText}>×</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              Enter your PayPal.Me handle so family can send you money instantly.
+              For example, if your handle is "johnsmith", your link will be paypal.me/johnsmith
+            </Text>
+
+            <View style={styles.paypalInputContainer}>
+              <Text style={styles.paypalPrefix}>paypal.me/</Text>
+              <TextInput
+                style={styles.paypalInput}
+                value={paypalHandle}
+                onChangeText={(text) => {
+                  // Clean input: remove @ symbols and paypal.me prefixes
+                  const cleanText = text.replace(/^@/, '').replace(/^(https?:\/\/)?(www\.)?paypal\.com\/paypalme\//, '').toLowerCase();
+                  setPaypalHandle(cleanText);
+                }}
+                placeholder="yourhandle"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            {paypalHandle && (
+              <View style={styles.previewContainer}>
+                <Text style={styles.previewLabel}>Preview:</Text>
+                <Text style={styles.previewUrl}>https://paypal.me/{paypalHandle}/25.00</Text>
+              </View>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowPaypalSetup(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalSaveButton, isUpdatingPaypal && styles.modalSaveButtonDisabled]}
+                onPress={handleSavePaypal}
+                disabled={isUpdatingPaypal}
+              >
+                {isUpdatingPaypal ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.modalSaveText}>Save PayPal Handle</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -1027,6 +1071,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
+  memberInfo: {
+    flex: 1,
+  },
   memberName: {
     fontSize: 14,
     fontWeight: '600',
@@ -1036,6 +1083,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textSecondary,
     marginTop: 2,
+  },
+  paypalContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    backgroundColor: '#f0f9ff',
+    padding: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  paypalLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1e40af',
+    marginRight: 4,
+  },
+  paypalHandle: {
+    fontSize: 11,
+    color: '#1e40af',
+    fontFamily: 'monospace',
+    flex: 1,
+  },
+  paypalMissing: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   actionsSection: {
     marginTop: 32,
@@ -1243,5 +1318,132 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#94a3b8',
+  },
+  // PayPal Modal Styles
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    margin: 20,
+    maxWidth: 400,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: 20,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  paypalInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  paypalPrefix: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+  },
+  paypalInput: {
+    flex: 1,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    marginLeft: 4,
+  },
+  previewContainer: {
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  previewLabel: {
+    fontSize: 12,
+    color: '#1e40af',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  previewUrl: {
+    fontSize: 14,
+    color: '#1e40af',
+    fontFamily: 'monospace',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  modalSaveButton: {
+    flex: 2,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalSaveButtonDisabled: {
+    backgroundColor: '#94a3b8',
+  },
+  modalSaveText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
   },
 });

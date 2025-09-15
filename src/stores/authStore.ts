@@ -25,6 +25,7 @@ interface User {
   role: 'parent' | 'student';
   familyId: string;
   createdAt: Date;
+  paypal_me_handle?: string;
 }
 
 interface Family {
@@ -502,8 +503,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         role: profile.user_type,
         familyId: profile.family_id || '',
         createdAt: profile.created_at.toDate(),
+        paypal_me_handle: profile.paypal_me_handle,
       }));
-      
+
       const students: User[] = studentProfiles.map(profile => ({
         id: profile.id,
         email: profile.email,
@@ -511,6 +513,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         role: profile.user_type,
         familyId: profile.family_id || '',
         createdAt: profile.created_at.toDate(),
+        paypal_me_handle: profile.paypal_me_handle,
       }));
       
       const result = { parents, students };

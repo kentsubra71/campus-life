@@ -45,6 +45,259 @@ export const markUserVerified = functions.https.onCall(async (data, context) => 
   }
 });
 
+// SECURITY: Delete account function - handles complete account deletion with admin privileges
+export const deleteAccount = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+  const { confirmationText } = data;
+
+  // Require confirmation text for safety
+  if (confirmationText !== 'DELETE') {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid confirmation text');
+  }
+
+  try {
+    functions.logger.info(`Starting account deletion for user: ${userId}`);
+
+    // Use a batch for all Firestore deletions
+    const batch = db.batch();
+
+    // Delete from users collection
+    batch.delete(db.collection('users').doc(userId));
+
+    // Delete from profiles collection
+    batch.delete(db.collection('profiles').doc(userId));
+
+    // Delete from user_progress collection
+    batch.delete(db.collection('user_progress').doc(userId));
+
+    // Delete wellness entries
+    const wellnessEntries = await db.collection('wellness_entries').where('user_id', '==', userId).get();
+    wellnessEntries.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete rewards
+    const rewards = await db.collection('rewards').where('user_id', '==', userId).get();
+    rewards.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete messages from user
+    const messages = await db.collection('messages').where('from_user_id', '==', userId).get();
+    messages.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete payments (parent)
+    const paymentsParent = await db.collection('payments').where('parent_id', '==', userId).get();
+    paymentsParent.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete payments (student)
+    const paymentsStudent = await db.collection('payments').where('student_id', '==', userId).get();
+    paymentsStudent.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete item requests (student)
+    const itemRequestsStudent = await db.collection('item_requests').where('student_id', '==', userId).get();
+    itemRequestsStudent.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete item requests (parent)
+    const itemRequestsParent = await db.collection('item_requests').where('parent_id', '==', userId).get();
+    itemRequestsParent.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete subscriptions
+    const subscriptions = await db.collection('subscriptions').where('user_id', '==', userId).get();
+    subscriptions.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete monthly spend
+    const monthlySpend = await db.collection('monthly_spend').where('parent_id', '==', userId).get();
+    monthlySpend.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete transactions (if they exist)
+    try {
+      const transactionsParent = await db.collection('transactions').where('parentId', '==', userId).get();
+      transactionsParent.docs.forEach(doc => batch.delete(doc.ref));
+
+      const transactionsStudent = await db.collection('transactions').where('studentId', '==', userId).get();
+      transactionsStudent.docs.forEach(doc => batch.delete(doc.ref));
+    } catch (error) {
+      // Transactions collection might not exist, continue
+      functions.logger.warn('Transactions collection not found, skipping');
+    }
+
+    // Delete support requests
+    const supportRequests = await db.collection('support_requests').where('from_user_id', '==', userId).get();
+    supportRequests.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete push tokens
+    const pushTokens = await db.collection('push_tokens').where('userId', '==', userId).get();
+    pushTokens.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete notification history
+    const notifications = await db.collection('notification_history').where('userId', '==', userId).get();
+    notifications.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Delete XP transactions
+    const xpTransactions = await db.collection('xp_transactions').where('user_id', '==', userId).get();
+    xpTransactions.docs.forEach(doc => batch.delete(doc.ref));
+
+    // Commit all Firestore deletions
+    await batch.commit();
+    functions.logger.info(`Firestore data deleted for user: ${userId}`);
+
+    // Delete Firebase Auth user (this will also sign them out)
+    await admin.auth().deleteUser(userId);
+    functions.logger.info(`Firebase Auth user deleted: ${userId}`);
+
+    return {
+      success: true,
+      message: 'Account and all associated data have been permanently deleted'
+    };
+
+  } catch (error: any) {
+    functions.logger.error('Account deletion failed', { userId, error: error.message });
+    throw new functions.https.HttpsError('internal', `Account deletion failed: ${error.message}`);
+  }
+});
+
+// SECURITY: Resend verification email function - handles email resend with admin privileges
+const resendApiKeySecret = defineSecret('RESEND_API_KEY');
+export const resendVerificationEmail = functions
+  .runWith({
+    secrets: [resendApiKeySecret]
+  })
+  .https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const userId = context.auth.uid;
+
+  try {
+    functions.logger.info(`Resending verification email for user: ${userId}`);
+
+    // Get user data from Firestore with admin privileges
+    const userDoc = await db.collection('users').doc(userId).get();
+
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'User not found');
+    }
+
+    const userData = userDoc.data();
+
+    if (userData?.email_verified) {
+      throw new functions.https.HttpsError('already-exists', 'Email already verified');
+    }
+
+    // Generate verification token
+    const crypto = require('crypto');
+    const token = crypto.createHash('sha256').update(`${Date.now()}-${Math.random()}-${Math.random()}`).digest('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Invalidate existing tokens
+    const existingTokensQuery = await db.collection('verification_tokens')
+      .where('user_id', '==', userId)
+      .where('type', '==', 'email_verification')
+      .where('used', '==', false)
+      .get();
+
+    const batch = db.batch();
+    existingTokensQuery.docs.forEach(doc => {
+      batch.update(doc.ref, {
+        used: true,
+        invalidated_at: admin.firestore.FieldValue.serverTimestamp(),
+        invalidated_reason: 'new_token_requested'
+      });
+    });
+
+    // Create new verification token
+    const verificationToken = {
+      token,
+      user_id: userId,
+      email: userData?.email,
+      type: 'email_verification',
+      expires_at: admin.firestore.Timestamp.fromDate(expiresAt),
+      used: false,
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    batch.set(db.collection('verification_tokens').doc(token), verificationToken);
+    await batch.commit();
+
+    // Send email using Resend API directly (since we're server-side)
+    const verificationUrl = `https://campus-life-auth-website.vercel.app/verify/email_verification/${token}`;
+
+    const resendResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKeySecret.value()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Campus Life <noreply@ronaldli.ca>',
+        to: [userData?.email],
+        subject: 'Verify your Campus Life email address',
+        html: `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Email Verification - Campus Life</title>
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: #ffffff; border-radius: 12px; padding: 40px; border: 1px solid #e2e8f0;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                  <div style="width: 64px; height: 64px; background: #60a5fa; border-radius: 12px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 24px;">CL</div>
+                  <h1 style="color: #1e293b; margin: 0; font-size: 28px; font-weight: 900;">Campus Life</h1>
+                  <p style="color: #64748b; margin: 10px 0 0 0; font-size: 16px;">Connecting families through wellness</p>
+                </div>
+
+                <h2 style="color: #1e293b; font-size: 20px; font-weight: 700; margin-bottom: 16px;">Hi ${userData?.name || userData?.full_name || 'User'},</h2>
+
+                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
+                  Thank you for joining Campus Life! Please verify your email address by clicking the button below to complete your account setup.
+                </p>
+
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${verificationUrl}" style="background: #60a5fa; color: white; padding: 16px 24px; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px; display: inline-block;">Verify Email Address</a>
+                </div>
+
+                <p style="color: #64748b; font-size: 14px; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+                  If you didn't create a Campus Life account, you can safely ignore this email.<br>
+                  This verification link will expire in 24 hours for security.
+                </p>
+
+                <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
+                  <p>Campus Life<br>
+                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                </div>
+              </div>
+            </body>
+          </html>
+        `
+      })
+    });
+
+    if (!resendResponse.ok) {
+      throw new Error(`Email sending failed: ${resendResponse.statusText}`);
+    }
+
+    functions.logger.info(`Verification email sent to ${userData?.email}`);
+
+    return {
+      success: true,
+      message: 'Verification email sent successfully'
+    };
+
+  } catch (error: any) {
+    functions.logger.error('Failed to resend verification email', { userId, error: error.message });
+
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+
+    throw new functions.https.HttpsError('internal', `Failed to resend verification email: ${error.message}`);
+  }
+});
+
 // SECURITY: XP update function
 export const updateUserXP = functions.https.onCall(async (data, context) => {
   const { userId, experienceGained } = data;
@@ -798,17 +1051,31 @@ function checkNotificationTypeEnabled(type: string, preferences: any): boolean {
 export const sendEmail = functions
   .runWith({ secrets: [RESEND_API_KEY] })
   .https.onCall(async (data, context) => {
-  debugLog('sendEmail', 'Function called', { 
-    userId: context.auth?.uid, 
+  debugLog('sendEmail', 'Function called', {
+    userId: context.auth?.uid,
     hasAuth: !!context.auth,
-    data: { ...data, verificationUrl: '[REDACTED]' } 
+    data: { ...data, verificationUrl: '[REDACTED]' }
   });
-  
+
   const { to, type, emailData } = data;
 
   // Allow unauthenticated calls for password reset emails only
+  // For email verification resends, allow authenticated users even if unverified
   if (!context.auth && type !== 'password_reset') {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  // For email verification, ensure user can only resend for their own email
+  if (type === 'email_verification' && context.auth) {
+    try {
+      const userRecord = await admin.auth().getUser(context.auth.uid);
+      if (userRecord.email !== to) {
+        throw new functions.https.HttpsError('permission-denied', 'Can only resend verification for your own email');
+      }
+    } catch (error: any) {
+      debugLog('sendEmail', 'Error validating user email', { error: error.message });
+      throw new functions.https.HttpsError('permission-denied', 'Invalid user verification');
+    }
   }
 
   // Validate input

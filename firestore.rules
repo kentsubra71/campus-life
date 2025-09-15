@@ -34,7 +34,7 @@ service cloud.firestore {
     // SECURE: Users collection - registration safe with custom claims support
     match /users/{userId} {
       allow read: if isAuthenticated() && (
-        // Own user document always (during registration or after)
+        // Own user document always (during registration, verification, or after)
         userId == getUserId() ||
         // Family members with full custom claims
         (hasCustomClaims() && getFamilyId() != null)
@@ -46,8 +46,14 @@ service cloud.firestore {
         // During registration - user has initialized claim (regardless of family claims)
         request.auth.token.initialized != null ||
         // After registration - user has full custom claims
-        hasCustomClaims()
+        hasCustomClaims() ||
+        // Allow email verification updates even without full claims
+        (request.resource.data.keys().hasOnly(['email_verified', 'updated_at']) &&
+         request.resource.data.email_verified == true)
       );
+
+      // Delete: Own user document only (for account deletion)
+      allow delete: if isAuthenticated() && userId == getUserId();
     }
 
     // STRICT: Families collection - only established users
@@ -76,6 +82,9 @@ service cloud.firestore {
 
       // Update: Only message sender can update
       allow update: if isAuthenticated() && getUserId() == resource.data.from_user_id;
+
+      // Delete: Own messages only (for account deletion)
+      allow delete: if isAuthenticated() && getUserId() == resource.data.from_user_id;
     }
 
     // SECURE: Wellness entries - own entries or family access (no family_id stored in entries)
@@ -92,6 +101,10 @@ service cloud.firestore {
 
       // Update: Own entries only
       allow update: if isAuthenticated() &&
+        request.auth.uid == resource.data.user_id;
+
+      // Delete: Own entries only (for account deletion)
+      allow delete: if isAuthenticated() &&
         request.auth.uid == resource.data.user_id;
     }
 
@@ -113,6 +126,9 @@ service cloud.firestore {
 
       allow update: if isAuthenticated() && userId == getUserId() &&
         request.auth.token.initialized != null;
+
+      // Delete: Own profile only (for account deletion)
+      allow delete: if isAuthenticated() && userId == getUserId();
     }
 
     // STRICT: Verification tokens - unauthenticated access for password reset only
@@ -143,6 +159,12 @@ service cloud.firestore {
 
       // Update: Only direct payment participants
       allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.parent_id ||
+        request.auth.uid == resource.data.student_id
+      );
+
+      // Delete: Only direct payment participants (for account deletion)
+      allow delete: if isAuthenticated() && (
         request.auth.uid == resource.data.parent_id ||
         request.auth.uid == resource.data.student_id
       );
@@ -194,6 +216,10 @@ service cloud.firestore {
       // Update: Own rewards only
       allow update: if isAuthenticated() &&
         request.auth.uid == resource.data.user_id;
+
+      // Delete: Own rewards only (for account deletion)
+      allow delete: if isAuthenticated() &&
+        request.auth.uid == resource.data.user_id;
     }
 
     match /item_requests/{requestId} {
@@ -213,6 +239,12 @@ service cloud.firestore {
         request.auth.uid == resource.data.student_id ||
         request.auth.uid == resource.data.parent_id
       );
+
+      // Delete: Request participants only (for account deletion)
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.student_id ||
+        request.auth.uid == resource.data.parent_id
+      );
     }
 
     match /monthly_spend/{spendId} {
@@ -222,6 +254,9 @@ service cloud.firestore {
         request.auth.uid == request.resource.data.parent_id ||
         request.auth.uid == resource.data.parent_id
       );
+
+      // Delete: Own spending data (for account deletion)
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.parent_id;
     }
 
     match /subscriptions/{subscriptionId} {
@@ -230,6 +265,22 @@ service cloud.firestore {
         resource == null ||
         request.auth.uid == request.resource.data.user_id ||
         request.auth.uid == resource.data.user_id
+      );
+
+      // Delete: Own subscriptions (for account deletion)
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.user_id;
+    }
+
+    // SECURE: Transactions - own transactions only (for account deletion)
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.parentId ||
+        request.auth.uid == resource.data.studentId
+      );
+
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.parentId ||
+        request.auth.uid == resource.data.studentId
       );
     }
 

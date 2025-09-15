@@ -253,36 +253,56 @@ export const resendVerificationEmail = async (userId: string): Promise<{
 }> => {
   try {
     const userDoc = await getDoc(doc(db, 'users', userId));
-    
+
     if (!userDoc.exists()) {
       return { success: false, error: 'User not found' };
     }
-    
+
     const userData = userDoc.data();
-    
+
     if (userData.email_verified) {
       return { success: false, error: 'Email already verified' };
     }
-    
+
     const { token, error } = await createVerificationToken(
-      userId, 
-      userData.email, 
+      userId,
+      userData.email,
       'email_verification'
     );
-    
+
     if (error) {
       return { success: false, error };
     }
-    
+
     const emailResult = await sendVerificationEmail(
       userData.email,
-      userData.full_name,
+      userData.name || userData.full_name || 'User',
       token,
       'email_verification'
     );
-    
+
     return emailResult;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('Error in resendVerificationEmail:', error);
+
+    // Handle specific Firebase errors
+    if (error.code === 'permission-denied') {
+      return {
+        success: false,
+        error: 'Unable to send verification email. Please try signing out and back in, then try again.'
+      };
+    }
+
+    if (error.code === 'unauthenticated') {
+      return {
+        success: false,
+        error: 'Authentication required. Please sign in again to resend verification email.'
+      };
+    }
+
+    return {
+      success: false,
+      error: error.message || 'Failed to resend verification email. Please try again.'
+    };
   }
 };

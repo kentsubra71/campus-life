@@ -30,7 +30,7 @@
     "expo-notifications": "~0.31.4",
     "expo-status-bar": "~2.2.3",
     "expo-system-ui": "~5.0.11",
-    "firebase": "^12.1.0",
+    "firebase": "^12.2.1",
     "isomorphic-dompurify": "^2.26.0",
     "react": "19.0.0",
     "react-native": "0.79.5",
@@ -50,6 +50,7 @@
     "@babel/core": "^7.25.2",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.0.10",
+    "babel-plugin-transform-remove-console": "^6.9.4",
     "typescript": "~5.8.3"
   },
   "private": true

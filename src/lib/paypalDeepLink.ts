@@ -74,7 +74,8 @@ export const getStudentPayPalInfo = async (studentId: string): Promise<PayPalMeI
 };
 
 // Development mode configuration
-const DEV_MODE = __DEV__; // React Native development mode
+//const DEV_MODE = __DEV__; // React Native development mode
+const DEV_MODE = false;
 
 // Create deep link payment record and open PayPal
 export const createDeepLinkPayment = async (
@@ -90,7 +91,7 @@ export const createDeepLinkPayment = async (
     if (!paypalInfo) {
       return {
         success: false,
-        error: 'Student has not set up their PayPal.Me handle yet. Please ask them to add it in their profile.'
+        error: 'PayPal Not Set Up - The student needs to add their PayPal.Me handle in their profile. They can do this by going to Profile → Payment Setup → "Set Up PayPal" button.'
       };
     }
 
@@ -98,7 +99,7 @@ export const createDeepLinkPayment = async (
     if (!isValidPayPalHandle(paypalInfo.handle)) {
       return {
         success: false,
-        error: 'Student has an invalid PayPal.Me handle. Please ask them to update it in their profile.'
+        error: `Invalid PayPal Handle - The student's PayPal handle "${paypalInfo.handle}" is invalid. It must be 6-20 characters with only letters, numbers, dots, and underscores. Ask them to update it in Profile → Payment Setup.`
       };
     }
 

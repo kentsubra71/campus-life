@@ -224,7 +224,8 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
                       paymentId: result.paymentId,
                       amount: formatDeepLinkAmount(amountCents),
                       studentName: targetStudent.split(' ')[0],
-                      paypalUrl: result.paypalUrl
+                      paypalUrl: result.paypalUrl,
+                      devMode: result.devMode || false
                     });
                   }
                 }
@@ -238,7 +239,8 @@ export const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({ navigation
                 paymentId: result.paymentId,
                 amount: formatDeepLinkAmount(amountCents),
                 studentName: targetStudent.split(' ')[0],
-                paypalUrl: result.paypalUrl
+                paypalUrl: result.paypalUrl,
+                devMode: result.devMode || false
               });
             }, 2000);
 

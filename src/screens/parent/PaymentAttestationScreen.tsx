@@ -22,18 +22,18 @@ interface PaymentAttestationScreenProps {
       amount: string;
       studentName: string;
       paypalUrl?: string;
+      devMode?: boolean;
     };
   };
 }
 
 export const PaymentAttestationScreen: React.FC<PaymentAttestationScreenProps> = ({ navigation, route }) => {
-  const { paymentId, amount, studentName, paypalUrl } = route.params;
+  const { paymentId, amount, studentName, paypalUrl, devMode } = route.params;
 
-  const [transactionId, setTransactionId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentSent, setPaymentSent] = useState(false);
 
-  const isDev = __DEV__;
+  const isDev = devMode || false;
 
   const handleOpenPayPal = async () => {
     if (paypalUrl) {
@@ -83,10 +83,6 @@ export const PaymentAttestationScreen: React.FC<PaymentAttestationScreenProps> =
                 updated_at: Timestamp.now()
               };
 
-              // Add transaction ID if provided
-              if (transactionId.trim()) {
-                updateData.parent_txn_reference = transactionId.trim();
-              }
 
               await updateDoc(doc(db, 'payments', paymentId), updateData);
 
@@ -191,21 +187,6 @@ export const PaymentAttestationScreen: React.FC<PaymentAttestationScreenProps> =
           </View>
         )}
 
-        {/* Transaction ID Input */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Transaction ID (Optional)</Text>
-          <Text style={styles.sectionDescription}>
-            If you have the PayPal transaction ID, you can paste it here for easier tracking.
-          </Text>
-          <TextInput
-            style={styles.transactionInput}
-            value={transactionId}
-            onChangeText={setTransactionId}
-            placeholder="e.g., 1AB23456CD789012E"
-            placeholderTextColor="#9ca3af"
-            maxLength={50}
-          />
-        </View>
 
         {/* Confirmation Steps */}
         <View style={styles.section}>

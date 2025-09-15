@@ -231,87 +231,27 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     if (!user) return;
 
     try {
-      // Import Firebase auth functions
-      const { getCurrentUser } = await import('../../lib/firebase');
-      const { deleteUser } = await import('firebase/auth');
-      const { doc, collection, query, where, getDocs, writeBatch } = await import('firebase/firestore');
-      const { db } = await import('../../lib/firebase');
-
-      const currentUser = getCurrentUser();
-      if (!currentUser) {
-        Alert.alert('Error', 'No authenticated user found');
-        return;
-      }
-
       // Show loading message
       showMessage({
         message: 'Deleting Account',
-        description: 'Please wait while we delete your account and data...',
+        description: 'Please wait while we securely delete your account and data...',
         type: 'info',
         backgroundColor: theme.colors.backgroundCard,
         color: theme.colors.textPrimary,
         duration: 5000,
       });
 
-      // Delete user's data from Firestore collections
-      const batch = writeBatch(db);
+      // Use the secure Cloud Function for account deletion
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../../lib/firebase');
 
-      // Delete from users collection
-      batch.delete(doc(db, 'users', user.id));
+      const deleteAccountFunction = httpsCallable(functions, 'deleteAccount');
+      const result = await deleteAccountFunction({ confirmationText: 'DELETE' });
 
-      // Delete from profiles collection
-      batch.delete(doc(db, 'profiles', user.id));
+      console.log('✅ Account deletion completed:', result.data);
 
-      // Delete wellness entries
-      const wellnessQuery = query(collection(db, 'wellness_entries'), where('user_id', '==', user.id));
-      const wellnessSnapshot = await getDocs(wellnessQuery);
-      wellnessSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete rewards
-      const rewardsQuery = query(collection(db, 'rewards'), where('user_id', '==', user.id));
-      const rewardsSnapshot = await getDocs(rewardsQuery);
-      rewardsSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete messages sent by user
-      const messagesQuery = query(collection(db, 'messages'), where('from_user_id', '==', user.id));
-      const messagesSnapshot = await getDocs(messagesQuery);
-      messagesSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete payments where user is student
-      const paymentsQuery = query(collection(db, 'payments'), where('student_id', '==', user.id));
-      const paymentsSnapshot = await getDocs(paymentsQuery);
-      paymentsSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete item requests where user is student
-      const itemRequestsQuery = query(collection(db, 'item_requests'), where('student_id', '==', user.id));
-      const itemRequestsSnapshot = await getDocs(itemRequestsQuery);
-      itemRequestsSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete transactions where user is student
-      const transactionsQuery = query(collection(db, 'transactions'), where('studentId', '==', user.id));
-      const transactionsSnapshot = await getDocs(transactionsQuery);
-      transactionsSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      // Delete user progress
-      batch.delete(doc(db, 'user_progress', user.id));
-
-      // Commit all Firestore deletions
-      await batch.commit();
-
-      // Delete Firebase Auth user (this will also sign them out)
-      await deleteUser(currentUser);
+      // Logout user and navigate to welcome screen
+      logout();
 
       showMessage({
         message: 'Account Deleted',
@@ -322,13 +262,23 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         duration: 3000,
       });
 
-      // Logout will be handled automatically by auth state change
+      // Navigate to welcome screen after a brief delay
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'RoleSelection' }],
+        });
+      }, 1500);
     } catch (error: any) {
       console.error('Error deleting account:', error);
-      
+
       let errorMessage = 'Failed to delete account. Please try again.';
-      
-      if (error.code === 'auth/requires-recent-login') {
+
+      if (error.code === 'functions/unauthenticated') {
+        errorMessage = 'You must be signed in to delete your account. Please sign in again.';
+      } else if (error.code === 'functions/invalid-argument') {
+        errorMessage = 'Invalid deletion request. Please try again.';
+      } else if (error.code === 'auth/requires-recent-login') {
         errorMessage = 'For security reasons, you need to sign in again before deleting your account. Please sign out and sign back in, then try again.';
       }
 
@@ -373,10 +323,23 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
     return (
       <View style={styles.fieldContainer}>
-        <Text style={styles.fieldLabel}>PayPal.Me Handle</Text>
-        <Text style={styles.fieldDescription}>
-          Your PayPal.Me username (e.g., "johnsmith" for paypal.me/johnsmith)
-        </Text>
+        <View style={styles.paypalHeaderContainer}>
+          <View style={styles.paypalHeaderText}>
+            <Text style={styles.fieldLabel}>PayPal.Me Handle</Text>
+            <Text style={styles.fieldDescription}>
+              Your PayPal.Me username (e.g., "johnsmith" for paypal.me/johnsmith)
+            </Text>
+          </View>
+          {!isEditing && !profile.paypalMeHandle && (
+            <TouchableOpacity
+              style={styles.setupPaypalButton}
+              onPress={() => setIsEditing(true)}
+            >
+              <Text style={styles.setupPaypalButtonText}>Set Up PayPal</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         {isEditing ? (
           <View>
             <View style={styles.paypalInputContainer}>
@@ -420,9 +383,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               {profile.paypalMeHandle ? `paypal.me/${profile.paypalMeHandle}` : 'Not set'}
             </Text>
             {!profile.paypalMeHandle && (
-              <Text style={styles.setupPrompt}>
-                👆 Tap edit to set up your PayPal.Me handle for instant payments
-              </Text>
+              <View style={styles.setupPromptContainer}>
+                <Text style={styles.setupPrompt}>
+                  💰 Set up your PayPal.Me handle to receive instant payments from family
+                </Text>
+                <Text style={styles.setupPromptSecondary}>
+                  Tap "Set Up PayPal" above or use the Edit button to get started
+                </Text>
+              </View>
             )}
           </View>
         )}
@@ -854,10 +822,45 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontFamily: 'monospace',
   },
+  paypalHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  paypalHeaderText: {
+    flex: 1,
+    marginRight: 12,
+  },
+  setupPaypalButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  setupPaypalButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  setupPromptContainer: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+  },
   setupPrompt: {
+    fontSize: 14,
+    color: '#0c4a6e',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  setupPromptSecondary: {
     fontSize: 12,
-    color: '#3b82f6',
-    marginTop: 4,
+    color: '#075985',
     fontStyle: 'italic',
   },
   accountDetail: {

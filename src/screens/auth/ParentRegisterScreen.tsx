@@ -125,6 +125,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
           </TouchableOpacity>
           
           <View style={styles.logoContainer}>
+            {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
             <Image source={require('../../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
           </View>
           <Text style={styles.title}>Create Family Account</Text>

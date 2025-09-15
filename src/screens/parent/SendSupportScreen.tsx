@@ -343,9 +343,11 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
   const getProviderLogo = (providerId: string) => {
     switch (providerId) {
+      /* eslint-disable @typescript-eslint/no-require-imports */
       case 'paypal': return require('../../../assets/icons/paypal.png');
       case 'venmo': return require('../../../assets/icons/venmo.png');
       case 'cashapp': return require('../../../assets/icons/cashapp.png');
+      /* eslint-enable @typescript-eslint/no-require-imports */
       case 'zelle': return null; // DEV: Use proper Zelle logo later
       default: return null;
     }

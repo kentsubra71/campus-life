@@ -30,7 +30,7 @@ export const verifyAppStoreReceipt = async (receiptData: string): Promise<{
   // This is a simplified mock implementation
   try {
     // Mock verification logic
-    const decoded = JSON.parse(atob(receiptData));
+    const decoded = JSON.parse(global.Buffer ? global.Buffer.from(receiptData, 'base64').toString() : receiptData);
     
     return {
       valid: true,

@@ -263,7 +263,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
 
     console.log(`🔍 PayPal verification check: ${hasPayPalProcessing ? 'NEEDED' : 'NOT NEEDED'} (${activities.length} activities total)`);
 
-    let paypalVerifyInterval: NodeJS.Timeout | null = null;
+    let paypalVerifyInterval: ReturnType<typeof setInterval> | null = null;
 
     if (hasPayPalProcessing) {
       console.log('⚡ Starting PayPal auto-verification timer...');
@@ -777,29 +777,13 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
           { text: 'OK', onPress: () => navigation.navigate('ParentTabs') }
         ]
       );
-      return;
-
-      // Legacy PayPal code commented out
-      // const { createPayPalP2POrder } = await import('../../lib/paypalP2P');
-      // console.log('🔍 Calling createPayPalP2POrder with:', {
-      //   studentId,
-      //   itemPrice,
-      //   note: `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
-      // });
-      // const result = await createPayPalP2POrder(
-      //   studentId,
-      //   itemPrice, // itemPrice is already in cents from database
-      //   `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
-      // );
-
-      // console.log('🔍 PayPal P2P order result:', result);
-
       // Legacy PayPal P2P orders disabled - using deep link payments
       Alert.alert(
         'Feature Not Available',
         'Item payments are now handled through the new payment system.',
         [{ text: 'OK' }]
       );
+      return;
 
       // if (result.success && result.approvalUrl) {
       //   // Store the transaction ID for potential cancellation (same as regular payments)

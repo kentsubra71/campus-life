@@ -166,6 +166,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         // }, 100); // Almost immediate verification
       }
     } catch (error) {
+      // Silent catch - dashboard refresh failures should not break UI
     } finally {
       setIsLoading(false);
     }

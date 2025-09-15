@@ -72,6 +72,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, onNavigate
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
+              {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
               <Image source={require('../../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
             </View>
             <Text style={styles.title}>Welcome back</Text>

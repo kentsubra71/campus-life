@@ -30,6 +30,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({ naviga
         {/* Hero Section */}
         <View style={styles.hero}>
           <View style={styles.logoContainer}>
+            {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
             <Image source={require('../../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
           </View>
           <Text style={styles.appName}>CampusLife</Text>

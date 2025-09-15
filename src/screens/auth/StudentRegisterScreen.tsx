@@ -17,7 +17,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { AuthScreenProps } from '../../types/navigation';
 import { theme } from '../../styles/theme';
 
-interface StudentRegisterScreenProps extends AuthScreenProps<'StudentRegister'> {}
+type StudentRegisterScreenProps = AuthScreenProps<'StudentRegister'>;
 
 export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -133,6 +133,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
           </TouchableOpacity>
           
           <View style={styles.logoContainer}>
+            {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
             <Image source={require('../../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
           </View>
           <Text style={styles.title}>Join Your Family</Text>

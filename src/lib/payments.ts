@@ -92,20 +92,22 @@ export const buildProviderUrl = async (
       // This path is disabled to prevent duplicate payment record creation
       throw new Error('PayPal payments have been migrated to Cloud Functions. Use createPayPalP2POrder instead of createPaymentIntent.');
 
-    case 'venmo':
+    case 'venmo': {
       const venmoRecipient = recipient.venmo_username || recipient.email || recipient.zelle_phone;
       const encodedNote = encodeURIComponent(note || `CampusLife reward: $${dollars}`);
       return {
         redirectUrl: `https://venmo.com/?txn=pay&amount=${dollars}&note=${encodedNote}&recipients=${venmoRecipient}`,
         manual: true
       };
+    }
 
-    case 'cashapp':
+    case 'cashapp': {
       const cashtag = recipient.cashapp_cashtag || '$student';
       return {
         redirectUrl: `https://cash.app/${cashtag}/${dollars}`,
         manual: true
       };
+    }
 
     case 'zelle':
       return {

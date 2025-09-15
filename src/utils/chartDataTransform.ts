@@ -213,10 +213,11 @@ export const formatDateForChart = (dateString: string, period: 'daily' | 'weekly
   switch (period) {
     case 'daily':
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    case 'weekly':
+    case 'weekly': {
       const endOfWeek = new Date(date);
       endOfWeek.setDate(date.getDate() + 6);
       return `${date.getMonth() + 1}/${date.getDate()}`;
+    }
     case 'monthly':
       return date.toLocaleDateString('en-US', { month: 'short' });
     default:

@@ -5,7 +5,7 @@ import { cleanupTimedOutPayments, PAYMENT_TIMEOUT_CONFIG } from '../utils/paymen
  * Runs periodically to clean up timed-out payments
  */
 class PaymentCleanupService {
-  private intervalId: NodeJS.Timeout | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
   private lastCleanup: Date | null = null;
   private cleanupHistory: Array<{

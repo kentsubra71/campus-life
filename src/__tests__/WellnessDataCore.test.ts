@@ -415,7 +415,7 @@ describe('Wellness Data Management Core Logic', () => {
 
     test('should calculate XP rewards correctly', () => {
       const calculateXPReward = (overallScore: number): number => {
-        let baseXP = 20;
+        const baseXP = 20;
 
         if (overallScore >= 8) return 50; // High wellness bonus
         if (overallScore >= 6) return 35; // Good wellness bonus

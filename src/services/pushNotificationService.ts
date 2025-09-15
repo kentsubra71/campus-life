@@ -131,7 +131,9 @@ class PushNotificationService {
       try {
         console.error = originalError;
         console.warn = originalWarn;
-      } catch {}
+      } catch {
+        // Ignore restoration errors
+      }
       console.warn('⚠️ Error initializing push notifications:', error);
       return null;
     }

@@ -39,7 +39,8 @@
       "Bash(/Users/vedant/google-cloud-sdk/bin/gcloud alpha monitoring policies create --policy-from-file=monitoring-setup.yaml)",
       "Bash(npx expo:*)",
       "Bash(npx eas build:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm audit:*)"
     ],
     "deny": []
   }

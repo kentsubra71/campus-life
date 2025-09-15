@@ -17,11 +17,12 @@ Campus Life facilitates direct peer-to-peer financial transfers between parents 
 
 ### Core Functionality
 
-**Direct Payment System**
-- Real-time PayPal peer-to-peer payments with immediate processing
+**PayPal.Me Deep Link Payment System**
+- PayPal.Me URL generation for regulatory-compliant external payments
+- User attestation model where students confirm payment receipt manually
 - Monthly budget enforcement with automatic spending cap management
-- Comprehensive transaction history with detailed audit trails
-- Automatic payment verification with Firebase Cloud Functions integration
+- Comprehensive transaction history with user-reported audit trails
+- Deep link integration avoiding payment processor app regulations
 
 **Wellness Data Platform**
 - Seven-metric wellness logging system (mood, sleep, exercise, nutrition, water intake, social interaction, academic performance)
@@ -53,11 +54,12 @@ Campus Life facilitates direct peer-to-peer financial transfers between parents 
 - **Google Secret Manager** for secure API key management
 - **Expo Push Notifications** with Apple/Google FCM integration
 
-### Payment Processing Architecture
-- **PayPal Orders API v2** for direct peer-to-peer transaction processing
-- **Firebase Cloud Functions** middleware for payment verification and capture
-- **Idempotency key system** to prevent duplicate payment processing
-- **Real-time status updates** with automatic retry mechanisms
+### PayPal.Me Deep Link Architecture
+- **PayPal.Me URL Generation** for external payment processing outside app
+- **User Attestation Model** where students manually confirm payment receipt
+- **Firebase Cloud Functions** for payment record management and validation
+- **Regulatory Compliance** by avoiding in-app payment processing
+- **Dual Attestation** system with both parent and student confirmation
 
 ### Data Schema Design
 
@@ -82,22 +84,23 @@ interface Family {
 }
 ```
 
-**Financial Transaction System**
+**Deep Link Payment System**
 ```typescript
 interface Payment {
   id: string;
   parent_id: string;
   student_id: string;
-  intent_cents: number;
-  status: 'initiated' | 'completed' | 'failed' | 'cancelled';
+  amount_cents: number; // Deep link format
+  intent_cents: number; // Legacy compatibility
+  status: 'initiated' | 'student_confirmed' | 'completed' | 'failed';
+  payment_method: 'paypal_deep_link';
   provider: 'paypal';
-  paypal_order_id: string;
-  paypal_capture_id?: string;
-  completion_method: 'direct_paypal';
-  idempotency_key: string;
-  recipient_email: string;
+  paypal_me_handle: string;
+  paypal_me_url: string;
+  recipient_email?: string;
+  student_confirmed_at?: Timestamp;
+  student_reported_amount_cents?: number;
   created_at: Timestamp;
-  completed_at?: Timestamp;
   updated_at: Timestamp;
 }
 
@@ -148,12 +151,12 @@ interface WellnessEntry {
 - PII data minimization with automatic data retention policies
 
 **Payment Security Architecture**
-- PayPal OAuth 2.0 with server-side credential management via Secret Manager
-- All payment verification performed in Firebase Cloud Functions
-- Webhook signature verification for PayPal payment notifications
-- Idempotency key system prevents duplicate payment processing
-- Comprehensive audit logging for regulatory compliance
-- Rate limiting and fraud detection mechanisms
+- PayPal.Me deep link generation with handle validation
+- User attestation model eliminating need for webhook processing
+- Payment record access controlled via Firebase Security Rules
+- Student-side payment confirmation with amount validation
+- Comprehensive audit logging for user-reported transactions
+- Rate limiting and duplicate confirmation prevention
 
 **Recent Security Enhancements (September 2025)**
 - ✅ **Zero high-severity vulnerabilities** - All dependencies updated
@@ -288,15 +291,15 @@ interface VerifyPaymentResponse {
 
 ### Data Access Patterns
 
-**Payment Flow Architecture**
-1. Parent initiates payment through createPayPalP2POrder()
-2. Firebase Function creates payment record with 'initiated' status
-3. PayPal order generated with student email as recipient
-4. Parent completes payment through PayPal web interface
-5. PayPalP2PReturnHandler verifies payment completion
-6. Firebase Function captures payment and updates status to 'completed'
-7. PaymentReturnHandler calls confirmPayment() for budget updates
-8. Student receives push notification confirmation
+**Deep Link Payment Flow**
+1. Parent initiates payment through createDeepLinkPayment()
+2. System validates student's PayPal.Me handle from profile
+3. PayPal.Me URL generated and payment record created with 'initiated' status
+4. Deep link opens PayPal.Me in browser/PayPal app (external to your app)
+5. Parent completes payment directly through PayPal's interface
+6. Student manually confirms receipt via PaymentConfirmationScreen
+7. Payment status updated to 'student_confirmed' based on user attestation
+8. Budget tracking and family notifications triggered by confirmation
 
 **Wellness Data Synchronization**
 1. Student logs wellness metrics through WellnessLogScreen
@@ -404,11 +407,12 @@ Configuration Files:
 - 15-second auto-reload on activity screens
 - Proper navigation flow without flicker
 
-**PayPal Integration**
-- PayPal.Me handle collection during registration
-- Real-time payment processing with status updates
-- Automatic Firebase Auth cleanup on registration failures
-- Profile display of family member PayPal handles
+**PayPal.Me Deep Link Integration**
+- PayPal.Me handle collection and validation during student registration
+- Deep link URL generation for external payment processing
+- Student attestation flow for manual payment confirmation
+- Profile display of family member PayPal.Me handles
+- Regulatory compliance by avoiding in-app payment processing
 
 **Security and Error Handling**
 - Firebase Auth user cleanup on failed registrations

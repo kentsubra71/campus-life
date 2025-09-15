@@ -195,11 +195,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     
     initializeData();
 
-    // Set up auto-reload every 10 seconds
+    // Set up auto-reload every 15 seconds
     const autoReloadInterval = setInterval(() => {
       console.log('🔄 Auto-reloading activity history...');
       loadActivities(true);
-    }, 10000);
+    }, 15000);
 
     // Set up more frequent checking for processing payments (every 3 seconds)
     const frequentCheckInterval = setInterval(() => {

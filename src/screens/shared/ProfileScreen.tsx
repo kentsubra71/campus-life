@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ScrollView, 
-  View, 
-  Text, 
+import {
+  ScrollView,
+  View,
+  Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,6 +44,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [showPaypalSetup, setShowPaypalSetup] = useState(false);
   const [paypalHandle, setPaypalHandle] = useState('');
   const [isUpdatingPaypal, setIsUpdatingPaypal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadFamilyMembers();
@@ -206,6 +208,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     } catch (error) {
       console.error('Failed to load family members:', error);
       setLoadingMembers(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadFamilyMembers(),
+        checkEmailVerificationStatus()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing profile data:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -435,9 +451,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         style={styles.keyboardContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
-        style={[styles.scrollContainer, { paddingTop: 50 }]} 
+        <ScrollView
+        style={[styles.scrollContainer, { paddingTop: 50 }]}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Header */}
         <View style={styles.header}>

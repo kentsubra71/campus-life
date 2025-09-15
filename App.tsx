@@ -269,8 +269,13 @@ export default function App() {
       <SafeAreaProvider>
         <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Loading CampusLife...</Text>
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={styles.loadingTitle}>Loading Campus Life</Text>
+            <View style={styles.loadingDots}>
+              <Text style={styles.loadingDotsText}>Please wait a moment</Text>
+            </View>
+          </View>
         </View>
         <NetworkStatusIndicator position="top" />
       </SafeAreaProvider>
@@ -342,6 +347,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: theme.colors.background,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    maxWidth: 300,
+  },
+  loadingTitle: {
+    ...theme.typography.headingMedium,
+    marginTop: theme.spacing.lg,
+    color: theme.colors.textPrimary,
+    textAlign: 'center',
+  },
+  loadingSubtitle: {
+    ...theme.typography.bodyMedium,
+    marginTop: theme.spacing.sm,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  loadingDots: {
+    marginTop: theme.spacing.lg,
+  },
+  loadingDotsText: {
+    ...theme.typography.bodySmall,
+    color: theme.colors.textTertiary,
+    textAlign: 'center',
   },
   loadingText: {
     ...theme.typography.bodyMedium,

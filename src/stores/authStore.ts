@@ -295,6 +295,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
       
       if (familyError || !familyId) {
+        // Cleanup: Delete the Firebase Auth user since registration failed
+        try {
+          await firebaseUser.delete();
+          console.log('🧹 Cleaned up Firebase Auth user after family creation failure');
+        } catch (cleanupError) {
+          console.error('Failed to cleanup Firebase Auth user:', cleanupError);
+        }
+
         set({ isLoading: false });
         return { success: false, error: familyError || 'Failed to create family' };
       }
@@ -399,6 +407,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
       
       if (familyError || !familyId) {
+        // Cleanup: Delete the Firebase Auth user since registration failed
+        try {
+          await firebaseUser.delete();
+          console.log('🧹 Cleaned up Firebase Auth user after family join failure');
+        } catch (cleanupError) {
+          console.error('Failed to cleanup Firebase Auth user:', cleanupError);
+        }
+
         set({ isLoading: false });
         return { success: false, error: familyError || 'Failed to join family' };
       }

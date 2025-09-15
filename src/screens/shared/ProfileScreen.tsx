@@ -308,20 +308,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       // Clear local cache
       await cache.clearAll();
 
-      // Logout user and navigate to welcome screen
-      logout();
-
       Alert.alert(
         'Account Deleted',
         'Your account and all associated data have been permanently deleted.',
         [{
           text: 'OK',
           onPress: () => {
-            // Navigate to welcome screen
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'RoleSelection' }],
-            });
+            // Logout and let auth state change handle navigation automatically
+            logout();
           }
         }]
       );

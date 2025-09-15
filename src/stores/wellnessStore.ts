@@ -102,7 +102,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       academics_ranking: entryData.rankings.academics,
       social_ranking: entryData.rankings.social,
       overall_mood: entryData.overallMood,
-      notes: entryData.notes || undefined, // Keep as undefined for proper type
+      ...(entryData.notes ? { notes: entryData.notes } : {}), // Only include notes if it has a value
     };
 
     try {
@@ -245,7 +245,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       if (updates.rankings?.academics !== undefined) firebaseUpdates.academics_ranking = updates.rankings.academics;
       if (updates.rankings?.social !== undefined) firebaseUpdates.social_ranking = updates.rankings.social;
       if (updates.overallMood !== undefined) firebaseUpdates.overall_mood = updates.overallMood;
-      if (updates.notes !== undefined) firebaseUpdates.notes = updates.notes;
+      if (updates.notes !== undefined && updates.notes !== null) firebaseUpdates.notes = updates.notes;
 
       const { success, error } = await updateWellnessEntry(id, firebaseUpdates);
       if (!success) {

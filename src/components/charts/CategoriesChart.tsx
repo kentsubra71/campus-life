@@ -38,7 +38,6 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
     chartWidth, 
     dataPoints: data.length
   });
-  const categoryConfig = getCategoryChartConfig();
 
   if (data.length === 0) {
     return (
@@ -60,9 +59,10 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
     if (period !== 'daily') {
       return data.map(point => {
         const categoryValue = (point[category as keyof ChartDataPoint] as number) || 1;
-        const reInverted = 5 - categoryValue; // Un-invert: 4→1, 1→4
+        // Data is already inverted by transformEntriesForCharts: original rank 1 → 4, rank 4 → 1
+        // Convert to 0-3 for chart library: 4 → 3 (top), 1 → 0 (bottom)
         return {
-          value: reInverted - 1, // Convert to 0-3 for chart library
+          value: categoryValue - 1,
           label: formatDateForChart(point.date, period),
         };
       });
@@ -81,13 +81,11 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
       const existing = dataMap.get(dateStr);
       
       if (existing) {
-        // Category values are already inverted by transformEntriesForCharts
-        // Original: 1(worst)→4, 4(best)→1. We want: 4(best)→top, 1(worst)→bottom
-        // So we need to re-invert them, then subtract 1 for chart library
+        // Data is already inverted by transformEntriesForCharts: original rank 1 → 4, rank 4 → 1
+        // Convert to 0-3 for chart library: 4 → 3 (top), 1 → 0 (bottom)
         const categoryValue = (existing[category as keyof ChartDataPoint] as number) || 1;
-        const reInverted = 5 - categoryValue; // Un-invert: 4→1, 1→4
         continuousData.push({
-          value: reInverted - 1, // Convert to 0-3 for chart library
+          value: categoryValue - 1,
           label: formatDateForChart(dateStr, period),
         });
       } else {
@@ -115,7 +113,7 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Category Performance</Text>
-      <Text style={styles.subtitle}>Wellness areas ranked from best (4) to worst (1)</Text>
+      <Text style={styles.subtitle}>Wellness areas ranked from best (1) to worst (4)</Text>
       
       <View style={styles.chartContainer}>
         <LineChart
@@ -166,11 +164,11 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
           yAxisColor={`${theme.colors.border}60`}
           xAxisColor={`${theme.colors.border}60`}
           
-          // Y-axis configuration - Simple 1-4 scale (but chart uses 0-3 values)
+          // Y-axis configuration - 1-4 scale with 1 (best) at top, 4 (worst) at bottom
           maxValue={3}
           noOfSections={3}
           stepValue={1}
-          yAxisLabelTexts={['1', '2', '3', '4']}
+          yAxisLabelTexts={['4', '3', '2', '1']}
           yAxisTextStyle={{
             color: theme.colors.textTertiary,
             fontSize: 10,
@@ -223,7 +221,7 @@ const CategoriesChart: React.FC<CategoriesChartProps> = ({ data, period }) => {
       
       {/* Rank explanation */}
       <View style={styles.rankExplanation}>
-        <Text style={styles.rankText}>Rank 4 = Best Performance • Rank 1 = Needs Improvement</Text>
+        <Text style={styles.rankText}>Rank 1 = Best Performance • Rank 4 = Needs Improvement</Text>
       </View>
     </View>
   );

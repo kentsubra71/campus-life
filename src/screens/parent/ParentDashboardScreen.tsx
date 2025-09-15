@@ -115,8 +115,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       );
 
       // Get family members (either from cache or fresh)
-      const members = await cache.get(CACHE_CONFIGS.FAMILY_MEMBERS, user.id) || 
-                      await getFamilyMembers();
+      const members = (await cache.get(CACHE_CONFIGS.FAMILY_MEMBERS, user.id) ||
+                      await getFamilyMembers()) as { parents: any[]; students: any[] };
 
       // Load dashboard data with caching if we have students
       if (members.students.length > 0) {
@@ -792,6 +792,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
+  },
+  activityIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
   },
   activityScore: {
     fontSize: 16,

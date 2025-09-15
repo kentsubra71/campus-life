@@ -102,7 +102,7 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
       academics_ranking: entryData.rankings.academics,
       social_ranking: entryData.rankings.social,
       overall_mood: entryData.overallMood,
-      notes: entryData.notes || null, // Convert undefined to null for Firestore
+      notes: entryData.notes || undefined, // Keep as undefined for proper type
     };
 
     try {

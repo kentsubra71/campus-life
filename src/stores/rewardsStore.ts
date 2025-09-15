@@ -118,9 +118,9 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
 
       if (messagesData && !forceRefresh) {
         console.log('📦 Using cached support messages');
-        set({ 
-          supportMessages: messagesData.supportMessages,
-          lastMessagesFetch: new Date(messagesData.lastFetch)
+        set({
+          supportMessages: (messagesData as any).supportMessages || [],
+          lastMessagesFetch: new Date((messagesData as any).lastFetch || Date.now())
         });
         return;
       }
@@ -266,6 +266,8 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
   
   addExperience: async (amount: number) => {
     const current = get();
+    const oldExp = current.experience;
+    const oldLevel = current.level;
     const newExp = current.experience + amount;
     const newLevel = Math.floor(newExp / 200) + 1;
     const leveledUp = newLevel > current.level;
@@ -345,7 +347,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       }
       
       // Update cache to reflect the read status
-      await cache.invalidate(CACHE_CONFIGS.MESSAGE_THREADS, user.uid);
+      await cache.clear(CACHE_CONFIGS.MESSAGE_THREADS);
     } catch (error) {
       console.error('Error marking message as read:', error);
     }

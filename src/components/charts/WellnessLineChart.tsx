@@ -132,15 +132,13 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
           
           // Subtle grid styling
           showVerticalLines={false}
-          showHorizontalLines={true}
-          horizontalLinesColor={`${theme.colors.border}30`}
+          rulesColor={`${theme.colors.border}30`}
           rulesLength={chartWidth - 60}
           yAxisColor={`${theme.colors.border}60`}
           xAxisColor={`${theme.colors.border}60`}
           
           // Y-axis configuration - Force 1-10 scale (but chart uses 0-9 values)
-          yAxisMinValue={0}
-          yAxisMaxValue={9}
+          maxValue={9}
           noOfSections={9}
           stepValue={1}
           yAxisLabelTexts={['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']}
@@ -173,10 +171,7 @@ const WellnessLineChart: React.FC<WellnessLineChartProps> = ({
           startOpacity={0.25}
           endOpacity={0.05}
           
-          // Tooltip
-          showTooltip
-          tooltipBgColor={theme.colors.backgroundCard}
-          tooltipTextColor={theme.colors.textPrimary}
+          // Tooltip removed - not supported by this chart version
           
         />
       </View>

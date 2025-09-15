@@ -154,7 +154,7 @@ export class CachePreloader {
       }
       
       // Calculate health score (0-100)
-      const healthScore = Math.min(100, Math.max(0, 100 - (stats.totalItems * 2))); // Rough estimate
+      const healthScore = Math.min(100, Math.max(0, 100 - (stats.totalCaches * 2))); // Rough estimate based on cache count
       
       return {
         totalItems: stats.totalCaches,

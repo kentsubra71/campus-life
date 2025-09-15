@@ -137,7 +137,7 @@ export const getActiveSubscription = async (userId: string): Promise<Subscriptio
     
     // Check if period is still active
     if (data.current_period_end_utc.toDate() > new Date()) {
-      return { id: doc.id, ...data };
+      return { ...data, id: doc.id };
     }
     
     return null;

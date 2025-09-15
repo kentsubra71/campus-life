@@ -137,6 +137,12 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 24,
   },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginBottom: 16,
+  },
   loadingText: {
     color: theme.colors.textSecondary,
     textAlign: 'center',

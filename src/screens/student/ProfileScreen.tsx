@@ -72,7 +72,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           school: '',
           major: '',
           graduationYear: '',
-          paypalEmail: user?.paypal_email || '',
+          paypalEmail: '',
           paypalMeHandle: user?.paypal_me_handle || '',
         });
       }
@@ -124,7 +124,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       const { db } = await import('../../lib/firebase');
 
       const updateData: any = {
-        paypal_email: profile.paypalEmail || null,
         paypal_me_handle: profile.paypalMeHandle || null,
         updated_at: new Date()
       };
@@ -456,7 +455,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               </Text>
               <Text style={styles.overviewEmail}>{profile.email}</Text>
               <Text style={styles.overviewStatus}>
-                {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)} • Level {level}
+                {user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'Student'} • Level {level}
               </Text>
             </View>
           </View>
@@ -532,7 +531,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           <View style={styles.accountDetail}>
             <Text style={styles.accountLabel}>Account Type</Text>
             <Text style={styles.accountValue}>
-              {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
+              {user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : 'Student'}
             </Text>
           </View>
           <View style={styles.accountDetail}>

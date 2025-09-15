@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { LoginScreen } from '../screens/auth/LoginScreen';
-import { RegisterScreen } from '../screens/auth/RegisterScreen';
+import { RoleSelectionScreen } from '../screens/auth/RoleSelectionScreen';
 
 const Stack = createStackNavigator();
 
@@ -32,8 +32,9 @@ export const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onLoginSuccess }) 
     >
       {currentScreen === 'login' ? (
         <Stack.Screen name="Login">
-          {() => (
+          {(props) => (
             <LoginScreen
+              {...(props as any)}
               onNavigateToRegister={handleNavigateToRegister}
               onLoginSuccess={onLoginSuccess}
             />
@@ -41,10 +42,9 @@ export const AuthNavigator: React.FC<AuthNavigatorProps> = ({ onLoginSuccess }) 
         </Stack.Screen>
       ) : (
         <Stack.Screen name="Register">
-          {() => (
-            <RegisterScreen
-              onNavigateToLogin={handleNavigateToLogin}
-              onRegisterSuccess={handleRegisterSuccess}
+          {(props) => (
+            <RoleSelectionScreen
+              {...props}
             />
           )}
         </Stack.Screen>

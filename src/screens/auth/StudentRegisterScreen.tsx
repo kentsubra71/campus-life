@@ -245,7 +245,7 @@ export const StudentRegisterScreen: React.FC<StudentRegisterScreenProps> = ({ na
               />
             </View>
             {errors.paypalMeHandle && <Text style={styles.errorText}>{errors.paypalMeHandle}</Text>}
-            <Text style={styles.helpText}>Your PayPal.Me handle for receiving payments from family</Text>
+            <Text style={styles.helpTextSecondary}>Your PayPal.Me handle for receiving payments from family</Text>
           </View>
 
           {/* Privacy Policy Checkbox */}
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: '500',
   },
-  helpText: {
+  helpTextSecondary: {
     fontSize: 14,
     color: theme.colors.textTertiary,
     marginTop: 6,

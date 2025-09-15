@@ -41,6 +41,7 @@ interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
   family: Family | null;
+  familyMembers: { parents: User[]; students: User[] } | null;
   isLoading: boolean;
   
   // Auth actions
@@ -72,6 +73,7 @@ interface ParentRegisterData extends RegisterData {
 
 interface StudentRegisterData extends RegisterData {
   inviteCode: string;
+  paypal_me_handle?: string;
 }
 
 const generateInviteCode = () => Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -80,6 +82,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     isAuthenticated: false,
     user: null,
     family: null,
+    familyMembers: null,
     isLoading: false,
   
   login: async (email: string, password: string) => {
@@ -513,7 +516,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   
-  getFamilyMembers: async () => {
+  getFamilyMembers: async (): Promise<{ parents: User[]; students: User[] }> => {
     const { user } = get();
     if (!user || !user.familyId) {
       return { parents: [], students: [] };
@@ -523,7 +526,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const cached = await cache.get(CACHE_CONFIGS.FAMILY_MEMBERS, user.id);
     if (cached) {
       console.log('📦 Using cached family members');
-      return cached;
+      return cached as { parents: User[]; students: User[] };
     }
     
     try {

@@ -22,6 +22,7 @@ interface Payment {
   student_id: string;
   provider: string;
   intent_cents: number;
+  amount_cents?: number; // For backwards compatibility
   note?: string;
   status: string;
   created_at: any;
@@ -372,13 +373,13 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
       if (isPaymentPendingConfirmation) {
         navigation.navigate('PaymentConfirmation', {
           paymentId: activity.id,
-          amount: ((activity.intent_cents || activity.amount_cents) / 100).toFixed(2),
+          amount: (activity.intent_cents / 100).toFixed(2),
           parentName: 'Parent' // We can enhance this later with actual parent name lookup
         });
       } else if (isPaymentStuckProcessing) {
         Alert.alert(
           'Payment Issue?',
-          `This payment has been processing for a while. Have you received $${((activity.intent_cents || activity.amount_cents) / 100).toFixed(2)} from your parent?`,
+          `This payment has been processing for a while. Have you received $${(activity.intent_cents / 100).toFixed(2)} from your parent?`,
           [
             { text: 'Still Waiting', style: 'cancel' },
             {
@@ -390,7 +391,7 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
               text: 'Yes, Received',
               onPress: () => navigation.navigate('PaymentConfirmation', {
                 paymentId: activity.id,
-                amount: ((activity.intent_cents || activity.amount_cents) / 100).toFixed(2),
+                amount: (activity.intent_cents / 100).toFixed(2),
                 parentName: 'Parent'
               })
             }
@@ -422,13 +423,13 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
           <View style={[styles.statusBadge, { 
             backgroundColor: getStatusColor(activityType, 
               'intent_cents' in activity ? activity.status : 
-              activity.type === 'support_request' ? (activity.acknowledged ? 'acknowledged' : 'pending') :
+              activity.type === 'support_request' ? ((activity as any).acknowledged ? 'acknowledged' : 'pending') :
               activity.type || 'message') 
           }]}>
             <Text style={styles.statusText}>
               {getStatusText(activityType, 
                 'intent_cents' in activity ? activity.status : 
-                activity.type === 'support_request' ? (activity.acknowledged ? 'acknowledged' : 'pending') :
+                activity.type === 'support_request' ? ((activity as any).acknowledged ? 'acknowledged' : 'pending') :
                 activity.type || 'message')}
             </Text>
           </View>

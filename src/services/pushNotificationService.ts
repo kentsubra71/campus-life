@@ -52,6 +52,10 @@ class PushNotificationService {
    * Initialize push notifications and register device token
    */
   async initialize(userId: string): Promise<string | null> {
+    // Store original console functions at function scope
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
     try {
       console.log('🔔 Initializing push notifications...');
 
@@ -62,8 +66,6 @@ class PushNotificationService {
       }
 
       // Suppress expo-notifications warnings by catching them
-      const originalError = console.error;
-      const originalWarn = console.warn;
       console.error = (...args: any[]) => {
         const message = args.join(' ');
         if (message.includes('expo-notifications') || message.includes('Android Push notifications')) {
@@ -454,8 +456,9 @@ class PushNotificationService {
           sound: 'default',
         },
         trigger: {
+          type: 'date',
           date: reminderTime,
-        },
+        } as any,
       });
 
       console.log('📅 Scheduled daily wellness reminder for', reminderTime);
@@ -495,9 +498,10 @@ class PushNotificationService {
           sound: 'default',
         },
         trigger: {
+          type: 'date',
           date: summaryTime,
           repeats: true,
-        },
+        } as any,
       });
 
       console.log('📅 Scheduled daily summary notification for', summaryTime);
@@ -535,9 +539,10 @@ class PushNotificationService {
           sound: 'default',
         },
         trigger: {
+          type: 'date',
           date: weeklyTime,
           repeats: true,
-        },
+        } as any,
       });
 
       console.log('📊 Scheduled weekly summary notification for', weeklyTime);

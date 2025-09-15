@@ -196,7 +196,7 @@ const WellnessHistoryScreen: React.FC<WellnessHistoryScreenProps> = ({ navigatio
     <View style={styles.entryCard}>
       <View style={styles.entryHeader}>
         <Text style={styles.entryDate}>{formatDate(item.date)}</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getScoreColor(item.overallScore) }]}>
+        <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(item.overallScore) }]}>
           <Text style={styles.scoreText}>
             {item.overallScore}/10
           </Text>
@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.textPrimary,
   },
-  statusBadge: {
+  scoreBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,

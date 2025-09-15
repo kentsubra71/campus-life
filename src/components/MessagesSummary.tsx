@@ -53,11 +53,11 @@ export const MessagesSummary: React.FC<MessagesSummaryProps> = ({ onViewAll, use
       
       const messages: Message[] = firebaseMessages.slice(0, 10).map(msg => ({
         id: msg.id,
-        sender_id: msg.from_user_id || msg.sender_id,
-        recipient_id: msg.to_user_id || msg.recipient_id,
-        type: msg.message_type || msg.type,
+        sender_id: msg.from_user_id,
+        recipient_id: msg.to_user_id,
+        type: msg.message_type,
         content: msg.content,
-        amount_cents: msg.amount_cents,
+        amount_cents: msg.boost_amount,
         created_at: msg.created_at,
         read: msg.read || false
       }));

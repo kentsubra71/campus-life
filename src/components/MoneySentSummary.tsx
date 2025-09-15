@@ -91,13 +91,13 @@ export const MoneySentSummary: React.FC<MoneySentSummaryProps> = ({ onViewAll })
   };
 
   const getStudentName = (studentId: string) => {
-    if (!familyMembers || familyMembers.length === 0) {
+    if (!familyMembers || !familyMembers.students || familyMembers.students.length === 0) {
       return 'Student';
     }
-    const student = familyMembers.find(member => 
-      member.id === studentId && member.user_type === 'student'
+    const student = familyMembers.students.find((member: any) =>
+      member.id === studentId
     );
-    return student ? student.full_name.split(' ')[0] : 'Student';
+    return student ? student.name.split(' ')[0] : 'Student';
   };
 
   const getStatusText = (status: string) => {

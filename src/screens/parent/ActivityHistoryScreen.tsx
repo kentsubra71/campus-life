@@ -169,14 +169,15 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       // Legacy PayPal verification disabled - using deep links now
       // const { autoVerifyPendingPayPalPayments } = await import('../../lib/paypalIntegration');
       // const verifiedCount = await autoVerifyPendingPayPalPayments(user.id);
+      const verifiedCount = 0; // Deep link payments handle verification automatically
       console.log('🔧 Manual verification skipped - using deep link payments now');
 
       // Refresh activities to show updates
       await loadActivities(true);
-      
+
       Alert.alert(
         'PayPal Verification Complete',
-        `${verifiedCount} payments were verified and updated.`,
+        'Payment verification is now handled automatically through deep links.',
         [{ text: 'OK' }]
       );
     } catch (error: any) {
@@ -791,30 +792,37 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       //   `Item: ${itemName}${itemDescription ? ` - ${itemDescription}` : ''}`
       // );
 
-      console.log('🔍 PayPal P2P order result:', result);
+      // console.log('🔍 PayPal P2P order result:', result);
 
-      if (result.success && result.approvalUrl) {
-        // Store the transaction ID for potential cancellation (same as regular payments)
-        if (result.transactionId) {
-          console.log('✅ Item payment created with ID:', result.transactionId);
-        }
-        
-        // Open PayPal for payment (same as regular payments)
-        const { Linking } = await import('react-native');
-        await Linking.openURL(result.approvalUrl);
-        
-        // Show user what to expect (same as regular payments)
-        Alert.alert(
-          'PayPal Payment Started',
-          `Complete your payment in PayPal, then return to Campus Life. The payment for "${itemName}" will be automatically verified.`,
-          [{ text: 'OK' }]
-        );
+      // Legacy PayPal P2P orders disabled - using deep link payments
+      Alert.alert(
+        'Feature Not Available',
+        'Item payments are now handled through the new payment system.',
+        [{ text: 'OK' }]
+      );
 
-        loadActivities(true); // Refresh activities
-      } else {
-        console.error('❌ PayPal order creation failed:', result);
-        throw new Error(result.error || 'Failed to create PayPal order');
-      }
+      // if (result.success && result.approvalUrl) {
+      //   // Store the transaction ID for potential cancellation (same as regular payments)
+      //   if (result.transactionId) {
+      //     console.log('✅ Item payment created with ID:', result.transactionId);
+      //   }
+      //
+      //   // Open PayPal for payment (same as regular payments)
+      //   const { Linking } = await import('react-native');
+      //   await Linking.openURL(result.approvalUrl);
+      //
+      //   // Show user what to expect (same as regular payments)
+      //   Alert.alert(
+      //     'PayPal Payment Started',
+      //     `Complete your payment in PayPal, then return to Campus Life. The payment for "${itemName}" will be automatically verified.`,
+      //     [{ text: 'OK' }]
+      //   );
+
+      //   loadActivities(true); // Refresh activities
+      // } else {
+      //   console.error('❌ PayPal order creation failed:', result);
+      //   throw new Error(result.error || 'Failed to create PayPal order');
+      // }
     } catch (error: any) {
       console.error('❌ Error sending item payment:', error);
       Alert.alert('Error', `Failed to make payment: ${error.message || 'Unknown error'}`);
@@ -1048,7 +1056,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
     } else if (item.type === 'support_request') {
       Alert.alert(
         'Support Request Details',
-        `From: ${item.student_name}\nRequest: ${item.support_content || 'Support needed'}\nStatus: ${getStatusText(item.type, item.status)}`,
+        `From: ${item.student_name}\nRequest: ${(item as any).support_content || 'Support needed'}\nStatus: ${getStatusText(item.type, item.status)}`,
         [{ text: 'OK' }]
       );
     }

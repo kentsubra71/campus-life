@@ -17,7 +17,7 @@ const Stack = createStackNavigator();
 const DashboardStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="DashboardMain" component={DashboardScreen} />
+      <Stack.Screen name="DashboardMain" component={DashboardScreen as any} />
       <Stack.Screen name="WellnessLog" component={WellnessLogScreen} />
       <Stack.Screen name="WellnessHistory" component={WellnessHistoryScreen} />
     </Stack.Navigator>
@@ -29,7 +29,7 @@ const ActivityStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="PaymentHistory" component={PaymentHistoryScreen} />
       <Stack.Screen name="RewardsMain" component={RewardsScreen} />
-      <Stack.Screen name="PaymentConfirmation" component={PaymentConfirmationScreen} />
+      <Stack.Screen name="PaymentConfirmation" component={PaymentConfirmationScreen as any} />
     </Stack.Navigator>
   );
 };

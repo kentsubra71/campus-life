@@ -114,7 +114,7 @@ describe('Support Functionality', () => {
 
     test('should provide fallback for undefined student name', () => {
       const undefinedStudent = undefined;
-      const displayName = undefinedStudent?.name || 'Student';
+      const displayName = (undefinedStudent as any)?.name || 'Student';
       expect(displayName).toBe('Student');
     });
   });

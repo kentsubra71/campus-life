@@ -71,9 +71,9 @@ export const ActionCard: React.FC<ActionCardProps> = ({
         styles.container,
         sizeStyles,
         { backgroundColor: variantStyles.backgroundColor },
-        variantStyles.borderWidth && { 
-          borderWidth: variantStyles.borderWidth, 
-          borderColor: variantStyles.borderColor 
+        'borderWidth' in variantStyles && {
+          borderWidth: variantStyles.borderWidth,
+          borderColor: variantStyles.borderColor
         },
         disabled && styles.disabled
       ]}

@@ -82,10 +82,10 @@ export const ParentNavigator = () => {
       }}
     >
       <Stack.Screen name="ParentTabs" component={ParentMainTabs} />
-      <Stack.Screen name="ChildWellness" component={ChildWellnessScreen} />
+      <Stack.Screen name="ChildWellness" component={ChildWellnessScreen as any} />
       <Stack.Screen name="SendSupport" component={SendSupportScreen} />
       <Stack.Screen name="SendPayment" component={SendPaymentScreen} />
-      <Stack.Screen name="PaymentAttestation" component={PaymentAttestationScreen} />
+      <Stack.Screen name="PaymentAttestation" component={PaymentAttestationScreen as any} />
     </Stack.Navigator>
   );
 }; 

@@ -1,8 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, User } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, User } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, updateDoc, Timestamp, limit } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -16,9 +15,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export { app };
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
-});
+export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
 
@@ -531,9 +528,10 @@ export const createFamily = async (familyName: string, parentId: string): Promis
       console.log('✅ Custom claims refreshed for parent:', parentId);
     }
 
+    const data = result.data as { familyId: string; inviteCode: string };
     return {
-      familyId: result.data.familyId,
-      inviteCode: result.data.inviteCode
+      familyId: data.familyId,
+      inviteCode: data.inviteCode
     };
 
   } catch (error: any) {
@@ -559,8 +557,9 @@ export const joinFamily = async (inviteCode: string, studentId: string): Promise
       console.log('✅ Custom claims refreshed for student:', studentId);
     }
 
+    const data = result.data as { familyId: string };
     return {
-      familyId: result.data.familyId
+      familyId: data.familyId
     };
 
   } catch (error: any) {

@@ -12,6 +12,7 @@ export const theme = {
     textSecondary: '#64748b',
     textTertiary: '#94a3b8',
     textMuted: '#cbd5e1',
+    text: '#1e293b', // Default text color (alias for textPrimary)
     
     // Border colors - Light theme borders
     border: '#e2e8f0',
@@ -58,7 +59,24 @@ export const theme = {
       color: '#1e293b',
     },
     
-    // Subtitle styles  
+    // Heading styles
+    headingLarge: {
+      fontSize: 28,
+      fontWeight: '800' as const,
+      color: '#1e293b',
+    },
+    headingMedium: {
+      fontSize: 20,
+      fontWeight: '700' as const,
+      color: '#1e293b',
+    },
+    headingSmall: {
+      fontSize: 18,
+      fontWeight: '600' as const,
+      color: '#1e293b',
+    },
+
+    // Subtitle styles
     subtitleLarge: {
       fontSize: 18,
       fontWeight: '700' as const,

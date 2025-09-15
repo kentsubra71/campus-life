@@ -36,6 +36,7 @@ interface PaymentData {
   parent_txn_reference?: string;
   created_at: any;
   parentName?: string;
+  student_confirmed_at?: any;
 }
 
 export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps> = ({ navigation, route }) => {

@@ -16,6 +16,8 @@ import { useRewardsStore } from '../../stores/rewardsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { sendMessage, getCurrentUser } from '../../lib/firebase';
 import { getCurrentSpendingCaps } from '../../lib/payments';
+import { logError } from '../../utils/errorHandling';
+import { getUserFriendlyError } from '../../utils/userFriendlyErrors';
 // Legacy PayPal P2P disabled - using deep links now
 // import { createPayPalP2POrder } from '../../lib/paypalP2P';
 import { createTestSubscription } from '../../lib/subscriptionWebhooks';
@@ -164,6 +166,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
       // Create real payment intent
       const studentId = selectedStudentId || familyMembers.students[selectedStudentIndex]?.id || familyMembers.students[0]?.id;
+      const amountCents = Math.round(boostAmount * 100);
 
       if (!studentId) {
         Alert.alert('Error', 'Unable to find student to send payment to.');
@@ -182,8 +185,6 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
             setIsLoading(false);
             return;
           }
-
-          const amountCents = Math.round(boostAmount * 100);
           const { createDeepLinkPayment, formatPaymentAmount: formatDeepLinkAmount } = await import('../../lib/paypalDeepLink');
           const { getUserFriendlyError, logError } = await import('../../utils/userFriendlyErrors');
 
@@ -273,7 +274,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
           );
         }
       } catch (error: any) {
-        logError(error, 'Send payment operation', { provider: selectedProvider, studentId, amountCents });
+        console.error('Send payment operation failed:', error, { provider: selectedProvider, studentId, amountCents });
         const friendlyError = getUserFriendlyError(error, 'payment processing');
         Alert.alert('Payment Failed', friendlyError);
       } finally {

@@ -10,10 +10,13 @@ export type PaymentStatus =
   | 'completed';          // Legacy status alias for 'confirmed'
 
 export interface PaymentData {
+  id?: string;
   status: PaymentStatus;
+  amount_cents?: number;
   confirmed_at?: Timestamp;
   parent_sent_at?: Timestamp;
   student_confirmed_at?: Timestamp;
+  student_amount_received?: number;
   cancelled_at?: Timestamp;
   disputed_at?: Timestamp;
   updated_at: Timestamp;

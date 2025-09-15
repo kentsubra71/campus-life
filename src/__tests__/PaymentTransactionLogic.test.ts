@@ -3,7 +3,8 @@
  * Tests the atomic transaction behavior and race condition prevention
  */
 
-import { PaymentStatusManager } from '../utils/paymentStatusManager';
+import { PaymentStatusManager, PaymentStatus, PaymentData } from '../utils/paymentStatusManager';
+import { Timestamp } from 'firebase/firestore';
 
 // Mock Firebase Transaction
 const mockTransaction = {
@@ -25,12 +26,13 @@ describe('Payment Transaction Logic', () => {
 
   describe('Student Confirmation Transactions', () => {
     test('should handle student confirmation when parent already confirmed', async () => {
-      const currentData = {
+      const currentData: PaymentData = {
         id: 'payment-123',
-        status: 'confirmed_by_parent',
-        confirmed_at: new Date(),
-        parent_sent_at: new Date(),
-        amount_cents: 2000
+        status: 'confirmed_by_parent' as PaymentStatus,
+        confirmed_at: Timestamp.now(),
+        parent_sent_at: Timestamp.now(),
+        amount_cents: 2000,
+        updated_at: Timestamp.now()
       };
 
       mockTransaction.get.mockResolvedValue(createMockDoc(currentData));
@@ -50,10 +52,11 @@ describe('Payment Transaction Logic', () => {
     });
 
     test('should handle student confirmation when payment still initiated', async () => {
-      const currentData = {
+      const currentData: PaymentData = {
         id: 'payment-123',
-        status: 'initiated',
-        amount_cents: 2000
+        status: 'initiated' as PaymentStatus,
+        amount_cents: 2000,
+        updated_at: Timestamp.now()
       };
 
       const canConfirm = PaymentStatusManager.canStudentConfirm(currentData.status);
@@ -84,7 +87,7 @@ describe('Payment Transaction Logic', () => {
     });
 
     test('should reject confirmation on invalid status', () => {
-      const canConfirm = PaymentStatusManager.canStudentConfirm('cancelled');
+      const canConfirm = PaymentStatusManager.canStudentConfirm('cancelled' as PaymentStatus);
       expect(canConfirm).toBe(false);
 
       expect(() => {
@@ -97,12 +100,13 @@ describe('Payment Transaction Logic', () => {
 
   describe('Parent Confirmation Transactions', () => {
     test('should handle parent confirmation when student already confirmed', async () => {
-      const currentData = {
+      const currentData: PaymentData = {
         id: 'payment-123',
-        status: 'initiated',
-        student_confirmed_at: new Date(),
+        status: 'initiated' as PaymentStatus,
+        student_confirmed_at: Timestamp.now(),
         student_amount_received: 2000,
-        amount_cents: 2000
+        amount_cents: 2000,
+        updated_at: Timestamp.now()
       };
 
       const canConfirm = PaymentStatusManager.canParentConfirm(currentData.status);
@@ -117,10 +121,11 @@ describe('Payment Transaction Logic', () => {
     });
 
     test('should handle parent confirmation when student has not confirmed', async () => {
-      const currentData = {
+      const currentData: PaymentData = {
         id: 'payment-123',
-        status: 'initiated',
-        amount_cents: 2000
+        status: 'initiated' as PaymentStatus,
+        amount_cents: 2000,
+        updated_at: Timestamp.now()
       };
 
       const updateData = PaymentStatusManager.buildParentConfirmationUpdate(currentData);

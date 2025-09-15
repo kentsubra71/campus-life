@@ -244,11 +244,11 @@ describe('Family Management Core Logic', () => {
       ...overrides
     });
 
-    const createMockUser = (overrides = {}) => ({
+    const createMockUser = (overrides: any = {}) => ({
       id: 'user-123',
       email: 'user@example.com',
       name: 'Test User',
-      role: 'student' as const,
+      role: 'student' as 'parent' | 'student',
       familyId: 'family-123',
       createdAt: new Date(),
       ...overrides

@@ -64,7 +64,7 @@ describe('Wellness Data Management Core Logic', () => {
       });
 
       invalidMoods.forEach(mood => {
-        const isValid = mood >= 1 && mood <= 10 && Number.isInteger(mood);
+        const isValid = mood != null && mood >= 1 && mood <= 10 && Number.isInteger(mood);
         expect(isValid).toBe(false);
       });
     });

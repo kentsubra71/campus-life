@@ -14,6 +14,7 @@ import { doc, updateDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { theme } from '../../styles/theme';
 import { useAuthStore } from '../../stores/authStore';
 import { formatPaymentAmount } from '../../lib/paypalDeepLink';
+import { PaymentStatusManager } from '../../utils/paymentStatusManager';
 
 interface PaymentConfirmationScreenProps {
   navigation: any;
@@ -106,14 +107,37 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
     setConfirming(true);
 
     try {
-      const updateData: any = {
-        status: 'confirmed',
-        student_confirmed_at: Timestamp.now(),
-        student_amount_received: receivedCents,
-        updated_at: Timestamp.now()
-      };
+      // Use transaction to prevent race conditions with parent attestation
+      const { runTransaction } = await import('firebase/firestore');
 
-      await updateDoc(doc(db, 'payments', paymentId), updateData);
+      await runTransaction(db, async (transaction) => {
+        const paymentRef = doc(db, 'payments', paymentId);
+        const currentPayment = await transaction.get(paymentRef);
+
+        if (!currentPayment.exists()) {
+          throw new Error('Payment not found');
+        }
+
+        const currentData = currentPayment.data() as any;
+
+        // Check if student confirmation is allowed
+        if (!PaymentStatusManager.canStudentConfirm(currentData.status)) {
+          throw new Error(`Cannot confirm payment with status: ${currentData.status}`);
+        }
+
+        // If already confirmed by student, this is idempotent
+        if (currentData.student_confirmed_at) {
+          return; // Already confirmed, no-op
+        }
+
+        // Build atomic update using status manager
+        const updateData = PaymentStatusManager.buildStudentConfirmationUpdate(
+          currentData,
+          receivedCents
+        );
+
+        transaction.update(paymentRef, updateData);
+      });
 
       const expectedAmount = formatPaymentAmount(payment.amount_cents);
       const receivedAmount = formatPaymentAmount(receivedCents);
@@ -160,11 +184,30 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
           text: 'Never Received',
           onPress: async () => {
             try {
-              await updateDoc(doc(db, 'payments', paymentId), {
-                status: 'disputed',
-                dispute_reason: 'never_received',
-                student_disputed_at: Timestamp.now(),
-                updated_at: Timestamp.now()
+              // Use transaction to prevent race conditions
+              const { runTransaction } = await import('firebase/firestore');
+
+              await runTransaction(db, async (transaction) => {
+                const paymentRef = doc(db, 'payments', paymentId);
+                const currentPayment = await transaction.get(paymentRef);
+
+                if (!currentPayment.exists()) {
+                  throw new Error('Payment not found');
+                }
+
+                const currentData = currentPayment.data();
+
+                // Check if dispute is allowed
+                if (!PaymentStatusManager.canDispute(currentData.status)) {
+                  throw new Error(`Cannot dispute payment with status: ${currentData.status}`);
+                }
+
+                transaction.update(paymentRef, {
+                  status: 'disputed',
+                  dispute_reason: 'never_received',
+                  student_disputed_at: Timestamp.now(),
+                  updated_at: Timestamp.now()
+                });
               });
 
               Alert.alert(

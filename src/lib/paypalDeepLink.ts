@@ -35,8 +35,18 @@ export const isValidPayPalHandle = (handle: string): boolean => {
 
   const cleanHandle = handle.replace(/^@/, '').trim();
 
-  // PayPal.Me handles must be 6-20 characters, alphanumeric plus periods/underscores
-  const handleRegex = /^[a-zA-Z0-9._]{6,20}$/;
+  // PayPal.Me handles: 3-20 characters, start/end with alphanumeric, allow letters/numbers/hyphens/underscores/periods
+  // Must not start or end with special characters (-, _, .)
+  const handleRegex = /^[a-zA-Z0-9][a-zA-Z0-9._-]{1,18}[a-zA-Z0-9]$/;
+
+  // Special case: single character handles (3 chars minimum, so this covers 3+ chars)
+  if (cleanHandle.length < 3) return false;
+
+  // Single/double character handles don't need the complex regex
+  if (cleanHandle.length <= 2) {
+    return /^[a-zA-Z0-9]{1,2}$/.test(cleanHandle);
+  }
+
   return handleRegex.test(cleanHandle);
 };
 
@@ -99,7 +109,7 @@ export const createDeepLinkPayment = async (
     if (!isValidPayPalHandle(paypalInfo.handle)) {
       return {
         success: false,
-        error: `Invalid PayPal Handle - The student's PayPal handle "${paypalInfo.handle}" is invalid. It must be 6-20 characters with only letters, numbers, dots, and underscores. Ask them to update it in Profile → Payment Setup.`
+        error: `Invalid PayPal Handle - The student's PayPal handle "${paypalInfo.handle}" is invalid. It must be 3-20 characters, start and end with letters/numbers, and can contain letters, numbers, hyphens, dots, and underscores. Ask them to update it in Profile → Payment Setup.`
       };
     }
 
@@ -225,7 +235,7 @@ export const testPayPalMeHandle = (handle: string): { valid: boolean; error?: st
   if (!isValidPayPalHandle(handle)) {
     return {
       valid: false,
-      error: 'Handle must be 6-20 characters, letters/numbers only (plus . and _)'
+      error: 'Handle must be 3-20 characters, start/end with letters/numbers, can contain letters, numbers, hyphens, dots, underscores'
     };
   }
 

@@ -1,5 +1,5 @@
-import { StyleSheet } from 'react-native'
-import { theme } from './theme'
+import { StyleSheet } from 'react-native';
+import { theme } from './theme';
 
 export const commonStyles = StyleSheet.create({
   // Container styles
@@ -279,7 +279,7 @@ export const commonStyles = StyleSheet.create({
   containerPadding: {
     paddingHorizontal: theme.spacing.xl,
   },
-})
+});
 
 export const textStyles = StyleSheet.create({
   // Centered text
@@ -319,4 +319,4 @@ export const textStyles = StyleSheet.create({
   textPrimaryAccent: {
     color: theme.colors.primary,
   },
-})
+});

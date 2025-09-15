@@ -40,7 +40,8 @@
       "Bash(npx expo:*)",
       "Bash(npx eas build:*)",
       "Bash(git commit:*)",
-      "Bash(npm audit:*)"
+      "Bash(npm audit:*)",
+      "Bash(npx eslint:*)"
     ],
     "deny": []
   }

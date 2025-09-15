@@ -120,18 +120,18 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
   const supportTemplates = {
     message: [
-      "So proud of how you're taking care of yourself!",
-      "Just wanted you to know I'm thinking of you today",
-      "You're doing an amazing job growing and learning!",
-      "Miss you and love seeing your progress",
-      "Remember that you're strong and capable of anything!"
+      'So proud of how you\'re taking care of yourself!',
+      'Just wanted you to know I\'m thinking of you today',
+      'You\'re doing an amazing job growing and learning!',
+      'Miss you and love seeing your progress',
+      'Remember that you\'re strong and capable of anything!'
     ],
     boost: [
-      "Great job maintaining your wellness routine!",
-      "Proud of your consistency this week!",
-      "Amazing streak - you deserve a treat!",
-      "Noticed you've been taking great care of yourself!",
-      "Your hard work is paying off!"
+      'Great job maintaining your wellness routine!',
+      'Proud of your consistency this week!',
+      'Amazing streak - you deserve a treat!',
+      'Noticed you\'ve been taking great care of yourself!',
+      'Your hard work is paying off!'
     ]
   };
 

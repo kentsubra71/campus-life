@@ -13,6 +13,7 @@ import {
 import { db } from '../../lib/firebase';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { theme } from '../../styles/theme';
+import { PaymentStatusManager } from '../../utils/paymentStatusManager';
 
 interface PaymentAttestationScreenProps {
   navigation: any;
@@ -76,15 +77,34 @@ export const PaymentAttestationScreen: React.FC<PaymentAttestationScreenProps> =
             setIsSubmitting(true);
 
             try {
-              const updateData: any = {
-                status: 'confirmed_by_parent', // Match old system status
-                confirmed_at: Timestamp.now(), // Match old system timestamp field
-                parent_sent_at: Timestamp.now(), // New system timestamp (keep both for compatibility)
-                updated_at: Timestamp.now()
-              };
+              // Use transaction to prevent race conditions with student confirmation
+              const { runTransaction } = await import('firebase/firestore');
 
+              await runTransaction(db, async (transaction) => {
+                const paymentRef = doc(db, 'payments', paymentId);
+                const currentPayment = await transaction.get(paymentRef);
 
-              await updateDoc(doc(db, 'payments', paymentId), updateData);
+                if (!currentPayment.exists()) {
+                  throw new Error('Payment not found');
+                }
+
+                const currentData = currentPayment.data() as any;
+
+                // Check if parent confirmation is allowed
+                if (!PaymentStatusManager.canParentConfirm(currentData.status)) {
+                  throw new Error(`Cannot confirm payment with status: ${currentData.status}`);
+                }
+
+                // If already confirmed by parent, this is idempotent
+                if (currentData.confirmed_at && currentData.parent_sent_at) {
+                  return; // Already confirmed, no-op
+                }
+
+                // Build atomic update using status manager
+                const updateData = PaymentStatusManager.buildParentConfirmationUpdate(currentData);
+
+                transaction.update(paymentRef, updateData);
+              });
 
               // Immediately redirect to dashboard without alert (like old system)
               navigation.navigate('ParentTabs', { screen: 'Dashboard' });
@@ -111,11 +131,30 @@ export const PaymentAttestationScreen: React.FC<PaymentAttestationScreenProps> =
           style: 'destructive',
           onPress: async () => {
             try {
-              await updateDoc(doc(db, 'payments', paymentId), {
-                status: 'cancelled',
-                cancelled_at: Timestamp.now(),
-                cancelled_reason: 'Parent cancelled before sending',
-                updated_at: Timestamp.now()
+              // Use transaction to prevent race conditions
+              const { runTransaction } = await import('firebase/firestore');
+
+              await runTransaction(db, async (transaction) => {
+                const paymentRef = doc(db, 'payments', paymentId);
+                const currentPayment = await transaction.get(paymentRef);
+
+                if (!currentPayment.exists()) {
+                  throw new Error('Payment not found');
+                }
+
+                const currentData = currentPayment.data();
+
+                // Check if cancellation is allowed
+                if (!PaymentStatusManager.canCancel(currentData.status)) {
+                  throw new Error(`Cannot cancel payment with status: ${currentData.status}`);
+                }
+
+                transaction.update(paymentRef, {
+                  status: 'cancelled',
+                  cancelled_at: Timestamp.now(),
+                  cancelled_reason: 'Parent cancelled before sending',
+                  updated_at: Timestamp.now()
+                });
               });
 
               navigation.navigate('ParentTabs', { screen: 'Dashboard' });

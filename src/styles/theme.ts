@@ -183,6 +183,6 @@ export const theme = {
       paddingHorizontal: 20,
     },
   },
-}
+};
 
 export type Theme = typeof theme

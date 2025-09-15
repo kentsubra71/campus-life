@@ -86,7 +86,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
     // Validate PayPal.Me handle if provided
     if (profile.paypalMeHandle && !isValidPayPalHandle(profile.paypalMeHandle)) {
-      Alert.alert('Invalid PayPal Handle', 'Please enter a valid PayPal.Me handle (6-20 characters, letters/numbers only)');
+      Alert.alert('Invalid PayPal Handle', 'Please enter a valid PayPal.Me handle (3-20 characters, start/end with letters/numbers, can contain letters, numbers, hyphens, dots, underscores)');
       return;
     }
 

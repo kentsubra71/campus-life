@@ -11,7 +11,7 @@ interface BudgetProgressBarProps {
 export const BudgetProgressBar: React.FC<BudgetProgressBarProps> = ({
   spent = 0,
   budget = 50,
-  title = "Monthly Budget"
+  title = 'Monthly Budget'
 }) => {
   const remaining = Math.max(0, budget - spent);
   const percentage = Math.min(100, (spent / budget) * 100);

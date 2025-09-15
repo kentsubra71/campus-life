@@ -1,12 +1,12 @@
 /**
- * Support Functionality Tests
- * Tests the parent-to-student support messaging system
+ * Student Selector UI Tests
+ * Tests the student selection interface for parent messaging
  */
 
 import { ParentDashboardScreen } from '../screens/parent/ParentDashboardScreen';
 import { SendSupportScreen } from '../screens/parent/SendSupportScreen';
 
-describe('Support Functionality', () => {
+describe('Student Selector UI', () => {
   const mockFamilyMembers = {
     parents: [
       { id: 'parent1', name: 'John Parent', email: 'parent@test.com' }

@@ -1008,10 +1008,11 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
         updated_at: Timestamp.now()
       });
 
-      // Navigate directly to send payment screen with pre-filled data
-      navigation.navigate('SendPayment', {
+      // Navigate to send support screen with care boost pre-selected
+      navigation.navigate('SendSupport', {
+        preselectedType: 'boost',
+        selectedStudentId: paymentData.student_id,
         retryPaymentId: paymentId,
-        studentId: paymentData.student_id,
         amount: ((paymentData.intent_cents || paymentData.amount_cents) / 100).toFixed(2),
         note: paymentData.note || 'Retry payment'
       });

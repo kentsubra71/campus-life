@@ -20,16 +20,6 @@ export const LogWellnessScreen: React.FC<LogWellnessScreenProps> = ({ navigation
   const [currentStreak, setCurrentStreak] = useState(stats.currentStreak);
 
 
-  const showWeeklySummary = () => {
-    showMessage({
-      message: 'Weekly Summary',
-      description: `Current streak: ${currentStreak} days • Average score: ${stats.averageScore}/10`,
-      type: 'info',
-      backgroundColor: theme.colors.info,
-      color: theme.colors.backgroundSecondary,
-      duration: 3000,
-    });
-  };
 
 
   return (
@@ -117,24 +107,13 @@ export const LogWellnessScreen: React.FC<LogWellnessScreenProps> = ({ navigation
           
           {/* Secondary Actions */}
           <View style={styles.secondaryActions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionItem}
               onPress={() => navigation.navigate('WellnessHistory')}
             >
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>View History</Text>
                 <Text style={styles.actionSubtitle}>See your wellness journey over time</Text>
-              </View>
-              <Text style={styles.actionArrow}>›</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.actionItem}
-              onPress={() => showWeeklySummary()}
-            >
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Weekly Summary</Text>
-                <Text style={styles.actionSubtitle}>Review your week's progress</Text>
               </View>
               <Text style={styles.actionArrow}>›</Text>
             </TouchableOpacity>

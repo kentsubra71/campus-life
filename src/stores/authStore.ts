@@ -43,6 +43,7 @@ interface AuthState {
   family: Family | null;
   familyMembers: { parents: User[]; students: User[] } | null;
   isLoading: boolean;
+  isRegistering: boolean;
   
   // Auth actions
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -84,6 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     family: null,
     familyMembers: null,
     isLoading: false,
+    isRegistering: false,
   
   login: async (email: string, password: string) => {
     set({ isLoading: true });
@@ -273,7 +275,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   createFamily: async (parentData: ParentRegisterData) => {
-    set({ isLoading: true });
+    set({ isLoading: true, isRegistering: true });
     console.log('🔥 CREATE FAMILY FUNCTION CALLED - Firebase implementation active');
     
     try {
@@ -349,13 +351,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         createdAt: familyData.created_at.toDate(),
       };
       
-      set({ 
-        isAuthenticated: true, 
-        user, 
+      set({
+        isAuthenticated: true,
+        user,
         family,
-        isLoading: false 
+        isLoading: false,
+        isRegistering: false
       });
-      
+
       // Initialize push notifications for the user
       pushNotificationService.initialize(user.id).then(async () => {
         try {
@@ -379,13 +382,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { success: true, inviteCode };
       
     } catch (error: any) {
-      set({ isLoading: false });
+      set({ isLoading: false, isRegistering: false });
       return { success: false, error: error.message || 'Failed to create family' };
     }
   },
   
   joinFamily: async (studentData: StudentRegisterData, inviteCode: string) => {
-    set({ isLoading: true });
+    set({ isLoading: true, isRegistering: true });
     console.log('🔥 JOIN FAMILY FUNCTION CALLED - Firebase implementation active');
     
     try {
@@ -499,19 +502,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Now set loading to false - everything is truly ready
-        set({ isLoading: false });
+        set({ isLoading: false, isRegistering: false });
         console.log('✅ Complete student initialization finished');
 
       } catch (error) {
         console.warn('Failed to complete student notification setup:', error);
         // Still set loading to false even if notifications fail
-        set({ isLoading: false });
+        set({ isLoading: false, isRegistering: false });
       }
       
       return { success: true };
       
     } catch (error: any) {
-      set({ isLoading: false });
+      set({ isLoading: false, isRegistering: false });
       return { success: false, error: error.message || 'Failed to join family' };
     }
   },
@@ -629,8 +632,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('🔐 Auth state changed:', firebaseUser ? 'authenticated' : 'not authenticated');
 
       if (firebaseUser) {
-        // Check if user is already fully set up from registration
+        // Check if we're in the middle of registration process
         const currentState = get();
+        if (currentState.isRegistering) {
+          console.log('🔄 Registration in progress, skipping auth state listener');
+          return;
+        }
+
+        // Check if user is already fully set up from registration
         if (currentState.isAuthenticated && currentState.user && currentState.user.id === firebaseUser.uid) {
           console.log('✅ User already initialized from registration, skipping duplicate setup');
           return;
@@ -751,8 +760,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             
             console.log('✅ User authenticated and profile loaded');
           } else {
-            console.warn('❌ User authenticated but profile not found');
-            set({ isAuthenticated: false, user: null, family: null, isLoading: false });
+            console.log('⏱️ Waiting for onUserCreated to complete initialization...');
+            // During registration, profile might not exist yet - wait for server-side creation
+            // Don't clear auth state, just log the situation
           }
         } catch (error) {
           console.error('❌ Error loading user profile:', error);

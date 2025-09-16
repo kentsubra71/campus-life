@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -83,6 +84,16 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
   useEffect(() => {
     applyFilters();
   }, [activities, filterPeriod, filterType]);
+
+  // Reload activities when screen comes into focus (e.g., after confirming/disputing payment)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        console.log('🔄 Student activity screen focused, refreshing...');
+        loadAllActivities();
+      }
+    }, [user])
+  );
 
   const loadAllActivities = async () => {
     if (!user) return;
@@ -236,15 +247,6 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({ navi
     setFilteredActivities(filtered);
   };
 
-  const getPeriodLabel = (period: FilterPeriod) => {
-    switch (period) {
-      case 'day': return 'Past 24h';
-      case 'week': return 'Past Week';
-      case 'month': return 'Past Month';
-      case 'all': return 'All Time';
-      default: return 'All Time';
-    }
-  };
 
   const onRefresh = async () => {
     setRefreshing(true);

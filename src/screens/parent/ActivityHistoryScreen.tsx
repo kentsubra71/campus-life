@@ -19,7 +19,7 @@ import { db, getItemRequestsForParent, updateItemRequestStatus } from '../../lib
 import { theme } from '../../styles/theme';
 import { commonStyles } from '../../styles/components';
 import { StatusHeader } from '../../components/StatusHeader';
-import { NavigationProp } from '@react-navigation/native';
+import { NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { getUserFriendlyError, logError } from '../../utils/userFriendlyErrors';
 import { showMessage } from 'react-native-flash-message';
 import { 
@@ -294,6 +294,16 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
       }
     };
   }, [activities, user]);
+
+  // Reload activities when screen comes into focus (e.g., returning from retry payment)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user && seenActivitiesLoaded) {
+        console.log('🔄 Screen focused, refreshing activities...');
+        loadActivities(true); // Force refresh when coming back to screen
+      }
+    }, [user, seenActivitiesLoaded])
+  );
 
   const loadActivities = async (isRefresh = false, forceRefresh = false) => {
     if (!user) return;

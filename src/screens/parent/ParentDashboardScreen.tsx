@@ -491,7 +491,9 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       >
         {/* Modern Header */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>Hi there!</Text>
+          <Text style={styles.greeting}>
+            {hasMultipleStudents ? 'Hi there!' : `Hi there, ${user?.name?.split(' ')[0] || 'Parent'}!`}
+          </Text>
           <Text style={styles.title}>
             {hasMultipleStudents ? 'Your Kids' : (studentName && studentName !== 'Loading...' ? studentName.split(' ')[0] : 'Student')}
           </Text>

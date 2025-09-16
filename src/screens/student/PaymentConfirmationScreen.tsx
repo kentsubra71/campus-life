@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   Alert,
   RefreshControl
 } from 'react-native';
@@ -47,7 +46,6 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
   const [payment, setPayment] = useState<PaymentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
-  const [actualAmountReceived, setActualAmountReceived] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
   const loadPayment = async () => {
@@ -73,8 +71,6 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
 
       setPayment(paymentData);
 
-      // Pre-fill the expected amount
-      setActualAmountReceived((paymentData.amount_cents / 100).toFixed(2));
 
     } catch (error) {
       console.error('Error loading payment:', error);
@@ -96,13 +92,6 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
 
   const handleConfirmReceived = async () => {
     if (!payment) return;
-
-    // Validate amount
-    const receivedCents = Math.round(parseFloat(actualAmountReceived || '0') * 100);
-    if (receivedCents <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter the amount you actually received');
-      return;
-    }
 
     setConfirming(true);
 
@@ -130,30 +119,20 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
           return; // Already confirmed, no-op
         }
 
-        // Build atomic update using status manager
+        // Build atomic update using status manager with expected amount
         const updateData = PaymentStatusManager.buildStudentConfirmationUpdate(
           currentData,
-          receivedCents
+          payment.amount_cents // Use the expected amount since we're not asking for verification
         );
 
         transaction.update(paymentRef, updateData);
       });
 
       const expectedAmount = formatPaymentAmount(payment.amount_cents);
-      const receivedAmount = formatPaymentAmount(receivedCents);
-
-      let alertTitle = 'Payment Confirmed!';
-      let alertMessage = `You've confirmed receiving ${receivedAmount} from ${payment.parentName || 'your parent'}.`;
-
-      // Check if amounts match
-      if (receivedCents !== payment.amount_cents) {
-        alertTitle = 'Payment Confirmed (Amount Differs)';
-        alertMessage += `\n\nNote: Expected ${expectedAmount}, received ${receivedAmount}. This difference has been recorded.`;
-      }
 
       Alert.alert(
-        alertTitle,
-        alertMessage,
+        'Payment Confirmed!',
+        `You've confirmed receiving ${expectedAmount} from ${payment.parentName || 'your parent'}.`,
         [
           {
             text: 'OK',
@@ -170,18 +149,15 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
     }
   };
 
-  const handleDispute = () => {
+  const handleDispute = async () => {
     Alert.alert(
-      'Report Issue',
-      'What would you like to report about this payment?',
+      'Never Received Payment?',
+      'Are you sure you never received this payment? This will notify your parent that there was an issue.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Wrong Amount',
-          onPress: () => Alert.alert('Wrong Amount', 'Please enter the correct amount you received and we\'ll record the difference.')
-        },
-        {
           text: 'Never Received',
+          style: 'destructive',
           onPress: async () => {
             try {
               // Use transaction to prevent race conditions
@@ -304,62 +280,29 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
         </View>
 
         {!isAlreadyConfirmed && (
-          <>
-            {/* Amount Verification */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Verify Amount Received</Text>
-              <Text style={styles.sectionDescription}>
-                Check your PayPal account and enter the exact amount you received:
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Did you receive this payment?</Text>
+            <Text style={styles.sectionDescription}>
+              Check your PayPal account to confirm you received the payment, then choose one of the options below:
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.confirmButton,
+                confirming && styles.confirmButtonDisabled
+              ]}
+              onPress={handleConfirmReceived}
+              disabled={confirming}
+            >
+              <Text style={styles.confirmButtonText}>
+                {confirming ? 'Confirming...' : 'Yes, I Received This Payment'}
               </Text>
+            </TouchableOpacity>
 
-              <View style={styles.amountInputContainer}>
-                <Text style={styles.dollarSign}>$</Text>
-                <TextInput
-                  style={styles.amountInput}
-                  value={actualAmountReceived}
-                  onChangeText={setActualAmountReceived}
-                  keyboardType="numeric"
-                  placeholder="0.00"
-                  placeholderTextColor="#9ca3af"
-                />
-              </View>
-
-              {actualAmountReceived && (
-                <View style={styles.amountComparisonContainer}>
-                  <View style={styles.amountComparison}>
-                    <Text style={styles.comparisonLabel}>Expected:</Text>
-                    <Text style={styles.comparisonAmount}>{expectedAmount}</Text>
-                  </View>
-                  <View style={styles.amountComparison}>
-                    <Text style={styles.comparisonLabel}>Received:</Text>
-                    <Text style={styles.comparisonAmount}>
-                      ${parseFloat(actualAmountReceived || '0').toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={[
-                  styles.confirmButton,
-                  confirming && styles.confirmButtonDisabled
-                ]}
-                onPress={handleConfirmReceived}
-                disabled={confirming}
-              >
-                <Text style={styles.confirmButtonText}>
-                  {confirming ? 'Confirming...' : 'Confirm I Received This'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.disputeButton} onPress={handleDispute}>
-                <Text style={styles.disputeButtonText}>Report an Issue</Text>
-              </TouchableOpacity>
-            </View>
-          </>
+            <TouchableOpacity style={styles.disputeButton} onPress={handleDispute}>
+              <Text style={styles.disputeButtonText}>No, I Never Received This</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {isAlreadyConfirmed && (
@@ -498,49 +441,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginBottom: 16,
     lineHeight: 20,
-  },
-  amountInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.backgroundCard,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  dollarSign: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: theme.colors.primary,
-    marginRight: 8,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: 24,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    padding: 16,
-  },
-  amountComparisonContainer: {
-    backgroundColor: theme.colors.backgroundTertiary,
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  amountComparison: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  comparisonLabel: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  comparisonAmount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
   },
   confirmButton: {
     backgroundColor: '#10b981',

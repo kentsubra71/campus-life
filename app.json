@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ronaldvedant.campuslife",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "jsEngine": "hermes",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [

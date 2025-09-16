@@ -18,6 +18,7 @@ import { sendMessage, getCurrentUser } from '../../lib/firebase';
 import { getCurrentSpendingCaps } from '../../lib/payments';
 import { logError } from '../../utils/errorHandling';
 import { getUserFriendlyError } from '../../utils/userFriendlyErrors';
+import { checkEmailVerificationRequired } from '../../lib/emailVerificationCheck';
 // Legacy PayPal P2P disabled - using deep links now
 // import { createPayPalP2POrder } from '../../lib/paypalP2P';
 import { createTestSubscription } from '../../lib/subscriptionWebhooks';
@@ -137,9 +138,16 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
   const sendSupport = async () => {
     if (isLoading) return;
-    
+
+    // Check email verification first
+    const verificationCheck = await checkEmailVerificationRequired('send payments');
+    if (!verificationCheck.canProceed) {
+      Alert.alert('Email Verification Required', verificationCheck.error || 'Please verify your email address to send payments.');
+      return;
+    }
+
     setIsLoading(true);
-    
+
     try {
       if (selectedType === 'boost') {
       // For care boost, we need actual payment

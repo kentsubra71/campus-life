@@ -27,6 +27,7 @@ import { ListCard } from '../../components/cards/ListCard';
 import { BudgetProgressBar } from '../../components/BudgetProgressBar';
 import { StatusHeader } from '../../components/StatusHeader';
 import { pushNotificationService, NotificationTemplates } from '../../services/pushNotificationService';
+import { checkEmailVerificationRequired } from '../../lib/emailVerificationCheck';
 
 interface ParentDashboardScreenProps {
   navigation: any;
@@ -209,7 +210,14 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     return { text: 'Difficult', emoji: '😢', color: '#991b1b' };
   };
 
-  const sendSupportMessage = (type: 'message' | 'voice' | 'boost') => {
+  const sendSupportMessage = async (type: 'message' | 'voice' | 'boost') => {
+    // Check email verification first
+    const verificationCheck = await checkEmailVerificationRequired('send payments');
+    if (!verificationCheck.canProceed) {
+      Alert.alert('Email Verification Required', verificationCheck.error || 'Please verify your email address to send payments.');
+      return;
+    }
+
     // Navigate to detailed send support screen with pre-selected type and selected student
     navigation.navigate('SendSupport', {
       preselectedType: type,

@@ -432,21 +432,15 @@ class PushNotificationService {
       // Check if user is a student
       const { getUserProfile } = await import('../lib/firebase');
       const userProfile = await getUserProfile(userId);
-      
+
       if (!userProfile || userProfile.user_type !== 'student') {
         return;
       }
 
-      // Schedule notification for 8 PM daily
-      const now = new Date();
-      const reminderTime = new Date();
-      reminderTime.setHours(20, 0, 0, 0); // 8:00 PM
-      
-      // If it's already past 8 PM today, schedule for tomorrow
-      if (now.getTime() > reminderTime.getTime()) {
-        reminderTime.setDate(reminderTime.getDate() + 1);
-      }
+      // Cancel any existing wellness reminders for this user
+      await this.cancelNotificationsByType(userId, 'wellness_reminder');
 
+      // Schedule notification for 8 PM daily using calendar-based trigger
       await Notifications.scheduleNotificationAsync({
         content: {
           title: NotificationTemplates.wellnessReminder().title,
@@ -458,12 +452,15 @@ class PushNotificationService {
           sound: 'default',
         },
         trigger: {
-          type: 'date',
-          date: reminderTime,
+          type: 'calendar',
+          hour: 20,
+          minute: 0,
+          repeats: true,
         } as any,
+        identifier: `wellness_reminder_${userId}`,
       });
 
-      console.log('📅 Scheduled daily wellness reminder for', reminderTime);
+      console.log('📅 Scheduled daily wellness reminder for 8:00 PM');
     } catch (error) {
       console.error('❌ Error scheduling wellness reminder:', error);
     }
@@ -476,19 +473,13 @@ class PushNotificationService {
     try {
       const { getUserProfile } = await import('../lib/firebase');
       const userProfile = await getUserProfile(userId);
-      
+
       if (!userProfile) return;
 
-      // Schedule notification for 9 PM daily
-      const now = new Date();
-      const summaryTime = new Date();
-      summaryTime.setHours(21, 0, 0, 0); // 9:00 PM
-      
-      // If it's already past 9 PM today, schedule for tomorrow
-      if (now.getTime() > summaryTime.getTime()) {
-        summaryTime.setDate(summaryTime.getDate() + 1);
-      }
+      // Cancel any existing daily summary notifications for this user
+      await this.cancelNotificationsByType(userId, 'daily_summary');
 
+      // Schedule notification for 9 PM daily using calendar-based trigger
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '📅 Daily Summary',
@@ -500,13 +491,15 @@ class PushNotificationService {
           sound: 'default',
         },
         trigger: {
-          type: 'date',
-          date: summaryTime,
+          type: 'calendar',
+          hour: 21,
+          minute: 0,
           repeats: true,
         } as any,
+        identifier: `daily_summary_${userId}`,
       });
 
-      console.log('📅 Scheduled daily summary notification for', summaryTime);
+      console.log('📅 Scheduled daily summary notification for 9:00 PM');
     } catch (error) {
       console.error('❌ Error scheduling daily summary:', error);
     }
@@ -519,17 +512,13 @@ class PushNotificationService {
     try {
       const { getUserProfile } = await import('../lib/firebase');
       const userProfile = await getUserProfile(userId);
-      
+
       if (!userProfile) return;
 
-      // Schedule for next Sunday at 7 PM
-      const now = new Date();
-      const weeklyTime = new Date();
-      const daysUntilSunday = (7 - now.getDay()) % 7;
-      
-      weeklyTime.setDate(now.getDate() + (daysUntilSunday === 0 ? 7 : daysUntilSunday));
-      weeklyTime.setHours(19, 0, 0, 0); // 7:00 PM
+      // Cancel any existing weekly summary notifications for this user
+      await this.cancelNotificationsByType(userId, 'weekly_report');
 
+      // Schedule for every Sunday at 7 PM using calendar-based trigger
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '📊 Weekly Wellness Report',
@@ -541,15 +530,31 @@ class PushNotificationService {
           sound: 'default',
         },
         trigger: {
-          type: 'date',
-          date: weeklyTime,
+          type: 'calendar',
+          weekday: 1, // Sunday (1 = Sunday, 2 = Monday, etc.)
+          hour: 19,
+          minute: 0,
           repeats: true,
         } as any,
+        identifier: `weekly_report_${userId}`,
       });
 
-      console.log('📊 Scheduled weekly summary notification for', weeklyTime);
+      console.log('📊 Scheduled weekly summary notification for Sundays at 7:00 PM');
     } catch (error) {
       console.error('❌ Error scheduling weekly summary:', error);
+    }
+  }
+
+  /**
+   * Cancel notifications by type for a specific user
+   */
+  async cancelNotificationsByType(userId: string, type: string): Promise<void> {
+    try {
+      const identifier = `${type}_${userId}`;
+      await Notifications.cancelScheduledNotificationAsync(identifier);
+      console.log(`🗑️ Cancelled ${type} notifications for user ${userId}`);
+    } catch (error) {
+      console.error(`❌ Error cancelling ${type} notifications:`, error);
     }
   }
 
@@ -562,6 +567,64 @@ class PushNotificationService {
       console.log('🗑️ Cancelled all scheduled notifications');
     } catch (error) {
       console.error('❌ Error cancelling notifications:', error);
+    }
+  }
+
+  /**
+   * Test notifications by sending a test notification immediately
+   */
+  async sendTestNotification(userId: string, type: 'payment' | 'wellness' | 'support' = 'wellness'): Promise<boolean> {
+    try {
+      let notification: NotificationData;
+
+      switch (type) {
+        case 'payment':
+          notification = {
+            ...NotificationTemplates.paymentReceived('$10.00', 'Test Parent'),
+            userId
+          };
+          break;
+        case 'support':
+          notification = {
+            ...NotificationTemplates.careRequest('Test Student', 'This is a test support request'),
+            userId
+          };
+          break;
+        case 'wellness':
+        default:
+          notification = {
+            ...NotificationTemplates.wellnessReminder(),
+            userId
+          };
+          break;
+      }
+
+      // Send both push notification and local notification for testing
+      await this.sendPushNotification(notification);
+      await this.sendLocalNotification(notification.title, notification.body, notification.data);
+
+      console.log(`🧪 Test ${type} notification sent to user ${userId}`);
+      return true;
+    } catch (error) {
+      console.error('❌ Error sending test notification:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get all scheduled notifications for debugging
+   */
+  async getScheduledNotifications(): Promise<any[]> {
+    try {
+      const notifications = await Notifications.getAllScheduledNotificationsAsync();
+      console.log('📋 Scheduled notifications:', notifications.length);
+      notifications.forEach((notif, index) => {
+        console.log(`${index + 1}. ${notif.content.title} - ${notif.identifier}`);
+      });
+      return notifications;
+    } catch (error) {
+      console.error('❌ Error getting scheduled notifications:', error);
+      return [];
     }
   }
 }

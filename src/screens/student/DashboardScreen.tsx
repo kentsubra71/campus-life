@@ -24,6 +24,7 @@ import { cache, CACHE_CONFIGS, smartRefresh } from '../../utils/universalCache';
 import { StatusHeader } from '../../components/StatusHeader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pushNotificationService, NotificationTemplates } from '../../services/pushNotificationService';
+import { checkEmailVerificationRequired } from '../../lib/emailVerificationCheck';
 
 export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMain'>> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -195,7 +196,14 @@ export const DashboardScreen: React.FC<StudentDashboardScreenProps<'DashboardMai
     return 'rough';
   }, [todayEntry?.overallMood]);
 
-  const handleSupportRequest = () => {
+  const handleSupportRequest = async () => {
+    // Check email verification first
+    const verificationCheck = await checkEmailVerificationRequired('send support requests');
+    if (!verificationCheck.canProceed) {
+      Alert.alert('Email Verification Required', verificationCheck.error || 'Please verify your email address to send support requests.');
+      return;
+    }
+
     if (lastSupportRequest && new Date().getTime() - lastSupportRequest.getTime() < 24 * 60 * 60 * 1000) {
       Alert.alert('Support Already Requested', 'You recently requested support. Your family has been notified and will reach out soon.');
       return;

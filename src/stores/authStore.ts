@@ -196,8 +196,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Get the created profile
       const profile = await getUserProfile(firebaseUser.uid);
-      
+
       if (!profile) {
+        // Cleanup: Delete the Firebase Auth user since profile creation failed
+        try {
+          await firebaseUser.delete();
+          console.log('🧹 Cleaned up Firebase Auth user after profile creation failure');
+        } catch (cleanupError) {
+          console.error('Failed to cleanup Firebase Auth user:', cleanupError);
+        }
+
         set({ isLoading: false });
         return { success: false, error: 'Failed to create user profile' };
       }
@@ -318,18 +326,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       await sendUserVerificationEmail(firebaseUser.uid, parentData.email, parentData.name);
       await sendWelcomeEmail(parentData.email, parentData.name, 'parent', parentData.familyName, inviteCode);
-      
+
       // Get the updated profile with family ID
       const profile = await getUserProfile(firebaseUser.uid);
       if (!profile) {
-        set({ isLoading: false });
+        // Cleanup: Delete the Firebase Auth user since profile creation failed
+        try {
+          await firebaseUser.delete();
+          console.log('🧹 Cleaned up Firebase Auth user after profile retrieval failure');
+        } catch (cleanupError) {
+          console.error('Failed to cleanup Firebase Auth user:', cleanupError);
+        }
+
+        set({ isLoading: false, isRegistering: false });
         return { success: false, error: 'Failed to get user profile' };
       }
-      
+
       // Get the family data
       const familyData = await getFamily(familyId);
       if (!familyData) {
-        set({ isLoading: false });
+        // Cleanup: Delete the Firebase Auth user since family data retrieval failed
+        try {
+          await firebaseUser.delete();
+          console.log('🧹 Cleaned up Firebase Auth user after family data retrieval failure');
+        } catch (cleanupError) {
+          console.error('Failed to cleanup Firebase Auth user:', cleanupError);
+        }
+
+        set({ isLoading: false, isRegistering: false });
         return { success: false, error: 'Failed to get family data' };
       }
       
@@ -434,7 +458,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Get the updated profile with family ID
       const profile = await getUserProfile(firebaseUser.uid);
       if (!profile) {
-        set({ isLoading: false });
+        // Cleanup: Delete the Firebase Auth user since profile creation failed
+        try {
+          await firebaseUser.delete();
+          console.log('🧹 Cleaned up Firebase Auth user after profile retrieval failure');
+        } catch (cleanupError) {
+          console.error('Failed to cleanup Firebase Auth user:', cleanupError);
+        }
+
+        set({ isLoading: false, isRegistering: false });
         return { success: false, error: 'Failed to get user profile' };
       }
 

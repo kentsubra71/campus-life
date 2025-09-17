@@ -1,0 +1,10 @@
+tree 3c708a1e2ca76da2d42b9750caa87e49f510759a
+parent 8c734b54f8895e01ed4d690397faf4f1c3b23e71
+author Ronald Li <li.ronald2008@gmail.com> 1757185188 -0600
+committer Ronald Li <li.ronald2008@gmail.com> 1757185188 -0600
+
+Fix password reset token double verification issue
+
+- Skip token verification in ResetPasswordScreen when coming from web
+- Web verification already validated the token, no need to check again
+- This prevents 'invalid or used reset token' errors

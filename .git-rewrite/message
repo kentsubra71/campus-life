@@ -1,0 +1,5 @@
+Fix password reset token double verification issue
+
+- Skip token verification in ResetPasswordScreen when coming from web
+- Web verification already validated the token, no need to check again
+- This prevents 'invalid or used reset token' errors

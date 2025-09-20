@@ -213,9 +213,9 @@ export const useWellnessStore = create<WellnessStore>((set, get) => ({
               const notification = {
                 ...NotificationTemplates.weeklyReport(studentName, overallScore),
                 userId: parent.id,
-                title: overallScore >= 8 ? 
-                  `✨ ${studentName} had a great day!` : 
-                  `💙 ${studentName} may need support`,
+                title: overallScore >= 8 ?
+                  `${studentName} had a great day!` :
+                  `${studentName} may need support`,
                 body: `Wellness score: ${overallScore}/10 - Check their latest log`
               };
               

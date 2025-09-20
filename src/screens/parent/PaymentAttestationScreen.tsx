@@ -179,14 +179,14 @@ export const PaymentAttestationScreen: React.FC<PaymentAttestationScreenProps> =
           <Text style={styles.title}>Confirm Payment</Text>
           <Text style={styles.subtitle}>
             Send {amount} to {studentName}
-            {isDev && <Text style={styles.devIndicator}> 🚧 DEV MODE</Text>}
+            {isDev && <Text style={styles.devIndicator}> DEV MODE</Text>}
           </Text>
         </View>
 
         {/* Payment Status Card */}
         <View style={styles.statusCard}>
           <View style={styles.statusIcon}>
-            <Text style={styles.statusIconText}>💳</Text>
+            <Text style={styles.statusIconText}>€</Text>
           </View>
           <Text style={styles.statusTitle}>
             {isDev ? 'Simulated PayPal Payment' : 'Complete Payment in PayPal'}
@@ -205,11 +205,11 @@ export const PaymentAttestationScreen: React.FC<PaymentAttestationScreenProps> =
             <Text style={styles.sectionTitle}>PayPal Actions</Text>
 
             <TouchableOpacity style={styles.paypalButton} onPress={handleOpenPayPal}>
-              <Text style={styles.paypalButtonText}>📱 Open PayPal</Text>
+              <Text style={styles.paypalButtonText}>Open PayPal</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.shareButton} onPress={handleSharePayPalLink}>
-              <Text style={styles.shareButtonText}>📤 Share PayPal Link</Text>
+              <Text style={styles.shareButtonText}>Share PayPal Link</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -217,7 +217,7 @@ export const PaymentAttestationScreen: React.FC<PaymentAttestationScreenProps> =
         {/* Development Mode Info */}
         {isDev && (
           <View style={styles.devSection}>
-            <Text style={styles.sectionTitle}>🚧 Development Mode</Text>
+            <Text style={styles.sectionTitle}>Development Mode</Text>
             <Text style={styles.devDescription}>
               PayPal.Me links don't work with sandbox accounts, so we're simulating the flow.
               In production, PayPal would have opened automatically.

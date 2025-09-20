@@ -4,7 +4,7 @@
 export const RESEND_CONFIG = {
   apiKey: process.env.EXPO_PUBLIC_RESEND_API_KEY,
   apiUrl: 'https://api.resend.com/emails',
-  fromEmail: 'Campus Life <noreply@ronaldli.ca>',
+  fromEmail: 'Campus Life <noreply@campuslifeapp.com>',
 };
 
 // Helper function to check if Resend is properly configured

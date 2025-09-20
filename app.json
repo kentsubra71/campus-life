@@ -2,7 +2,7 @@
   "expo": {
     "name": "Campus Life",
     "slug": "campus-life",
-    "version": "1.0.0",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,6 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ronaldvedant.campuslife",
       "googleServicesFile": "./GoogleService-Info.plist",
+      "buildNumber": "5",
       "jsEngine": "hermes",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
@@ -34,7 +35,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.ronaldvedant.campuslife",
-      "versionCode": 1,
+      "versionCode": 5,
       "intentFilters": [
         {
           "action": "VIEW",

@@ -21,6 +21,7 @@ import { LoginScreen } from './src/screens/auth/LoginScreen';
 import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/auth/ResetPasswordScreen';
 import { PrivacyPolicyScreen } from './src/screens/shared/PrivacyPolicyScreen';
+import { TermsAndConditionsScreen } from './src/screens/shared/TermsAndConditionsScreen';
 import { NetworkStatusIndicator } from './src/components/NetworkStatusIndicator';
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -52,7 +53,7 @@ export default function App() {
       
       if (url.includes('campuslife://verified')) {
         Alert.alert(
-          'Email Verified! 🎉',
+          'Email Verified!',
           'Your email has been successfully verified. Welcome to Campus Life!',
           [{ text: 'Continue', style: 'default' }]
         );
@@ -303,6 +304,7 @@ export default function App() {
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="TermsAndConditions" component={TermsAndConditionsScreen} />
     </Stack.Navigator>
   );
 

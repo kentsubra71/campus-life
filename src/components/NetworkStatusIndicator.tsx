@@ -36,7 +36,7 @@ export const NetworkStatusIndicator: React.FC<NetworkStatusIndicatorProps> = ({
       fullyConnected ? styles.connected : styles.disconnected
     ]}>
       <Text style={styles.text}>
-        {fullyConnected ? '✅ Connected' : '⚠️ No internet connection'}
+        {fullyConnected ? 'Connected' : 'No internet connection'}
       </Text>
       {!fullyConnected && (
         <Text style={styles.subtitle}>

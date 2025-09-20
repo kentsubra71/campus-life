@@ -373,7 +373,7 @@ export const useRewardsStore = create<ConnectionState>((set, get) => ({
       if (!userProfile || !userProfile.family_id) return;
 
       // Use custom message or default
-      const message = customMessage || 'I could use some extra support right now 💙';
+      const message = customMessage || 'I could use some extra support right now';
 
       // Create support request in Firebase
       const { collection, addDoc, Timestamp } = await import('firebase/firestore');

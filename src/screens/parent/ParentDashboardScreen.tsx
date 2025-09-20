@@ -52,6 +52,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
+  const [familyLoadAttempts, setFamilyLoadAttempts] = useState(0);
+  const [isLoadingFamily, setIsLoadingFamily] = useState(false);
   const [selectedStudentIndex, setSelectedStudentIndex] = useState(0);
   
   // Email invitation state
@@ -80,7 +82,16 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
   useEffect(() => {
     loadData();
-  }, []);
+    // Set up continuous family loading if initial load fails
+    const checkFamilyInterval = setInterval(() => {
+      if (familyMembers.students.length === 0 && familyLoadAttempts < 10 && !isLoadingFamily) {
+        console.log('🔄 Retrying family member loading, attempt:', familyLoadAttempts + 1);
+        loadFamilyData();
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(checkFamilyInterval);
+  }, [familyMembers.students.length, familyLoadAttempts, isLoadingFamily]);
 
   // Reload data when screen comes into focus (e.g., returning from SendSupport)
   useFocusEffect(
@@ -89,35 +100,81 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         const selectedStudent = familyMembers.students[selectedStudentIndex] || familyMembers.students[0];
         fetchSupportMessages();
         fetchMonthlyPayments(selectedStudent?.id);
+      } else {
+        // If no students, try to reload family data
+        console.log('🔄 No students on focus, attempting family reload...');
+        loadFamilyData();
       }
     }, [fetchSupportMessages, fetchMonthlyPayments, familyMembers.students.length, selectedStudentIndex])
   );
+
+  const loadFamilyData = async () => {
+    if (!user || isLoadingFamily) return;
+
+    setIsLoadingFamily(true);
+    setFamilyLoadAttempts(prev => prev + 1);
+
+    try {
+      console.log('🔍 Loading family members directly from Firebase...');
+      // Always get fresh data from Firebase when family is missing
+      const members = await getFamilyMembers(true); // Skip cache to get fresh data
+
+      if (members.students.length > 0 || members.parents.length > 0) {
+        console.log('✅ Successfully loaded family members:', {
+          students: members.students.length,
+          parents: members.parents.length
+        });
+        setFamilyMembers(members);
+        setFamilyLoadAttempts(0); // Reset attempts on success
+      } else {
+        console.log('⚠️ No family members found, will retry...');
+      }
+    } catch (error) {
+      console.error('❌ Failed to load family members:', error);
+    } finally {
+      setIsLoadingFamily(false);
+    }
+  };
 
   const loadData = async (forceRefresh = false) => {
     if (!user) return;
 
     try {
-      // Smart refresh family members with caching
-      await smartRefresh(
-        CACHE_CONFIGS.FAMILY_MEMBERS,
-        async () => {
-          const members = await getFamilyMembers();
-          return members;
-        },
-        (cachedMembers) => {
-          // Show cached data immediately
-          setFamilyMembers(cachedMembers);
-        },
-        (freshMembers) => {
-          // Update with fresh data
-          setFamilyMembers(freshMembers);
-        },
-        user.id
-      );
+      // First try to get family members from cache or fresh load
+      let members;
+      if (forceRefresh) {
+        // Force fresh load on refresh
+        members = await getFamilyMembers();
+        setFamilyMembers(members);
+      } else {
+        // Smart refresh family members with caching
+        await smartRefresh(
+          CACHE_CONFIGS.FAMILY_MEMBERS,
+          async () => {
+            const freshMembers = await getFamilyMembers();
+            return freshMembers;
+          },
+          (cachedMembers) => {
+            // Show cached data immediately
+            setFamilyMembers(cachedMembers);
+          },
+          (freshMembers) => {
+            // Update with fresh data
+            setFamilyMembers(freshMembers);
+          },
+          user.id
+        );
 
-      // Get family members (either from cache or fresh)
-      const members = (await cache.get(CACHE_CONFIGS.FAMILY_MEMBERS, user.id) ||
-                      await getFamilyMembers()) as { parents: any[]; students: any[] };
+        // Get the final result
+        members = (await cache.get(CACHE_CONFIGS.FAMILY_MEMBERS, user.id) ||
+                  await getFamilyMembers()) as { parents: any[]; students: any[] };
+      }
+
+      // If no students found and this isn't a refresh, start continuous retry
+      if (members.students.length === 0 && !forceRefresh) {
+        console.log('⚠️ No students found, starting retry logic...');
+        loadFamilyData();
+      }
 
       // Load dashboard data with caching if we have students
       if (members.students.length > 0) {
@@ -186,7 +243,8 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    setFamilyLoadAttempts(0); // Reset retry attempts
+    await loadData(true); // Force refresh
     setRefreshing(false);
   };
 
@@ -252,7 +310,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
     if (family?.inviteCode) {
       await Clipboard.setStringAsync(family.inviteCode);
       Alert.alert(
-        'Invite Code Copied! 📋',
+        'Invite Code Copied',
         `Share this code with your college student:\n\n${family.inviteCode}\n\nThis code has been copied to your clipboard.`,
         [{ text: 'OK' }]
       );
@@ -287,7 +345,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
       
       if (result.success) {
         Alert.alert(
-          'Invitation Sent! 📧', 
+          'Invitation Sent', 
           `An invitation email has been sent to ${inviteName} at ${inviteEmail}. They can use the invite code ${family.inviteCode} to join your family.`
         );
         setInviteEmail('');
@@ -372,12 +430,12 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
           <TouchableOpacity style={styles.inviteCard} onPress={copyInviteCode}>
             <Text style={styles.inviteLabel}>Your Family Invite Code</Text>
             <Text style={styles.inviteCodeLarge}>{family?.inviteCode}</Text>
-            <Text style={styles.inviteHint}>📋 Tap to copy and share</Text>
+            <Text style={styles.inviteHint}>Tap to copy and share</Text>
           </TouchableOpacity>
 
           {/* Email Invitation Card */}
           <View style={styles.emailInviteCard}>
-            <Text style={styles.emailInviteTitle}>📧 Send Email Invitation</Text>
+            <Text style={styles.emailInviteTitle}>Send Email Invitation</Text>
             <Text style={styles.emailInviteSubtitle}>Or send the invite directly to your student's email</Text>
             
             <View style={styles.emailInputContainer}>
@@ -475,7 +533,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
   
   // Get the selected student's information
   const currentStudent = familyMembers.students[selectedStudentIndex] || familyMembers.students[0];
-  const studentName = currentStudent?.name || 'Loading...';
+  const studentName = currentStudent?.name || (isLoadingFamily ? 'Loading...' : 'Student');
   const hasMultipleStudents = familyMembers.students.length > 1;
   
   // Debug logging
@@ -503,7 +561,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
             {hasMultipleStudents ? 'Hi there!' : `Hi there, ${user?.name?.split(' ')[0] || 'Parent'}!`}
           </Text>
           <Text style={styles.title}>
-            {hasMultipleStudents ? 'Your Kids' : (studentName && studentName !== 'Loading...' ? studentName.split(' ')[0] : 'Student')}
+            {hasMultipleStudents ? 'Your Kids' : (studentName && studentName !== 'Loading...' && studentName !== 'Student' ? studentName.split(' ')[0] : (isLoadingFamily ? 'Loading...' : 'Student'))}
           </Text>
           <Text style={styles.pullHint}>Pull down to refresh and verify payments</Text>
         </View>
@@ -526,7 +584,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
                     styles.segmentText,
                     selectedStudentIndex === index && styles.activeSegmentText
                   ]}>
-                    {student.name ? student.name.split(' ')[0] : 'Student'}
+                    {student.name && student.name !== student.email.split('@')[0] ? student.name.split(' ')[0] : (isLoadingFamily ? 'Loading...' : 'Student')}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -538,7 +596,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         <View style={styles.statusSection}>
           <View style={styles.statusHeader}>
             <Text style={styles.statusTitle}>
-              {studentName && studentName !== 'Loading...' ? studentName.split(' ')[0] : 'Student'} is {moodInfo.text.toLowerCase()}
+              {studentName && studentName !== 'Loading...' && studentName !== 'Student' ? studentName.split(' ')[0] : (isLoadingFamily ? 'Loading...' : 'Student')} is {moodInfo.text.toLowerCase()}
             </Text>
             <View style={[styles.statusBadge, { backgroundColor: getMoodGradient(moodInfo.text) }]}>
               <Text style={styles.statusBadgeText}>{wellnessStatus.status}</Text>
@@ -557,7 +615,7 @@ export const ParentDashboardScreen: React.FC<ParentDashboardScreenProps> = ({ na
         {supportRequests.filter(req => !req.acknowledged).length > 0 && (
           <View style={styles.urgentSection}>
             <HeroCard
-              title="🚨 Support Needed"
+              title="Support Needed"
               subtitle={`${supportRequests.filter(req => !req.acknowledged).length} unread requests`}
               backgroundColor="#ef4444"
               textColor={theme.colors.backgroundSecondary}

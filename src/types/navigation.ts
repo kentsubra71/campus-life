@@ -21,6 +21,7 @@ export type AuthStackParamList = {
   ForgotPassword: undefined;
   ResetPassword: { token: string };
   PrivacyPolicy: undefined;
+  TermsAndConditions: undefined;
 };
 
 // Student Tab Parameter List

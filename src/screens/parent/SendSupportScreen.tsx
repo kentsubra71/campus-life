@@ -212,7 +212,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
             if (result.devMode) {
               // Development mode: Navigate immediately to attestation screen
               Alert.alert(
-                '🚧 Dev Mode - PayPal Simulated',
+                'Dev Mode - PayPal Simulated',
                 'In development mode, we simulated opening PayPal. Now you can test the "Mark as Sent" flow.',
                 [
                   {
@@ -326,7 +326,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
       if (result.success) {
         Alert.alert(
-          'Message Sent! 💙',
+          'Message Sent',
           `Your message has been sent to ${studentName.split(' ')[0]}.\n\n"${message}"`,
           [
             { text: 'Send Another', onPress: () => {
@@ -619,7 +619,7 @@ export const SendSupportScreen: React.FC<SendSupportScreenProps> = ({ navigation
 
         {/* Important Reminder */}
         <View style={styles.reminderSection}>
-          <Text style={styles.reminderTitle}>💡 Important Reminder</Text>
+          <Text style={styles.reminderTitle}>Important Reminder</Text>
           <Text style={styles.reminderText}>
             When you send money, make sure to confirm the payment after completing it in PayPal. This lets your student know to check for the funds and keeps everyone on the same page about payment status.
           </Text>

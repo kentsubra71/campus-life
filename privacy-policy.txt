@@ -1,61 +1,58 @@
-Privacy Policy
+CampusLife Privacy Policy
 
-Last updated: [Current Date]
+Effective Date: 20 September 2025
+Website: https://www.campuslifeapp.com
 
-1. Information We Collect
+1. Introduction
 
-We collect information you provide directly to us, such as when you create an account, use our services, or contact us. This includes:
+CampusLife ("we," "our," or "the App") respects your privacy. This Privacy Policy explains how we collect, use, store, and share information when you use our mobile application and services.
 
-• Name and email address
-• Family connection information
-• Wellness and activity data you choose to share
-• Payment information for transactions
-• Messages and communications within the app
+2. Information We Collect
 
-2. How We Use Your Information
+We collect only the data necessary to provide our services:
 
-We use the information we collect to:
+• Account Information: Name, email, role (parent or student), family association.
+• Wellness Data: Mood, sleep, nutrition, exercise, social interaction, academic performance, and other self-reported metrics.
+• Device and Usage Data: App usage patterns, crash reports, and analytics to improve performance.
 
-• Provide and maintain our services
-• Connect family members through our platform
-• Process payments and transactions
-• Send you important notifications and updates
-• Improve our services and user experience
+3. How We Use Your Data
 
-3. Information Sharing
+We use collected data to:
 
-We do not sell or rent your personal information to third parties. We may share your information only:
+• Enable secure parent-student communication and wellness tracking.
+• Provide dashboards and trend analysis for parents.
+• Sync wellness and account data across devices.
+• Improve app functionality, performance, and user experience.
 
-• With family members you've connected with
-• With service providers who help us operate our services
-• When required by law or to protect our rights
+4. How We Share Your Data
 
-4. Data Security
+• Parent to Student: Wellness updates are shared only from student to their parent(s).
+• No Cross-Family Sharing: Data is never shared with other users outside the immediate parent-student relationship.
+• Third-Party Services: We use Firebase and Resend for authentication, database management, and notifications. These providers process data solely to provide services and are bound by strict security agreements.
+• Payments: All financial transactions occur outside the app (e.g., via PayPal). The app does not process payment details.
 
-We implement appropriate security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the internet is 100% secure.
+5. Security
 
-5. Your Rights
+We employ enterprise-grade security:
 
-You have the right to:
-
-• Access and update your personal information
-• Delete your account and associated data
-• Control your notification preferences
-• Request a copy of your data
+• Firebase Authentication and custom claims for account protection.
+• Firestore Security Rules to prevent unauthorized access.
+• Encryption in transit (TLS) and strict input validation.
 
 6. Children's Privacy
 
-Our service is designed for college students and their families. We do not knowingly collect personal information from children under 13. If you believe we have collected such information, please contact us immediately.
+CampusLife is intended for college students aged 18 or older. We do not knowingly collect data from minors under 18.
 
-7. Changes to This Policy
+7. Data Retention
 
-We may update this privacy policy from time to time. We will notify you of any changes by posting the new privacy policy in the app and updating the "Last updated" date.
+We retain your data as long as your account is active or as needed to provide our services. Users can request account deletion via the app or website.
 
-8. Contact Us
+8. International Users
 
-If you have any questions about this privacy policy or our practices, please contact us at:
+If you use CampusLife outside the United States, your data may be stored in U.S.-based servers. By using the app, you consent to this transfer.
 
-Email: privacy@campuslifeapp.com
-Support: support@campuslifeapp.com
+9. Changes to This Policy
+
+We may update this Privacy Policy occasionally. The latest version will always be available at https://www.campuslifeapp.com
 
 By using CampusLife, you acknowledge that you have read and understood this privacy policy.

@@ -27,13 +27,11 @@ interface ProfileScreenProps {
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, family, logout, updateProfile, getFamilyMembers } = useAuthStore();
   const insets = useSafeAreaInsets();
-  const [isEditing, setIsEditing] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [editName, setEditName] = useState(user?.name || '');
   const [familyMembers, setFamilyMembers] = useState<{ parents: any[]; students: any[] }>({ parents: [], students: [] });
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [isEmailVerified, setIsEmailVerified] = useState(true);
@@ -41,18 +39,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [loadingInvite, setLoadingInvite] = useState(false);
-  const [showPaypalSetup, setShowPaypalSetup] = useState(false);
-  const [paypalHandle, setPaypalHandle] = useState('');
-  const [isUpdatingPaypal, setIsUpdatingPaypal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadFamilyMembers();
     checkEmailVerificationStatus();
-    // Initialize PayPal handle from user data
-    if (user?.paypal_me_handle) {
-      setPaypalHandle(user.paypal_me_handle);
-    }
   }, [user?.id]);
 
   const checkEmailVerificationStatus = async () => {
@@ -144,7 +135,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       
       if (result.success) {
         Alert.alert(
-          'Invitation Sent! 📧', 
+          'Invitation Sent!', 
           `An invitation email has been sent to ${inviteName} at ${inviteEmail}. They can use the invite code ${family.inviteCode} to join your family.`
         );
         setInviteEmail(''); // Clear the inputs
@@ -225,20 +216,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleSaveName = async () => {
-    if (!editName.trim()) {
-      Alert.alert('Error', 'Name cannot be empty');
-      return;
-    }
-
-    const success = await updateProfile({ name: editName });
-    if (success) {
-      setIsEditing(false);
-      Alert.alert('Success', 'Profile updated successfully');
-    } else {
-      Alert.alert('Error', 'Failed to update profile');
-    }
-  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -336,42 +313,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleSavePaypal = async () => {
-    if (!user) return;
-
-    // Basic validation
-    const cleanHandle = paypalHandle.replace(/^@/, '').toLowerCase().trim();
-    if (cleanHandle && !/^[a-zA-Z0-9._-]{6,20}$/.test(cleanHandle)) {
-      Alert.alert('Invalid Handle', 'PayPal handle must be 6-20 characters with only letters, numbers, dots, dashes, and underscores.');
-      return;
-    }
-
-    setIsUpdatingPaypal(true);
-    try {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('../../lib/firebase');
-
-      await updateDoc(doc(db, 'users', user.id), {
-        paypal_me_handle: cleanHandle || null,
-        updated_at: new Date()
-      });
-
-      // Update local user data (this would normally be handled by auth store)
-      Alert.alert(
-        'Success!',
-        cleanHandle
-          ? `PayPal handle saved! Family can now send you money at paypal.me/${cleanHandle}`
-          : 'PayPal handle removed successfully',
-        [{ text: 'OK', onPress: () => setShowPaypalSetup(false) }]
-      );
-
-    } catch (error: any) {
-      console.error('Error saving PayPal handle:', error);
-      Alert.alert('Error', 'Failed to save PayPal handle. Please try again.');
-    } finally {
-      setIsUpdatingPaypal(false);
-    }
-  };
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmNewPassword) {
@@ -467,38 +408,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             </Text>
           </View>
           <View style={styles.profileInfo}>
-            {isEditing ? (
-              <View style={styles.editContainer}>
-                <TextInput
-                  style={styles.editInput}
-                  value={editName}
-                  onChangeText={setEditName}
-                  placeholder="Enter your name"
-                  autoCapitalize="words"
-                />
-                <View style={styles.editButtons}>
-                  <TouchableOpacity style={styles.saveButton} onPress={handleSaveName}>
-                    <Text style={styles.saveButtonText}>Save</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.cancelButton} 
-                    onPress={() => {
-                      setIsEditing(false);
-                      setEditName(user.name);
-                    }}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.profileName}>{user.name}</Text>
-                <TouchableOpacity onPress={() => setIsEditing(true)}>
-                  <Text style={styles.editLink}>Edit name</Text>
-                </TouchableOpacity>
-              </>
-            )}
+            <Text style={styles.profileName}>{user.name}</Text>
           </View>
         </View>
         
@@ -614,11 +524,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                           <Text style={styles.memberEmail}>{student.email}</Text>
                           {student.paypal_me_handle ? (
                             <View style={styles.paypalContainer}>
-                              <Text style={styles.paypalLabel}>💳 PayPal:</Text>
+                              <Text style={styles.paypalLabel}>PayPal:</Text>
                               <Text style={styles.paypalHandle}>paypal.me/{student.paypal_me_handle}</Text>
                             </View>
                           ) : (
-                            <Text style={styles.paypalMissing}>💳 PayPal not set up</Text>
+                            <Text style={styles.paypalMissing}>PayPal not set up</Text>
                           )}
                         </View>
                       </View>
@@ -631,30 +541,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         </View>
       </View>
 
-      {/* PayPal Handle Alert for Students */}
-      {user.role === 'student' && !user.paypal_me_handle && (
-        <View style={styles.paypalAlert}>
-          <View style={styles.alertHeader}>
-            <Text style={styles.alertIcon}>💳</Text>
-            <Text style={styles.alertTitle}>Edit PayPal Handle</Text>
-          </View>
-          <Text style={styles.alertDescription}>
-            Set up your PayPal.Me handle to receive payments from family. Go to your profile to add it.
-          </Text>
-          <TouchableOpacity
-            style={styles.alertButton}
-            onPress={() => setShowPaypalSetup(true)}
-          >
-            <Text style={styles.alertButtonText}>Set Up PayPal</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Email Verification Panel */}
       {!isEmailVerified && (
         <View style={styles.verificationCard}>
           <View style={styles.verificationHeader}>
-            <Text style={styles.verificationIcon}>⚠️</Text>
             <Text style={styles.verificationTitle}>Email Not Verified</Text>
           </View>
           <Text style={styles.verificationDescription}>
@@ -757,71 +648,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* PayPal Setup Modal */}
-      {showPaypalSetup && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Set Up PayPal Handle</Text>
-              <TouchableOpacity
-                onPress={() => setShowPaypalSetup(false)}
-                style={styles.modalCloseButton}
-              >
-                <Text style={styles.modalCloseText}>×</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalDescription}>
-              Enter your PayPal.Me handle so family can send you money instantly.
-              For example, if your handle is "johnsmith", your link will be paypal.me/johnsmith
-            </Text>
-
-            <View style={styles.paypalInputContainer}>
-              <Text style={styles.paypalPrefix}>paypal.me/</Text>
-              <TextInput
-                style={styles.paypalInput}
-                value={paypalHandle}
-                onChangeText={(text) => {
-                  // Clean input: remove @ symbols and paypal.me prefixes
-                  const cleanText = text.replace(/^@/, '').replace(/^(https?:\/\/)?(www\.)?paypal\.com\/paypalme\//, '').toLowerCase();
-                  setPaypalHandle(cleanText);
-                }}
-                placeholder="yourhandle"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            {paypalHandle && (
-              <View style={styles.previewContainer}>
-                <Text style={styles.previewLabel}>Preview:</Text>
-                <Text style={styles.previewUrl}>https://paypal.me/{paypalHandle}/25.00</Text>
-              </View>
-            )}
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setShowPaypalSetup(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalSaveButton, isUpdatingPaypal && styles.modalSaveButtonDisabled]}
-                onPress={handleSavePaypal}
-                disabled={isUpdatingPaypal}
-              >
-                {isUpdatingPaypal ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={styles.modalSaveText}>Save PayPal Handle</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
     </View>
   );
 };
@@ -905,49 +731,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.textPrimary,
     marginBottom: 4,
-  },
-  editLink: {
-    fontSize: 14,
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
-  editContainer: {
-    gap: 12,
-  },
-  editInput: {
-    backgroundColor: theme.colors.backgroundTertiary,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: theme.colors.textPrimary,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  editButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  saveButton: {
-    backgroundColor: theme.colors.success,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  saveButtonText: {
-    color: theme.colors.backgroundSecondary,
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  cancelButton: {
-    backgroundColor: theme.colors.backgroundTertiary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  cancelButtonText: {
-    color: theme.colors.textSecondary,
-    fontWeight: '600',
-    fontSize: 14,
   },
   profileDetails: {
     gap: 12,
@@ -1184,47 +967,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#92400E',
   },
-  // PayPal Alert Styles
-  paypalAlert: {
-    backgroundColor: '#EBF8FF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#3B82F6',
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  alertIcon: {
-    fontSize: 24,
-    marginRight: 8,
-  },
-  alertTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E40AF',
-  },
-  alertDescription: {
-    fontSize: 14,
-    color: '#1E40AF',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  alertButton: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  alertButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
   verificationDescription: {
     fontSize: 15,
     color: '#92400E',
@@ -1331,132 +1073,5 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: '#94a3b8',
-  },
-  // PayPal Modal Styles
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  modalContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    margin: 20,
-    maxWidth: 400,
-    width: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-  },
-  modalCloseButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalCloseText: {
-    fontSize: 20,
-    color: '#64748b',
-    fontWeight: '600',
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  paypalInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  paypalPrefix: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    fontWeight: '500',
-  },
-  paypalInput: {
-    flex: 1,
-    fontSize: 16,
-    color: theme.colors.textPrimary,
-    marginLeft: 4,
-  },
-  previewContainer: {
-    backgroundColor: '#f0f9ff',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#3b82f6',
-  },
-  previewLabel: {
-    fontSize: 12,
-    color: '#1e40af',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  previewUrl: {
-    fontSize: 14,
-    color: '#1e40af',
-    fontFamily: 'monospace',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalCancelButton: {
-    flex: 1,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  modalCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  modalSaveButton: {
-    flex: 2,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  modalSaveButtonDisabled: {
-    backgroundColor: '#94a3b8',
-  },
-  modalSaveText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
   },
 });

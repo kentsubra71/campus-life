@@ -150,7 +150,7 @@ export const createDeepLinkPayment = async (
     if (DEV_MODE) {
       const shouldOpenPayPal = await new Promise<boolean>((resolve) => {
         Alert.alert(
-          '🚧 Dev Mode - Mock PayPal',
+          'Dev Mode - Mock PayPal',
           `Would open PayPal to send ${formatPaymentAmount(amountCents)} to @${paypalInfo.handle}\n\nURL: ${paypalUrl}\n\nSimulate opening PayPal?`,
           [
             { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },

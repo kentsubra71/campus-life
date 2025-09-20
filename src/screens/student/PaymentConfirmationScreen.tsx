@@ -247,7 +247,7 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
         {/* Payment Details Card */}
         <View style={styles.paymentCard}>
           <View style={styles.paymentIcon}>
-            <Text style={styles.paymentIconText}>💰</Text>
+            <Text style={styles.paymentIconText}>$</Text>
           </View>
 
           <View style={styles.paymentDetails}>
@@ -308,7 +308,7 @@ export const PaymentConfirmationScreen: React.FC<PaymentConfirmationScreenProps>
         {isAlreadyConfirmed && (
           <View style={styles.section}>
             <View style={styles.confirmedCard}>
-              <Text style={styles.confirmedTitle}>✅ Payment Confirmed</Text>
+              <Text style={styles.confirmedTitle}>Payment Confirmed</Text>
               <Text style={styles.confirmedText}>
                 You confirmed receiving this payment on {payment.student_confirmed_at?.toDate().toLocaleDateString()}.
               </Text>

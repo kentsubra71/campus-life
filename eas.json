@@ -39,7 +39,7 @@
         "disabled": false
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
       },
       "ios": {
         "simulator": false

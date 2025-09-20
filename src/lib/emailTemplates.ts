@@ -157,7 +157,7 @@ export const emailServiceConfig = {
         to: [{ email: to }]
       }],
       from: { 
-        email: process.env.EXPO_PUBLIC_FROM_EMAIL || 'noreply@campus-life.app',
+        email: process.env.EXPO_PUBLIC_FROM_EMAIL || 'noreply@campuslifeapp.com',
         name: 'Campus Life'
       },
       subject,
@@ -183,7 +183,7 @@ export const emailServiceConfig = {
       'Content-Type': 'application/json'
     }),
     payload: (to: string, subject: string, html: string, text: string) => ({
-      from: process.env.EXPO_PUBLIC_FROM_EMAIL || 'Campus Life <noreply@campus-life.app>',
+      from: process.env.EXPO_PUBLIC_FROM_EMAIL || 'Campus Life <noreply@campuslifeapp.com>',
       to: [to],
       subject,
       html,

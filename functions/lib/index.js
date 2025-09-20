@@ -211,7 +211,7 @@ exports.resendVerificationEmail = functions
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                from: 'Campus Life <noreply@ronaldli.ca>',
+                from: 'Campus Life <noreply@campuslifeapp.com>',
                 to: [userData === null || userData === void 0 ? void 0 : userData.email],
                 subject: 'Verify your Campus Life email address',
                 html: `
@@ -247,7 +247,7 @@ exports.resendVerificationEmail = functions
 
                 <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
                   <p>Campus Life<br>
-                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                  <a href="mailto:help@campuslifeapp.com" style="color: #60a5fa;">help@campuslifeapp.com</a></p>
                 </div>
               </div>
             </body>
@@ -987,7 +987,7 @@ exports.sendEmail = functions
                 
                 <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
                   <p>Campus Life<br>
-                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                  <a href="mailto:help@campuslifeapp.com" style="color: #60a5fa;">help@campuslifeapp.com</a></p>
                 </div>
               </div>
             </body>
@@ -1029,7 +1029,7 @@ exports.sendEmail = functions
                 
                 <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
                   <p>Campus Life<br>
-                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                  <a href="mailto:help@campuslifeapp.com" style="color: #60a5fa;">help@campuslifeapp.com</a></p>
                 </div>
               </div>
             </body>
@@ -1081,7 +1081,7 @@ exports.sendEmail = functions
                 
                 <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
                   <p>Campus Life<br>
-                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                  <a href="mailto:help@campuslifeapp.com" style="color: #60a5fa;">help@campuslifeapp.com</a></p>
                 </div>
               </div>
             </body>
@@ -1144,7 +1144,7 @@ exports.sendEmail = functions
                 
                 <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
                   <p>Campus Life<br>
-                  <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                  <a href="mailto:help@campuslifeapp.com" style="color: #60a5fa;">help@campuslifeapp.com</a></p>
                 </div>
               </div>
             </body>
@@ -1156,7 +1156,7 @@ exports.sendEmail = functions
         debugLog('sendEmail', 'Sending email via Resend', { to, type, subject: template.subject });
         // Send email using Resend API
         const response = await axios_1.default.post('https://api.resend.com/emails', {
-            from: 'Campus Life <noreply@ronaldli.ca>',
+            from: 'Campus Life <noreply@campuslifeapp.com>',
             to: [to],
             subject: template.subject,
             html: template.html
@@ -1377,7 +1377,7 @@ exports.resetPasswordHttp = functions.https.onRequest(async (req, res) => {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        from: 'Campus Life <noreply@campus-life.app>',
+                        from: 'Campus Life <noreply@campuslifeapp.com>',
                         to: userData.email,
                         subject: 'Password Reset Confirmation - Campus Life',
                         html: `
@@ -1400,7 +1400,7 @@ exports.resetPasswordHttp = functions.https.onRequest(async (req, res) => {
                 
                 <div style="background: #ffffff; border-radius: 12px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 32px;">
                   <h3 style="color: #1e293b; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">Security Notice</h3>
-                  <p style="color: #64748b; margin: 0 0 12px 0; font-size: 16px; line-height: 1.6;">If you did not request this password reset, please contact our support team immediately at <strong>help@campus-life.app</strong></p>
+                  <p style="color: #64748b; margin: 0 0 12px 0; font-size: 16px; line-height: 1.6;">If you did not request this password reset, please contact our support team immediately at <strong>help@campuslifeapp.com</strong></p>
                   <p style="color: #64748b; margin: 0; font-size: 16px; line-height: 1.6;">For your security, we recommend using a strong, unique password that you don't use for other accounts.</p>
                 </div>
                 
@@ -1410,7 +1410,7 @@ exports.resetPasswordHttp = functions.https.onRequest(async (req, res) => {
                     Connecting families through wellness
                   </p>
                   <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 12px;">
-                    Having trouble? Contact support at help@campus-life.app
+                    Having trouble? Contact support at help@campuslifeapp.com
                   </p>
                 </div>
               </div>
@@ -1471,7 +1471,7 @@ exports.sendPasswordChangeConfirmationHttp = functions.https.onRequest(async (re
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                from: 'Campus Life <noreply@campus-life.app>',
+                from: 'Campus Life <noreply@campuslifeapp.com>',
                 to: email,
                 subject: 'Password Changed Successfully - Campus Life',
                 html: `
@@ -1494,7 +1494,7 @@ exports.sendPasswordChangeConfirmationHttp = functions.https.onRequest(async (re
             
             <div style="background: #ffffff; border-radius: 12px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 32px;">
               <h3 style="color: #1e293b; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">Security Notice</h3>
-              <p style="color: #64748b; margin: 0 0 12px 0; font-size: 16px; line-height: 1.6;">If you did not make this change, please contact our support team immediately at <strong>help@campus-life.app</strong> or sign into your account and change your password.</p>
+              <p style="color: #64748b; margin: 0 0 12px 0; font-size: 16px; line-height: 1.6;">If you did not make this change, please contact our support team immediately at <strong>help@campuslifeapp.com</strong> or sign into your account and change your password.</p>
               <p style="color: #64748b; margin: 0; font-size: 16px; line-height: 1.6;">This notification helps keep your account secure by alerting you to important changes.</p>
             </div>
             
@@ -1504,7 +1504,7 @@ exports.sendPasswordChangeConfirmationHttp = functions.https.onRequest(async (re
                 Connecting families through wellness
               </p>
               <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 12px;">
-                Having trouble? Contact support at help@campus-life.app
+                Having trouble? Contact support at help@campuslifeapp.com
               </p>
             </div>
           </div>
@@ -1634,7 +1634,7 @@ exports.requestPasswordResetHttp = functions
               
               <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
                 <p>Campus Life<br>
-                <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                <a href="mailto:help@campuslifeapp.com" style="color: #60a5fa;">help@campuslifeapp.com</a></p>
               </div>
             </div>
           </body>
@@ -1644,7 +1644,7 @@ exports.requestPasswordResetHttp = functions
         debugLog('requestPasswordReset', 'Sending email via Resend', { to: email, subject: template.subject });
         // Send email using Resend API
         const response = await axios_1.default.post('https://api.resend.com/emails', {
-            from: 'Campus Life <noreply@ronaldli.ca>',
+            from: 'Campus Life <noreply@campuslifeapp.com>',
             to: [email],
             subject: template.subject,
             html: template.html
@@ -1748,7 +1748,7 @@ exports.sendPasswordResetEmailHttp = functions
               
               <div style="text-align: center; margin-top: 32px; color: #94a3b8; font-size: 12px;">
                 <p>Campus Life<br>
-                <a href="mailto:help@ronaldli.ca" style="color: #60a5fa;">help@ronaldli.ca</a></p>
+                <a href="mailto:help@campuslifeapp.com" style="color: #60a5fa;">help@campuslifeapp.com</a></p>
               </div>
             </div>
           </body>
@@ -1758,7 +1758,7 @@ exports.sendPasswordResetEmailHttp = functions
         debugLog('sendPasswordResetEmail', 'Sending email via Resend', { to, subject: template.subject });
         // Send email using Resend API
         const response = await axios_1.default.post('https://api.resend.com/emails', {
-            from: 'Campus Life <noreply@ronaldli.ca>',
+            from: 'Campus Life <noreply@campuslifeapp.com>',
             to: [to],
             subject: template.subject,
             html: template.html

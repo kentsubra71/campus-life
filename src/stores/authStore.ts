@@ -551,23 +551,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   
-  getFamilyMembers: async (): Promise<{ parents: User[]; students: User[] }> => {
+  getFamilyMembers: async (skipCache = false): Promise<{ parents: User[]; students: User[] }> => {
     const { user } = get();
     if (!user || !user.familyId) {
+      console.log('⚠️ No user or family ID available for getFamilyMembers');
       return { parents: [], students: [] };
     }
-    
-    // Try cache first
-    const cached = await cache.get(CACHE_CONFIGS.FAMILY_MEMBERS, user.id);
-    if (cached) {
-      console.log('📦 Using cached family members');
-      return cached as { parents: User[]; students: User[] };
+
+    // Try cache first unless explicitly skipping
+    if (!skipCache) {
+      const cached = await cache.get(CACHE_CONFIGS.FAMILY_MEMBERS, user.id);
+      if (cached) {
+        const cachedData = cached as { parents: User[]; students: User[] };
+        // Validate cached data has proper names
+        const hasValidNames = cachedData.students.every(s => s.name && s.name !== s.email.split('@')[0]) ||
+                             cachedData.parents.every(p => p.name && p.name !== p.email.split('@')[0]);
+
+        if (hasValidNames || cachedData.students.length === 0) {
+          console.log('📦 Using cached family members');
+          return cachedData;
+        } else {
+          console.log('📦 Cached data has incomplete names, fetching fresh...');
+        }
+      }
     }
-    
+
     try {
-      console.log('🔄 Loading fresh family members...');
+      console.log('🔄 Loading fresh family members from Firebase...', { familyId: user.familyId });
       const { parents: parentProfiles, students: studentProfiles } = await getFamilyMembersFirebase(user.familyId);
-      
+
+      console.log('👥 Raw family data from Firebase:', {
+        parentsCount: parentProfiles.length,
+        studentsCount: studentProfiles.length,
+        parentNames: parentProfiles.map(p => p.full_name),
+        studentNames: studentProfiles.map(s => s.full_name)
+      });
+
       const parents: User[] = parentProfiles.map(profile => ({
         id: profile.id,
         email: profile.email,
@@ -587,16 +606,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         createdAt: profile.created_at.toDate(),
         paypal_me_handle: profile.paypal_me_handle,
       }));
-      
+
       const result = { parents, students };
-      
-      // Cache the result
-      await cache.set(CACHE_CONFIGS.FAMILY_MEMBERS, result, user.id);
-      console.log('💾 Cached family members');
-      
+
+      console.log('✅ Processed family members:', {
+        parentsCount: result.parents.length,
+        studentsCount: result.students.length,
+        parentNames: result.parents.map(p => p.name),
+        studentNames: result.students.map(s => s.name)
+      });
+
+      // Cache the result only if we have valid data
+      if (result.parents.length > 0 || result.students.length > 0) {
+        await cache.set(CACHE_CONFIGS.FAMILY_MEMBERS, result, user.id);
+        console.log('💾 Cached family members');
+      }
+
       return result;
     } catch (error) {
-      console.error('Error getting family members:', error);
+      console.error('❌ Error getting family members:', error);
       return { parents: [], students: [] };
     }
   },

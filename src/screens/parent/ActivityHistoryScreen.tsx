@@ -1156,7 +1156,7 @@ export const ActivityHistoryScreen: React.FC<ActivityHistoryScreenProps> = ({ na
                 } else if (item.status === 'disputed') {
                   return (
                     <View style={styles.disputedPaymentActions}>
-                      <Text style={styles.disputedPaymentText}>⚠️ Student says they never received this payment</Text>
+                      <Text style={styles.disputedPaymentText}>Student says they never received this payment</Text>
                       <View style={styles.actionButtons}>
                         <TouchableOpacity
                           style={styles.retryPaymentButton}

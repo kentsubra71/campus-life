@@ -173,7 +173,7 @@ export const resendVerificationEmail = functions
 
       // Send email using Resend
       const response = await axios.post('https://api.resend.com/emails', {
-        from: 'Campus Life <noreply@campuslife.app>',
+        from: 'Campus Life <noreply@campuslifeapp.com>',
         to: [email],
         subject: 'Verify Your Campus Life Account',
         html: `
@@ -326,7 +326,7 @@ export const sendEmail = functions
     to,
     subject,
     htmlContent,
-    from = 'Campus Life <noreply@campuslife.app>',
+    from = 'Campus Life <noreply@campuslifeapp.com>',
     type = 'general'
   } = data;
 

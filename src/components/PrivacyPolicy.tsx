@@ -5,67 +5,65 @@ import { theme } from '../styles/theme';
 export const PrivacyPolicy: React.FC = () => {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={true}>
-      <Text style={styles.title}>Privacy Policy</Text>
-      <Text style={styles.lastUpdated}>Last updated: {new Date().toLocaleDateString()}</Text>
+      <Text style={styles.title}>CampusLife Privacy Policy</Text>
+      <Text style={styles.lastUpdated}>Effective Date: 20 September 2025</Text>
+      <Text style={styles.website}>Website: https://www.campuslifeapp.com</Text>
 
-      <Text style={styles.sectionTitle}>1. Information We Collect</Text>
+      <Text style={styles.sectionTitle}>1. Introduction</Text>
       <Text style={styles.text}>
-        We collect information you provide directly to us, such as when you create an account, use our services, or contact us. This includes:
-      </Text>
-      <Text style={styles.bulletPoint}>• Name and email address</Text>
-      <Text style={styles.bulletPoint}>• Family connection information</Text>
-      <Text style={styles.bulletPoint}>• Wellness and activity data you choose to share</Text>
-      <Text style={styles.bulletPoint}>• Payment information for transactions</Text>
-      <Text style={styles.bulletPoint}>• Messages and communications within the app</Text>
-
-      <Text style={styles.sectionTitle}>2. How We Use Your Information</Text>
-      <Text style={styles.text}>
-        We use the information we collect to:
-      </Text>
-      <Text style={styles.bulletPoint}>• Provide and maintain our services</Text>
-      <Text style={styles.bulletPoint}>• Connect family members through our platform</Text>
-      <Text style={styles.bulletPoint}>• Process payments and transactions</Text>
-      <Text style={styles.bulletPoint}>• Send you important notifications and updates</Text>
-      <Text style={styles.bulletPoint}>• Improve our services and user experience</Text>
-
-      <Text style={styles.sectionTitle}>3. Information Sharing</Text>
-      <Text style={styles.text}>
-        We do not sell or rent your personal information to third parties. We may share your information only:
-      </Text>
-      <Text style={styles.bulletPoint}>• With family members you've connected with</Text>
-      <Text style={styles.bulletPoint}>• With service providers who help us operate our services</Text>
-      <Text style={styles.bulletPoint}>• When required by law or to protect our rights</Text>
-
-      <Text style={styles.sectionTitle}>4. Data Security</Text>
-      <Text style={styles.text}>
-        We implement appropriate security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the internet is 100% secure.
+        CampusLife ("we," "our," or "the App") respects your privacy. This Privacy Policy explains how we collect, use, store, and share information when you use our mobile application and services.
       </Text>
 
-      <Text style={styles.sectionTitle}>5. Your Rights</Text>
+      <Text style={styles.sectionTitle}>2. Information We Collect</Text>
       <Text style={styles.text}>
-        You have the right to:
+        We collect only the data necessary to provide our services:
       </Text>
-      <Text style={styles.bulletPoint}>• Access and update your personal information</Text>
-      <Text style={styles.bulletPoint}>• Delete your account and associated data</Text>
-      <Text style={styles.bulletPoint}>• Control your notification preferences</Text>
-      <Text style={styles.bulletPoint}>• Request a copy of your data</Text>
+      <Text style={styles.bulletPoint}>Account Information: Name, email, role (parent or student), family association.</Text>
+      <Text style={styles.bulletPoint}>Wellness Data: Mood, sleep, nutrition, exercise, social interaction, academic performance, and other self-reported metrics.</Text>
+      <Text style={styles.bulletPoint}>Device and Usage Data: App usage patterns, crash reports, and analytics to improve performance.</Text>
+
+      <Text style={styles.sectionTitle}>3. How We Use Your Data</Text>
+      <Text style={styles.text}>
+        We use collected data to:
+      </Text>
+      <Text style={styles.bulletPoint}>Enable secure parent-student communication and wellness tracking.</Text>
+      <Text style={styles.bulletPoint}>Provide dashboards and trend analysis for parents.</Text>
+      <Text style={styles.bulletPoint}>Sync wellness and account data across devices.</Text>
+      <Text style={styles.bulletPoint}>Improve app functionality, performance, and user experience.</Text>
+
+      <Text style={styles.sectionTitle}>4. How We Share Your Data</Text>
+      <Text style={styles.bulletPoint}>Parent to Student: Wellness updates are shared only from student to their parent(s).</Text>
+      <Text style={styles.bulletPoint}>No Cross-Family Sharing: Data is never shared with other users outside the immediate parent-student relationship.</Text>
+      <Text style={styles.bulletPoint}>Third-Party Services: We use Firebase and Resend for authentication, database management, and notifications. These providers process data solely to provide services and are bound by strict security agreements.</Text>
+      <Text style={styles.bulletPoint}>Payments: All financial transactions occur outside the app (e.g., via PayPal). The app does not process payment details.</Text>
+
+      <Text style={styles.sectionTitle}>5. Security</Text>
+      <Text style={styles.text}>
+        We employ enterprise-grade security:
+      </Text>
+      <Text style={styles.bulletPoint}>Firebase Authentication and custom claims for account protection.</Text>
+      <Text style={styles.bulletPoint}>Firestore Security Rules to prevent unauthorized access.</Text>
+      <Text style={styles.bulletPoint}>Encryption in transit (TLS) and strict input validation.</Text>
 
       <Text style={styles.sectionTitle}>6. Children's Privacy</Text>
       <Text style={styles.text}>
-        Our service is designed for college students and their families. We do not knowingly collect personal information from children under 13. If you believe we have collected such information, please contact us immediately.
+        CampusLife is intended for college students aged 18 or older. We do not knowingly collect data from minors under 18.
       </Text>
 
-      <Text style={styles.sectionTitle}>7. Changes to This Policy</Text>
+      <Text style={styles.sectionTitle}>7. Data Retention</Text>
       <Text style={styles.text}>
-        We may update this privacy policy from time to time. We will notify you of any changes by posting the new privacy policy in the app and updating the "Last updated" date.
+        We retain your data as long as your account is active or as needed to provide our services. Users can request account deletion via the app or website.
       </Text>
 
-      <Text style={styles.sectionTitle}>8. Contact Us</Text>
+      <Text style={styles.sectionTitle}>8. International Users</Text>
       <Text style={styles.text}>
-        If you have any questions about this privacy policy or our practices, please contact us at:
+        If you use CampusLife outside the United States, your data may be stored in U.S.-based servers. By using the app, you consent to this transfer.
       </Text>
-      <Text style={styles.contactText}>Email: privacy@campuslifeapp.com</Text>
-      <Text style={styles.contactText}>Support: support@campuslifeapp.com</Text>
+
+      <Text style={styles.sectionTitle}>9. Changes to This Policy</Text>
+      <Text style={styles.text}>
+        We may update this Privacy Policy occasionally. The latest version will always be available at https://www.campuslifeapp.com
+      </Text>
 
       <Text style={styles.footer}>
         By using CampusLife, you acknowledge that you have read and understood this privacy policy.
@@ -91,8 +89,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
     fontStyle: 'italic',
+  },
+  website: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    textAlign: 'center',
+    marginBottom: 24,
+    fontWeight: '500',
   },
   sectionTitle: {
     fontSize: 18,

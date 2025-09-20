@@ -35,6 +35,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
@@ -65,6 +66,10 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
 
     if (!acceptedPrivacy) {
       newErrors.privacy = 'You must accept the Privacy Policy to continue';
+    }
+
+    if (!acceptedTerms) {
+      newErrors.terms = 'You must accept the Terms & Conditions to continue';
     }
 
     setErrors(newErrors);
@@ -221,7 +226,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
                 style={styles.eyeButton}
                 onPress={() => setShowPassword(!showPassword)}
               >
-                <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                <Text style={styles.eyeIcon}>{showPassword ? 'Hide' : 'Show'}</Text>
               </TouchableOpacity>
             </View>
             {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
@@ -242,7 +247,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
                 style={styles.eyeButton}
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
               >
-                <Text style={styles.eyeIcon}>{showConfirmPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                <Text style={styles.eyeIcon}>{showConfirmPassword ? 'Hide' : 'Show'}</Text>
               </TouchableOpacity>
             </View>
             {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
@@ -250,7 +255,7 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
 
           {/* Privacy Policy Checkbox */}
           <View style={styles.privacyContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.checkboxContainer}
               onPress={() => setAcceptedPrivacy(!acceptedPrivacy)}
             >
@@ -261,17 +266,40 @@ export const ParentRegisterScreen: React.FC<ParentRegisterScreenProps> = ({ navi
             <View style={styles.privacyTextContainer}>
               <Text style={styles.privacyText}>
                 I agree to the{' '}
-                <Text 
+                <Text
                   style={styles.privacyLink}
                   onPress={() => navigation.navigate('PrivacyPolicy')}
                 >
                   Privacy Policy
                 </Text>
-                {' '}and Terms of Service
               </Text>
             </View>
           </View>
           {errors.privacy && <Text style={styles.errorText}>{errors.privacy}</Text>}
+
+          {/* Terms & Conditions Checkbox */}
+          <View style={styles.privacyContainer}>
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => setAcceptedTerms(!acceptedTerms)}
+            >
+              <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+                {acceptedTerms && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+            </TouchableOpacity>
+            <View style={styles.privacyTextContainer}>
+              <Text style={styles.privacyText}>
+                I agree to the{' '}
+                <Text
+                  style={styles.privacyLink}
+                  onPress={() => navigation.navigate('TermsAndConditions')}
+                >
+                  Terms & Conditions
+                </Text>
+              </Text>
+            </View>
+          </View>
+          {errors.terms && <Text style={styles.errorText}>{errors.terms}</Text>}
 
           <TouchableOpacity 
             style={[styles.createButton, isLoading && styles.createButtonDisabled]}

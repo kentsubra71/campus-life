@@ -128,9 +128,8 @@ export const ReceivedPayments: React.FC = () => {
   if (payments.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>💰 Money Received</Text>
+        <Text style={styles.title}>Money Received</Text>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyEmoji}>💸</Text>
           <Text style={styles.emptyTitle}>No payments yet</Text>
           <Text style={styles.emptyText}>
             When your parents send you money, it will appear here
@@ -143,7 +142,7 @@ export const ReceivedPayments: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>💰 Money Received</Text>
+        <Text style={styles.title}>Money Received</Text>
         <Text style={styles.totalAmount}>
           ${(totalReceived / 100).toFixed(2)} total
         </Text>
